@@ -6,6 +6,7 @@ import {h} from './dom.js';
 import {loadingState,errorState} from './components/panel.js';
 
 const R=React.createElement;
+const AccountRoute=lazy(()=>import('./views/account.jsx').then(m=>({default:m.AccountView})));
 // The adapter isolates existing, tested DOM controls while React owns loading,
 // route scheduling and recoverable rendering boundaries. No duplicated React roots.
 function DomView({render,arg,revision,onCommit}){
@@ -28,6 +29,7 @@ const imports={
   resume:()=>import('./views/resume.js').then(m=>m.renderResume),todo:()=>import('./views/todo.js').then(m=>m.renderTodo),
   boards:()=>import('./views/automations.js').then(m=>m.renderBoards),pipeline:()=>import('./views/automations.js').then(m=>m.renderPipeline),
   outreach:()=>import('./views/outreach.js').then(m=>m.renderOutreach),'linkedin-profile':()=>import('./views/outreach.js').then(m=>m.renderLinkedinProfile),
+  'tenant-overview':()=>import('./views/tenant-overview.js').then(m=>m.renderTenantOverview),
 };
 const ready=new Map();
 const makeRoute=name=>lazy(()=>imports[name]().then(render=>{ready.set(name,render);return {default:props=>R(DomView,{...props,render})};}));
@@ -43,8 +45,9 @@ class RouteBoundary extends Component{
 export function createRouteShell(content){
   const root=createRoot(content);let revision=0;
   return {
-    preload:name=>imports[name]().then(render=>{ready.set(name,render);}),
+    preload:name=>imports[name]?imports[name]().then(render=>{ready.set(name,render);}):Promise.resolve(),
     state:node=>root.render(R(DomView,{render:()=>node,revision:++revision})),
+    account:(page,props)=>root.render(R(QueryClientProvider,{client:queryClient},R(RouteBoundary,{key:page.name,name:page.name,retry:()=>window.location.reload()},R(Suspense,{fallback:R(DomView,{render:()=>loadingState('Opening your account…')})},R(AccountRoute,{key:page.name,page,...props}))))),
     route:(route,onCommit,retry)=>root.render(R(QueryClientProvider,{client:queryClient},
       R(RouteBoundary,{key:route.name,name:route.name,retry},
         R(Suspense,{fallback:R(DomView,{render:()=>loadingState('Opening your workspace…')})},

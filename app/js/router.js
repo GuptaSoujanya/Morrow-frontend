@@ -22,6 +22,15 @@ export const SECTIONS = [
   ["data", "Data hub", "folder"],
   ["outreach", "Recruiter drafts", "send"],
   ["linkedin-profile", "LinkedIn profile", "person"],
+  ["plans", "Plans & billing", "chart"],
+  ["account", "My account", "person"],
+  ["admin", "Administration", "sliders"],
+  ["login", "Sign in", "person"],
+  ["signup", "Create account", "person"],
+  ["forgot", "Forgot password", "person"],
+  ["reset", "Reset password", "person"],
+  ["verify", "Verify email", "person"],
+  ["resend", "Resend verification", "person"],
 ];
 
 const NAMES = new Set(SECTIONS.map(([name]) => name));

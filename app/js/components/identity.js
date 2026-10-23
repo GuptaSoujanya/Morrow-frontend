@@ -1,13 +1,15 @@
 import markUrl from '../../assets/morrow-mark.svg';
 import {h,svg} from '../dom.js';
+import {S} from '../state.js';
 let serial=0;
 export function avatar(index=15,className=''){
   const cell=index%16;
   const position=n=>index>=32?((n+.5)*117.5-50)/3.7:index>=16?((n+.5)*112.5-50)/3.5:n*100/3;
   return h('span',{class:`crew-avatar ${index>=32?'morrow-world':index>=16?'orbit-world':''} ${className}`,'aria-hidden':'true',dataset:{avatar:index},style:{backgroundPosition:`${position(cell%4)}% ${position(Math.floor(cell/4))}%`}});
 }
+export function avatarStorageKey(){return S.user?.id ? 'orbit-avatar:'+S.user.id : 'orbit-avatar';}
 export function workspaceAvatar(){
-  try {const raw=localStorage.getItem('orbit-avatar');const value=Number(raw);return raw!==null&&Number.isInteger(value)&&((value>=0&&value<24)||(value>=32&&value<40))?value:15;}catch{return 15;}
+  try {const raw=localStorage.getItem(avatarStorageKey());const value=Number(raw);return raw!==null&&Number.isInteger(value)&&((value>=0&&value<24)||(value>=32&&value<40))?value:15;}catch{return 15;}
 }
 export function orbitMark(className='orbit-mark'){
   const id='orbit-'+(++serial);

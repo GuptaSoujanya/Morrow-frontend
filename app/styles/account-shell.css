@@ -1,0 +1,6 @@
+/* Account routes share the original dashboard shell and design tokens. */
+.auth-pending #nav,.auth-pending #console-dock,.auth-screen #nav,.auth-screen #console-dock { display:none!important; }
+.auth-screen .shell,.auth-pending .shell { display:block; }
+.auth-screen #content,.auth-pending #content { margin-left:0; width:100%; max-width:none; min-height:100dvh; padding:24px; }
+#console-dock[hidden] { display:none!important; }
+@media(max-width:767px){.auth-screen #content,.auth-pending #content{padding:20px 16px 32px;}}

@@ -1,5 +1,5 @@
 import {h} from '../dom.js';
-import {avatar,workspaceAvatar} from './identity.js';
+import {avatar,workspaceAvatar,avatarStorageKey} from './identity.js';
 import {S,hooks} from '../state.js';
 import {icon} from '../icons.js';
 
@@ -20,7 +20,7 @@ export function openAvatarPicker(){
   dialog.append(h('div',{class:'confirm-body'},h('div',{class:'avatar-picker-heading'},preview,h('div',{},h('h2',{id:'avatar-title',text:'Find your Morrow alter ego'}),h('p',{class:'muted',text:'Your workspace, a little more you.'}))),
     grid,h('p',{class:'small muted',text:'Only changes your avatar in Morrow on this browser. Your platform profile photos stay as they are.'}),feedback,
     h('div',{class:'row end'},h('button',{class:'btn',type:'button',text:'Cancel',onclick:()=>dialog.close()}),h('button',{class:'btn btn-primary',type:'button',text:'Use this avatar',onclick:()=>{
-      try{localStorage.setItem('orbit-avatar',String(selected));}catch{feedback.hidden=false;feedback.textContent='Browser storage is unavailable. Allow local storage, then try again.';return;}
+      try{localStorage.setItem(avatarStorageKey(),String(selected));}catch{feedback.hidden=false;feedback.textContent='Browser storage is unavailable. Allow local storage, then try again.';return;}
       S.pendingFocusKey='change-avatar';dialog.close();hooks.requestRender();
     }}))));
   dialog.addEventListener('close',()=>{dialog.remove();requestAnimationFrame(()=>{(previous?.isConnected?previous:document.getElementById('change-avatar'))?.focus();});});

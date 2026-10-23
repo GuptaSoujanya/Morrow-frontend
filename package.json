@@ -10,12 +10,17 @@
     "dev": "node scripts/start.mjs --dev",
     "serve": "node scripts/start.mjs",
     "test": "playwright test",
+    "test:auth-unit": "node --test tests/account-request-scope.test.mjs tests/firebase-auth.test.mjs tests/access-policy.test.mjs",
+    "test:accounts": "playwright test --config playwright.accounts.config.js",
     "audit": "node scripts/audit.mjs",
     "build:dev": "node scripts/build.mjs --dev",
     "doctor": "react-doctor app/js/route-shell.js --no-score --no-supply-chain --yes --no-parallel"
   },
   "engines": {
     "node": ">=22.19"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.5"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
@@ -28,6 +33,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.5",
+    "firebase": "^13.1.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "yaml": "^2.9.1"

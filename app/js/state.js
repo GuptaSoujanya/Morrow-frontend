@@ -9,7 +9,10 @@ function savedOverviewDays() {
   } catch { return 14; }
 }
 
-export const S = {
+const initialState = () => ({
+  user: null,
+  accountMode: null,
+  legacyAccess: false,
   meta: null,
   status: null,
   course: null,
@@ -18,7 +21,7 @@ export const S = {
   signature: "",
   pendingRender: false,
 
-  forms: {},
+  forms: { naukri:{dry_run:true},external:{dry_run:true},profile:{dry_run:true},boards:{dry_run:true},pipeline:{dry_run:true},linkedin:{mode:'dry-run'},linkedin_profile:{dry_run:true},cold_email:{dry_run:true} },
   previews: {},
   runButtons: {},
 
@@ -33,7 +36,13 @@ export const S = {
   consoleSize: "collapsed",
   revealedSecrets: new Set(),
   loadedFiles: {},
-};
+});
+
+export const S = initialState();
+export function resetAccountState() {
+  for (const key of Object.keys(S)) delete S[key];
+  Object.assign(S, initialState());
+}
 
 export function form(action) {
   return (S.forms[action] = S.forms[action] || {});

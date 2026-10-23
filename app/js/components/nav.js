@@ -2,13 +2,12 @@ import { h } from '../dom.js';
 import { icon } from '../icons.js';
 import { SECTIONS, routeHref } from '../router.js';
 import { S } from '../state.js';
+import { navigationGroups, mobileRoutes, routeLabel } from '../access-policy.js';
 import {avatar,workspaceAvatar,richIcon,brandMark} from './identity.js';
-const groups = [['WORKSPACE', ['overview','bots','pipeline','todo','records']], ['KNOWLEDGE & DATA', ['research','data','analytics','reports','study']], ['PERSONAL', ['files','setup']]];
 const sectionArt={research:25,data:26,pipeline:28,todo:27,reports:29,study:30,setup:31};
-const allGroups = [groups[1],groups[0],groups[2],['Bot controls',['naukri','boards','sites','profile','linkedin','linkedin-profile','outreach','resume']]];
-const primary = ['overview', 'bots', 'todo', 'analytics'];
 function navLink(key, mobile = false) {
-  const [, title, name] = SECTIONS.find(([id]) => id === key);
+  const [, defaultTitle, name] = SECTIONS.find(([id]) => id === key);
+  const title=routeLabel(key,S)||defaultTitle;
   const count = key === 'todo' ? (S.status?.questions.length || 0) + (S.status?.facts.length || 0) : 0;
   const active = S.route.name === key || (key==='bots' && ['naukri','boards','sites','profile','linkedin','resume','outreach','linkedin-profile'].includes(S.route.name));
   return h('a', { class:`nav-item ${active ? 'active' : ''}`, href:routeHref(key), title,
@@ -18,20 +17,25 @@ function navLink(key, mobile = false) {
 function openMore() {
   const dialog=document.getElementById('mobile-nav');
   dialog.replaceChildren(h('div',{class:'mobile-menu'},h('div',{class:'editor-toolbar'},h('h2',{text:'Your workspace'}),h('button',{class:'icon-btn',type:'button','aria-label':'Close navigation',onclick:()=>dialog.close()},icon('x'))),
-    ...allGroups.map(([title,keys])=>h('div',{},h('p',{class:'eyebrow',text:title}),...keys.map(key=>navLink(key,true))))));
-  dialog.showModal();
+    ...navigationGroups(S,{includeBotControls:true}).map(([title,keys])=>h('div',{},h('p',{class:'eyebrow',text:title}),...keys.map(key=>navLink(key,true))))));
+  if(!dialog.open)dialog.showModal();
 }
 export function renderNav() {
   const root=document.getElementById('nav'),previous=root.querySelector('.sidebar-scroll');
+  const groups=navigationGroups(S),primary=mobileRoutes(S);
+  const mobile=document.getElementById('mobile-nav');
+  // Clear old account links immediately during boot, sign-out and account switches.
+  if(!groups.length){root.replaceChildren();delete root.dataset.route;mobile.close();mobile.replaceChildren();return;}
+  if(mobile.open)openMore();else mobile.replaceChildren();
   const scrollTop=previous?.scrollTop||0,changed=root.dataset.route!==S.route.name;
   const focused=document.activeElement?.closest('#nav a')?.getAttribute('href');
   const sections=h('div',{class:'sidebar-scroll',tabIndex:0,'aria-label':'Navigation sections'},...groups.map(([title,keys])=>h('div',{class:'nav-group'},h('p',{class:'nav-group-label',text:title}),...keys.map(key=>navLink(key)))));
   root.replaceChildren(
     h('a',{class:'sidebar-brand',href:'#/overview',title:'Morrow home'},brandMark(),h('span',{},h('strong',{text:'morrow'}),h('small',{text:'YOUR NEXT MOVE.'}))),
-    h('a',{class:'workspace-profile',href:'#/files/profile',title:'Open my profile'},avatar(workspaceAvatar(),'profile-avatar'),h('div',{},h('strong',{text:S.status?.name || 'Your workspace'}),h('span',{text:'Personal workspace'})),icon('chevron-down','icon icon-sm')),
+    h('a',{class:'workspace-profile',href:'#/files/profile',title:'Open my profile'},avatar(workspaceAvatar(),'profile-avatar'),h('div',{},h('strong',{text:S.status?.name || S.user?.name || 'Your workspace'}),h('span',{text:S.user?.role==='admin'?'Administrator':S.user?`${S.user.plan_name} plan`:'Personal workspace'})),icon('chevron-down','icon icon-sm')),
     sections,
-    h('div',{class:'sidebar-foot'},h('span',{class:`status-pin ${S.online ? 'connected' : ''}`}),h('div',{},h('strong',{text:S.online ? 'Workspace connected' : 'Reconnecting…'}),h('p',{text:'Private · on this device'}))),
-    h('div',{class:'mobile-primary'},...primary.map(key=>navLink(key)),h('button',{class:`nav-item ${primary.includes(S.route.name)?'':'active'}`,type:'button','aria-label':'More sections',onclick:openMore},icon('sliders'),h('span',{class:'nav-title',text:'More'}))));
+    h('div',{class:'sidebar-foot'},h('span',{class:`status-pin ${S.online ? 'connected' : ''}`}),h('div',{},h('strong',{text:S.online ? 'Workspace connected' : 'Reconnecting…'}),h('p',{text:S.user?'Private · your account':'Private · on this device'}))),
+    h('div',{class:'mobile-primary',style:{gridTemplateColumns:`repeat(${primary.length+1},minmax(0,1fr))`}},...primary.map(key=>navLink(key)),h('button',{class:`nav-item ${primary.includes(S.route.name)?'':'active'}`,type:'button','aria-label':'More sections',onclick:openMore},icon('sliders'),h('span',{class:'nav-title',text:'More'}))));
   sections.scrollTop=scrollTop;root.dataset.route=S.route.name;
   if(focused&&!changed)[...root.querySelectorAll('a')].find(a=>a.getAttribute('href')===focused)?.focus({preventScroll:true});
   if(changed&&matchMedia('(min-width:768px)').matches){

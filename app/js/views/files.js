@@ -1,5 +1,5 @@
 import { h } from '../dom.js';
-import { api } from '../api.js';
+import { api, accountRequestSignal } from '../api.js';
 import { S, hooks } from '../state.js';
 import { panel, loadingState, errorState } from '../components/panel.js';
 import { confirmDialog } from '../components/dialog.js';
@@ -12,20 +12,28 @@ import {profileForm} from '../components/profile-form.js';
 import { icon } from '../icons.js';
 
 export const FILES = { profile: 'Your profile', answers: 'Screening answers', company_sites: 'Company follow-ups', env: 'Settings' };
-const pending = new Set();
-const failures = new Map();
+let pending = new Set();
+let failures = new Map();
+let fileSession;
+function ensureFileSession(){
+  const signal=accountRequestSignal();
+  if(signal!==fileSession){fileSession=signal;pending=new Set();failures=new Map();}
+}
 
 async function load(name) {
+  ensureFileSession();
   if (pending.has(name)) return;
-  pending.add(name);
-  failures.delete(name);
+  const loads=pending,errors=failures;
+  loads.add(name);
+  errors.delete(name);
   try { const file = await api(`/api/file?name=${name}`); S.loadedFiles[name] = { ...file, draft: file.text }; }
-  catch (error) { failures.set(name, error.message); }
-  finally { pending.delete(name); }
+  catch (error) { if(error.name!=='AbortError')errors.set(name, error.message); }
+  finally { loads.delete(name); }
   if (['files', 'setup'].includes(S.route.name)) hooks.requestRender();
 }
 
 export function fileEditor(name, settings = false) {
+  ensureFileSession();
   const file = S.loadedFiles[name];
   if (!file) {
     if (!failures.has(name)) load(name);
@@ -38,13 +46,14 @@ export function fileEditor(name, settings = false) {
   async function store() {
     if (file.draft === file.text) return;
     if(editor?.validate && !editor.validate())return;
-    if (!(await confirmDialog({ title: `Save ${FILES[name].toLowerCase()}?`, body: 'The next run will use these changes. A backup of the previous file will be kept.', ok: 'Save changes' }))) return;
+    const privateFile=S.accountMode==='accounts'&&name!=='env';
+    if (!(await confirmDialog({ title: `Save ${FILES[name].toLowerCase()}?`, body: privateFile?'Save these changes to your private account. The previous version will be kept.':'The next run will use these changes. A backup of the previous file will be kept.', ok: 'Save changes' }))) return;
     save.disabled = true;save.textContent='Saving…';feedback.hidden=true;
     const text = file.draft;
     try {
-      const reply = await api('/api/file', { name, text, revision: file.revision });
+      const reply = await api(`/api/file?name=${encodeURIComponent(name)}`, { name, text, revision: file.revision });
       file.text = text; file.revision = reply.revision;
-      toast('Changes saved. Previous version backed up.', 'ok');
+      toast(privateFile?'Changes saved to your account.':'Changes saved. Previous version backed up.', 'ok');
       await hooks.refreshStatus();
     } catch (error) { feedback.textContent=`Could not save. ${error.message} Your edits are still here.`;feedback.hidden=false; }
     finally { save.textContent='Save changes';changed(); }
@@ -104,15 +113,16 @@ export function fileEditor(name, settings = false) {
     }
   }
   return h('div', {class:'file-editor'}, h('div', { class: 'panel-foot editor-savebar' }, h('div',{class:'editor-save-meta'},h('span', { class: 'editor-path', text: file.path }),status),save, h('button', { class: 'btn', type: 'button', text: 'Reload file', onclick: async () => {
-      if (file.draft !== file.text && !(await confirmDialog({ title: 'Discard your unsaved changes?', body: 'This loads the latest file from disk.', ok: 'Reload file', tone: 'danger' }))) return;
+      if (file.draft !== file.text && !(await confirmDialog({ title: 'Discard your unsaved changes?', body: 'This loads the latest saved version.', ok: 'Reload file', tone: 'danger' }))) return;
       await load(name);
     } })), editor, feedback);
 }
 
 export function renderFiles(arg) {
-  const name = Object.hasOwn(FILES, arg) ? arg : 'profile';
+  const visibleFiles = S.accountMode === 'accounts' && !S.legacyAccess ? Object.fromEntries(Object.entries(FILES).filter(([key]) => key !== 'env')) : FILES;
+  const name = Object.hasOwn(visibleFiles, arg) ? arg : 'profile';
   return h('div', { class: 'page profile-page' }, h('header', { class: 'page-head' }, h('div', {}, h('p', { class: 'eyebrow', text: 'Your source of truth' }), h('h1', { text: 'My profile & files' }), h('p', { class: 'lead', text: 'Manage the facts, answers and settings your automations use.' }))),
     journeyBanner({image:workspaceAvatar(),eyebrow:'YOUR PERSONAL WORKSPACE',title:S.status.name||'Your profile, your story.',body:'Your saved facts power your crew.',action:avatarPickerButton()}),
-    h('nav', { class: 'file-tabs profile-tiles', 'aria-label': 'Workspace files' }, Object.entries(FILES).map(([key, title]) => h('a', { class: `file-tile ${name === key ? 'is-current' : ''}`, href: `#/files/${key}`, 'aria-current': name === key ? 'page' : null },richIcon(({profile:'person',answers:'check',company_sites:'folder',env:'sliders'})[key]),h('strong',{text:title}),h('span',{text:({profile:'Facts & experience',answers:'Reusable responses',company_sites:'Next steps',env:'Local configuration'})[key]})))),
+    h('nav', { class: 'file-tabs profile-tiles', 'aria-label': 'Workspace files' }, Object.entries(visibleFiles).map(([key, title]) => h('a', { class: `file-tile ${name === key ? 'is-current' : ''}`, href: `#/files/${key}`, 'aria-current': name === key ? 'page' : null },richIcon(({profile:'person',answers:'check',company_sites:'folder',env:'sliders'})[key]),h('strong',{text:title}),h('span',{text:({profile:'Facts & experience',answers:'Reusable responses',company_sites:'Next steps',env:'Local configuration'})[key]})))),
     panel(FILES[name], {sub:name==='profile'?'The facts your crew uses. Edit a field or open the source file for advanced changes.':name==='env'?'Advanced editing · configuration format is preserved':'Your saved workspace file'}, fileEditor(name)));
 }

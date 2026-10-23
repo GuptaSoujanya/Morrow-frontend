@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import hashlib
+import http.client
 import gzip
 import json
 import os
@@ -127,6 +128,72 @@ def bots_status(runner):
 
 
 class DashboardHandler(server.Handler):
+    def account_request(self):
+        """Account APIs and tenant adapters run before legacy file/bot handlers."""
+        if not self.host_ok():
+            self.error(HTTPStatus.FORBIDDEN, "Only this dashboard can use this service.")
+            return True
+        bridge = getattr(self.server, "account_bridge", None)
+        url = urlsplit(self.path)
+        if not bridge:
+            if url.path == "/api/session":
+                self.json({"mode": "local", "user": None, "legacy_access": True})
+                return True
+            return False
+        if url.path.startswith("/api/v1/"):
+            bridge.proxy(self)
+            return True
+        if self.command in ("GET", "HEAD") and (url.path in ("/", "/index.html") or url.path.startswith(("/assets/", "/js/", "/styles/", "/fonts/"))):
+            return False
+        try:
+            from auth_bridge import BackendError
+            user = bridge.identity(self)
+            if not user:
+                self.error(401, "Sign in to your Morrow account first.")
+                return True
+            owner = bridge.is_owner(self, user)
+            if url.path == "/api/session":
+                self.json({"mode": "accounts", "user": user, "legacy_access": owner})
+                return True
+            query = {key: values[-1] for key, values in parse_qs(url.query).items()}
+            required = {"/api/library": "research", "/api/document": "research", "/api/research/learning": "learning", "/api/research/read": "learning"}.get(url.path)
+            if required and user["role"] != "admin" and required not in user.get("modules", []):
+                self.error(403, "Your plan does not include this module.")
+                return True
+            from tenant_api import TenantAPI
+            if owner and url.path == "/api/research/read" and self.command == "POST":
+                # Imported library IDs use account storage. Legacy daily research
+                # keeps its existing local progress file for the explicit owner.
+                # Parse once: dispatch must not consume the request body twice.
+                data = self.body()
+                if str(data.get("id", "")).startswith("artifact/"):
+                    TenantAPI(bridge, self, user).handle("POST", url.path, query, data=data)
+                else:
+                    self.save_research_progress(data)
+                return True
+            core = {"/api/file", "/api/records", "/api/data", "/api/library", "/api/document", "/api/resume-file"}
+            if owner and url.path == "/api/file" and query.get("name") == "env" and self.command in ("GET", "HEAD", "POST"):
+                return False
+            if owner and url.path == "/api/document" and not query.get("id", "").startswith("artifact/"):
+                core.remove("/api/document")
+            if not owner or url.path in core:
+                method = "GET" if self.command == "HEAD" else self.command
+                if TenantAPI(bridge, self, user).handle(method, url.path, query):
+                    return True
+                if url.path in core:
+                    self.error(405, "Method not supported for this workspace endpoint.")
+                    return True
+            if not owner:
+                self.error(403, "This workflow is not connected to your individual workspace yet.")
+                return True
+            return False
+        except server.ApiError as exc:
+            self.error(exc.status, str(exc))
+            return True
+        except (OSError, BackendError, http.client.HTTPException):
+            self.error(503, "The account service is unavailable. Try again shortly.")
+            return True
+
     def send(self, status, body, kind):
         compressed = len(body) > 1024 and 'gzip' in self.headers.get('Accept-Encoding', '') and (kind.startswith('text/') or 'javascript' in kind or 'json' in kind)
         if compressed:
@@ -145,6 +212,8 @@ class DashboardHandler(server.Handler):
             self.wfile.write(body)
 
     def do_GET(self):
+        if self.account_request():
+            return
         if not self.host_ok():
             return self.error(HTTPStatus.FORBIDDEN, "Only this computer can use this dashboard.")
         url = urlsplit(self.path)
@@ -203,19 +272,25 @@ class DashboardHandler(server.Handler):
         except sqlite3.Error:
             self.error(HTTPStatus.SERVICE_UNAVAILABLE, "The application database could not be read. Try again shortly.")
 
-    def do_POST(self):
-        if urlsplit(self.path).path == "/api/research/read":
-            if not self.host_ok() or not self.change_ok():
-                return self.error(HTTPStatus.FORBIDDEN, "Only this site can change progress.")
-            try:
+    def save_research_progress(self, data=None):
+        if not self.host_ok() or not self.change_ok():
+            return self.error(HTTPStatus.FORBIDDEN, "Only this site can change progress.")
+        try:
+            if data is None:
                 data = self.body()
-                return self.json(research_learning.mark(str(data.get('id', '')), data.get('read', True)))
-            except server.ApiError as exc:
-                return self.error(exc.status, str(exc))
-            except ValueError as exc:
-                return self.error(HTTPStatus.BAD_REQUEST, str(exc))
-            except OSError:
-                return self.error(HTTPStatus.INTERNAL_SERVER_ERROR, "Progress could not be saved. Please retry.")
+            return self.json(research_learning.mark(str(data.get('id', '')), data.get('read', True)))
+        except server.ApiError as exc:
+            return self.error(exc.status, str(exc))
+        except ValueError as exc:
+            return self.error(HTTPStatus.BAD_REQUEST, str(exc))
+        except OSError:
+            return self.error(HTTPStatus.INTERNAL_SERVER_ERROR, "Progress could not be saved. Please retry.")
+
+    def do_POST(self):
+        if self.account_request():
+            return
+        if urlsplit(self.path).path == "/api/research/read":
+            return self.save_research_progress()
         if urlsplit(self.path).path != "/api/file":
             return super().do_POST()
         if not self.host_ok() or not self.change_ok():
@@ -246,12 +321,25 @@ class DashboardHandler(server.Handler):
             self.error(HTTPStatus.INTERNAL_SERVER_ERROR, "The file could not be saved. Your draft has been kept.")
 
 
+    def do_PUT(self):
+        if not self.account_request():
+            self.error(404, "Endpoint not found")
+
+    do_PATCH = do_PUT
+    do_DELETE = do_PUT
+
+
 class DashboardServer(server.ControlServer):
-    def __init__(self, port):
+    def __init__(self, port, account_url=None):
         import threading
         super().__init__(port)
         self.RequestHandlerClass = DashboardHandler
         self.file_lock = threading.Lock()
+        self.account_bridge = None
+        self.workspace_owner_email = os.getenv("MORROW_WORKSPACE_OWNER_EMAIL", "")
+        if account_url:
+            from auth_bridge import AccountBridge
+            self.account_bridge = AccountBridge(account_url)
 
 
 def register_actions():
@@ -270,7 +358,7 @@ def main():
     args = parser.parse_args()
     register_actions()
     try:
-        app = DashboardServer(args.port)
+        app = DashboardServer(args.port, os.getenv("MORROW_API_URL", "http://127.0.0.1:8200"))
     except OSError as exc:
         parser.exit(1, f"Cannot start dashboard on port {args.port}: {exc}\n")
     print(f"Job hunt dashboard: http://127.0.0.1:{args.port}", flush=True)

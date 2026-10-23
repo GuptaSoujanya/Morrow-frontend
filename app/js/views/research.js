@@ -56,7 +56,7 @@ function reader(id,query){
       const feedback=h('p',{class:'reading-save-status small muted',role:'status',text:data.read?'Completed · saved in .memory':'Mark complete when you finish. Your progress is saved on this device.'});
       const toggle=h('button',{class:'btn '+(data.read?'':'btn-primary'),type:'button',text:data.read?'Reopen reading':'Mark complete',onclick:async()=>{
         const wanted=!data.read;toggle.disabled=true;toggle.textContent='Saving…';feedback.textContent='Saving your progress…';feedback.classList.remove('field-error');
-        try{await api('/api/research/read',{id,read:wanted});data.read=wanted;feedback.textContent=wanted?'Completed · saved in .memory. Your saved progress is ready in Learning and Progress.':'Reopened · saved in .memory.';}
+        try{await api('/api/research/read',{id,read:wanted});data.read=wanted;feedback.textContent=id.startsWith('artifact/')?(wanted?'Completed · saved to your private account.':'Reopened · saved to your private account.'):(wanted?'Completed · saved in .memory. Your saved progress is ready in Learning and Progress.':'Reopened · saved in .memory.');}
         catch(error){feedback.classList.add('field-error');feedback.textContent=`Could not save. ${error.message} Please try again.`;}
         finally{toggle.disabled=false;toggle.textContent=data.read?'Reopen reading':'Mark complete';toggle.classList.toggle('btn-primary',!data.read);}
       }});
