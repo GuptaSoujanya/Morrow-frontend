@@ -3,3 +3,6 @@ artifacts/
 test-results/
 playwright-report/
 __pycache__/
+dist/
+.pytest_cache/
+.DS_Store
