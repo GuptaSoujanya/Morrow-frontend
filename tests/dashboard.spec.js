@@ -596,29 +596,48 @@ test('workspace avatar picker persists choice without changing platform profiles
 });
 
 test('Activity is compact, keyboard accessible and explains idle and failed runs',async({page})=>{
+  let snapshot = {running:false, next:0, lines:[], last:null};
+  await page.route('**/api/**', route => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const path = new URL(route.request().url()).pathname;
+    const replies = {
+      '/api/session': {mode:'local', legacy_access:true, user:null},
+      '/api/meta': {files:{}, answer_modes:[], linkedin_modes:[]},
+      '/api/status': {name:'Synthetic workspace', run:snapshot, questions:[], facts:[], sites:[], study:{today:0, read:0, total:0}},
+      '/api/course': {today:0, read:0, total:0, modules:[]},
+      '/api/bots': {bots:[], run:snapshot},
+      '/api/run': snapshot,
+      '/api/run/browsers': {runs:[]},
+      '/api/connections': {scope:'main', scopes:[], connections:[]},
+    };
+    return route.fulfill({json:replies[path] || {}});
+  });
   await page.addInitScript(() => { window.EventSource = undefined; });
-  await page.goto('/#/overview');
+  await page.goto('/#/bots');
   await expect(page.getByRole('button',{name:'Copy output',exact:true})).not.toBeVisible();
   await page.getByRole('button',{name:/^Activity/}).click();
-  await expect(page.getByText('A little quiet. A lot of possibility.',{exact:true})).toBeVisible();
-  await expect(page.getByRole('button',{name:'Copy output',exact:true})).toBeDisabled();
+  await expect(page.getByRole('tab',{name:/^Progress/})).toHaveAttribute('aria-selected','true');
+  await expect(page.getByText('No runs yet',{exact:true})).toBeVisible();
+  await expect(page.getByRole('link',{name:'Browse bots',exact:true})).toBeInViewport({ratio:1});
+  await expect(page.getByRole('button',{name:'Copy output',exact:true})).not.toBeVisible();
+  await expect(page.locator('.activity-summary')).toBeHidden();
+  await expect(page.locator('.activity-footer')).toBeHidden();
   await page.screenshot({path:'artifacts/activity-idle-desktop.png',animations:'disabled'});
-  await page.getByRole('button',{name:'Expand output',exact:true}).focus();
+  await page.getByRole('link',{name:'Browse bots',exact:true}).focus();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button',{name:/^Activity/})).toBeFocused();
-  const failed={running:false,seconds:0,last:{label:'Wellfound profile · practice',exit:1,stopped:false,seconds:12,finished:'2026-10-23T00:00:00'},next:2,lines:[[0,'Opening the profile preview…'],[1,'Sign-in required. Review your platform session and try again.']]};
-  await page.route('**/api/status',async route=>{const r=await route.fetch();await route.fulfill({json:{...await r.json(),run:failed}});});
-  await page.route('**/api/run?*',route=>route.fulfill({json:failed}));
+  snapshot={running:false,seconds:0,last:{label:'Wellfound profile · practice',exit:1,stopped:false,seconds:12,finished:'2026-10-23T00:00:00'},next:2,lines:[[0,'Opening the profile preview…'],[1,'Sign-in required. Review your platform session and try again.']]};
   await page.reload();await page.getByRole('button',{name:/^Activity/}).click();
   await expect(page.locator('.activity-state')).toHaveText('Needs attention');
   await page.locator('.activity-details > summary').click();
   await expect(page.getByRole('log',{name:'Run output'})).toContainText('Sign-in required.',{timeout:10000});
+  await expect(page.getByRole('button',{name:'Copy output',exact:true})).toBeEnabled();
   await expect(page.getByRole('button',{name:'Stop',exact:true})).not.toBeVisible();
   await page.setViewportSize({width:375,height:812});
   await expect(page.locator('.console')).toBeInViewport();
   await page.screenshot({path:'artifacts/activity-failed-mobile.png',animations:'disabled'});
   const result=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a', 'wcag21aa','wcag22aa']).analyze();
-  expect(result.violations.map(v=>v.id)).toEqual([]);
+  expect(result.violations.map(v=>({id:v.id, targets:v.nodes.map(node=>node.target)}))).toEqual([]);
 });
 
 test('records pagination is bounded for 100,000 rows and survives refresh and history',async({page})=>{

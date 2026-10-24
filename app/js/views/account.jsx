@@ -4,6 +4,7 @@ import { avatar, workspaceAvatar } from '../components/identity.js';
 import { loadingState } from '../components/panel.js';
 import { accountRequestSignal } from '../api.js';
 import { prepareFirebase, runFirebaseAuth } from '../firebase-auth.js';
+import { openRazorpayCheckout, stripeDestination, waitForBilling } from '../billing-checkout.js';
 import markUrl from '../../assets/morrow-mark.svg';
 import googleMarkUrl from '../../assets/google-g.png';
 
@@ -283,35 +284,110 @@ function Auth({ page, onAuthenticated }) {
 
 function Plans({ user, onRefresh }) {
   const [data, setData] = useState(null), [busy, setBusy] = useState(''), [error, setError] = useState('');
-  const comparison = useRef(null);
+  const [billing, setBilling] = useState(null), [billingError, setBillingError] = useState('');
+  const [billingLoading, setBillingLoading] = useState(true);
+  const [message, setMessage] = useState(''), [confirmCancellation, setConfirmCancellation] = useState(false);
+  const comparison = useRef(null), lifetime = useRef(null), operation = useRef(null);
   const checkout = hashParams().get('checkout');
   const requestedModule = hashParams().get('module');
   const administrator = user.role === 'admin';
+  const managedPlan = !administrator && user.plan_source === 'admin';
   const availableModules = administrator ? Object.keys(MODULE_NAMES) : user.modules || [];
-  const billingAvailable = Boolean(data?.billing_available);
   const subscriptionsAvailable = Boolean(data?.items.some(plan => plan.checkout_available));
-  const hasBilling = Boolean(user.subscription_status && user.subscription_status !== 'none');
-  const hasSubscription = hasBilling && !['canceled', 'incomplete_expired'].includes(user.subscription_status);
-  async function load() { setError(''); try { setData(await request('/plans')); } catch (err) { setError(err.message); } }
-  useEffect(() => { load(); }, []);
+  const subscription = billing?.subscription;
+  const billingProvider = billing?.provider || data?.billing_provider || 'stripe';
+  const periodDate = subscription?.current_period_end ? new Date(typeof subscription.current_period_end === 'number' ? subscription.current_period_end * 1000 : subscription.current_period_end) : null;
+  const periodLabel = periodDate && !Number.isNaN(periodDate.getTime()) ? new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(periodDate) : '';
+  const hasPaidPeriod = Boolean(periodDate?.getTime() > Date.now());
+  const hasSubscription = Boolean(subscription && (!['none', 'creation_failed', 'cancelled', 'canceled', 'completed', 'expired', 'incomplete_expired'].includes(subscription.status) || periodDate?.getTime() > Date.now()));
+  const razorpaySubscription = billingProvider === 'razorpay' && hasSubscription;
+  const checkoutUncertain = ['creating', 'creation_unknown'].includes(subscription?.status);
+  const subscriptionLabel = billingProvider === 'razorpay' && subscription?.status === 'active' && !hasPaidPeriod ? 'Payment confirmation pending' : ({ none: 'No active subscription', creating: 'Preparing checkout', creation_unknown: 'Checkout confirmation pending', creation_failed: 'Checkout could not start', created: 'Awaiting checkout', authenticated: 'Payment confirmation pending', active: 'Active', trialing: 'Trial', pending: 'Payment pending', halted: 'Payment needs attention', paused: 'Paused', cancelled: 'Cancelled', canceled: 'Cancelled', completed: 'Completed', expired: 'Expired', incomplete: 'Awaiting checkout', incomplete_expired: 'Expired', past_due: 'Payment needs attention', unpaid: 'Payment needs attention' }[subscription?.status] || 'Awaiting confirmation');
+  async function load() {
+    const signal = AbortSignal.any([lifetime.current.signal, accountRequestSignal()]);
+    setError(''); setBillingError(''); setBillingLoading(true);
+    await Promise.allSettled([
+      request('/plans', { signal }).then(value => { if (!signal.aborted) setData(value); })
+        .catch(err => { if (!signal.aborted) setError(err.message); }),
+      request('/billing/status', { signal }).then(value => { if (!signal.aborted) setBilling(value); })
+        .catch(err => { if (!signal.aborted) setBillingError(err.message); })
+        .finally(() => { if (!signal.aborted) setBillingLoading(false); }),
+    ]);
+  }
+  useEffect(() => {
+    const controller = new AbortController(); lifetime.current = controller;
+    setData(null); setBilling(null); setBusy(''); setMessage(''); setConfirmCancellation(false);
+    load().then(() => { if (!controller.signal.aborted && checkout === 'success' && !administrator) refresh(); });
+    return () => { controller.abort(new DOMException('The billing page closed.', 'AbortError')); operation.current = null; };
+  }, [user.id]);
   useEffect(() => { if (comparison.current && MODULE_NAMES[requestedModule]) comparison.current.open = true; }, [data, requestedModule]);
-  async function refresh() {
-    setBusy('refresh'); setError('');
-    try { await onRefresh?.(); } catch (err) { setError(err.message); } finally { setBusy(''); }
+  async function run(label, action) {
+    if (operation.current || !lifetime.current) return;
+    const signal = AbortSignal.any([lifetime.current.signal, accountRequestSignal()]);
+    const current = { signal }; operation.current = current;
+    setBusy(label); setError(''); setMessage(''); setBillingError('');
+    try { await action(signal); }
+    catch (err) {
+      if (!signal.aborted) {
+        if (err.code === 'checkout_cancelled') setMessage(err.message);
+        else setError(err.name === 'TimeoutError' ? 'Payment confirmation is taking longer than expected. Refresh billing shortly before trying to pay again.' : err.message);
+        try { const latest = await request('/billing/status', { signal }); signal.throwIfAborted(); setBilling(latest); }
+        catch (statusError) { if (!signal.aborted) setBillingError(statusError.message); }
+      }
+    } finally { if (operation.current === current && !signal.aborted) { operation.current = null; setBusy(''); } }
   }
+  async function confirmPayment(signal, targetPlan) {
+    const bounded = AbortSignal.any([signal, AbortSignal.timeout(45000)]);
+    setMessage('Checking your payment with the billing service. Your access updates after confirmation.');
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const latest = await request('/billing/refresh', { body: {}, signal: bounded });
+      bounded.throwIfAborted(); setBilling(latest);
+      await onRefresh?.(); bounded.throwIfAborted();
+      if (latest.subscription?.cancellation_pending) { setMessage('Cancellation is being confirmed. Refresh billing shortly.'); return; }
+      const paidThrough = latest.subscription?.current_period_end;
+      const paidUntil = paidThrough ? new Date(typeof paidThrough === 'number' ? paidThrough * 1000 : paidThrough).getTime() : 0;
+      const paymentConfirmed = latest.provider !== 'razorpay' || paidUntil > Date.now();
+      if (paymentConfirmed && ['active', 'trialing'].includes(latest.subscription?.status) && (!targetPlan || latest.subscription.plan_slug === targetPlan)) {
+        setMessage('Subscription confirmed. Your account access is up to date.'); return;
+      }
+      if (!targetPlan && checkout !== 'success') { setMessage('Billing status and account access are up to date.'); return; }
+      if (attempt < 4) await waitForBilling(1500, bounded);
+    }
+    setMessage('Your payment is still being confirmed. You can refresh billing shortly; there is no need to pay again.');
+  }
+  const refresh = () => run('refresh', signal => confirmPayment(signal));
   async function checkoutOrPortal(slug) {
-    setBusy(slug); setError('');
-    try {
-      const result = await request(slug === 'portal' ? '/billing/portal' : '/billing/checkout', { body: slug === 'portal' ? {} : { plan: slug } });
-      location.assign(result.url);
-    } catch (err) { setError(err.message); } finally { setBusy(''); }
+    if (billingLoading || ((administrator || managedPlan || subscription?.cancellation_pending) && slug !== 'portal')) return;
+    return run(slug, async signal => {
+      const result = await request(slug === 'portal' ? '/billing/portal' : '/billing/checkout', { body: slug === 'portal' ? {} : { plan: slug }, signal });
+      signal.throwIfAborted();
+      if (result.provider === 'razorpay') {
+        const payment = await openRazorpayCheckout(result, signal); signal.throwIfAborted();
+        setMessage('Payment received by checkout. Confirming it securely before updating your access.');
+        await request('/billing/razorpay/verify', { body: payment, signal }); signal.throwIfAborted();
+        await confirmPayment(signal, slug);
+      } else { location.assign(stripeDestination(result.url)); }
+    });
   }
+  const cancelRenewal = () => {
+    if (billingLoading || !subscription?.can_cancel || subscription.cancellation_pending) return;
+    return run('cancel', async signal => {
+    const latest = await request('/billing/cancel', { body: {}, signal }); signal.throwIfAborted();
+    setBilling(latest); setConfirmCancellation(false); await onRefresh?.(); signal.throwIfAborted();
+    setMessage(latest.subscription?.cancellation_pending ? 'Cancellation is being confirmed. Refresh billing shortly.' : hasPaidPeriod ? 'Cancellation confirmed. Your paid access continues until the end of the current period.' : 'Pending checkout cancelled. Your current workspace access is unchanged.');
+    });
+  };
   return <><PageHead title="Plans & billing" description="Your workspace. The tools that fit you."><a className="btn" href="#/account">My account <Icon name="chevron-right" /></a></PageHead>
     <Notice error>{error}{error && !data && <> <button className="account-text-button" onClick={load}>Try again</button></>}</Notice>
-    {checkout === 'success' && <Notice>Your payment is being confirmed. Access updates after Stripe confirms the subscription. <Button secondary busy={busy === 'refresh'} onClick={refresh}>Refresh access</Button></Notice>}
+    <Notice>{message}</Notice>
+    {checkout === 'success' && !message && <Notice>Your payment is being confirmed. Access updates after the billing service confirms your subscription.</Notice>}
     {checkout === 'cancelled' && <Notice>Checkout was cancelled. Your current plan is unchanged.</Notice>}
-    <section className="account-access-summary" aria-label="Your current access"><span className="account-summary-check"><Icon name="check" /></span><div><strong>{administrator ? 'Administrator · all modules included' : `You’re on ${user.plan_name || 'Free'}`}</strong><span>{administrator ? 'Your role already includes every plan. No purchase needed.' : `${availableModules.length} workspace modules included. Upgrade when you need more.`}</span></div><a href="#/account" className="account-summary-link">View my access <Icon name="chevron-right" /></a></section>
+    {billingError && <Notice error>Billing status could not load. {billingError} <button className="account-text-button" disabled={Boolean(busy) || billingLoading} onClick={load}>Retry billing</button></Notice>}
+    <section className="account-access-summary" aria-label="Your current access"><span className="account-summary-check"><Icon name="check" /></span><div><strong>{administrator ? 'Administrator · all modules included' : `You’re on ${user.plan_name || 'Free'}`}</strong><span>{administrator ? 'Your role includes every module. To test a payment, use a regular account after payment setup is complete.' : `${availableModules.length} workspace modules included. Upgrade when you need more.`}</span></div><a href="#/account" className="account-summary-link">View my access <Icon name="chevron-right" /></a></section>
+    {managedPlan && <p className="account-checkout-note"><Icon name="info" />Your plan is managed by an administrator. Contact them before purchasing.</p>}
     <div className="account-section-heading"><div><h2>A little support. More possibilities.</h2><p>One account, with room to grow.</p></div><span className="account-billing-period"><span />Billed monthly</span></div>
+    {subscriptionsAvailable && <p className="account-payment-methods"><Icon name="lock" /> Secure monthly payments{data?.payment_methods?.length ? ` · ${data.payment_methods.join(' · ')}` : ''}</p>}
+    {razorpaySubscription && !subscription.can_resume_checkout && <p className="account-checkout-note"><Icon name="info" />{checkoutUncertain ? 'Your checkout request is being confirmed. Refresh billing before starting another payment.' : hasPaidPeriod ? 'To change plans, cancel renewal below and choose another plan after your current paid period ends.' : 'Your subscription request is awaiting confirmation. Refresh billing, or cancel it below before choosing another plan.'}</p>}
     {data && MODULE_NAMES[requestedModule] && <div className="account-plan-focus"><Icon name={MODULE_DETAILS[requestedModule].icon} /><p>Looking for <strong>{MODULE_NAMES[requestedModule]}</strong>? {data.items.some(plan => plan.modules.includes(requestedModule)) ? 'Plans with this module are marked below.' : 'This module is not currently offered in a paid plan.'}</p></div>}
     {!data && !error && <Loading label="Loading plans…" />}
     <div className="account-plan-grid">{data?.items.map((plan, index) => {
@@ -320,20 +396,35 @@ function Plans({ user, onRefresh }) {
       const includesPrevious = previous && previous.modules.every(module => plan.modules.includes(module));
       const addedModules = includesPrevious ? plan.modules.filter(module => !previous.modules.includes(module)) : plan.modules;
       const matches = Boolean(MODULE_NAMES[requestedModule] && plan.modules.includes(requestedModule));
+      const resume = razorpaySubscription && subscription.can_resume_checkout && !subscription.cancellation_pending && subscription.plan_slug === plan.slug;
+      const planChangeBlocked = razorpaySubscription && !resume;
+      const portal = billingProvider === 'stripe' && hasSubscription;
       return <article className={`panel account-plan ${current ? 'is-current' : ''} ${matches ? 'includes-requested-module' : ''}`} data-tone={['mint', 'lavender', 'peach'][index % 3]} key={plan.slug}>
         <div className="account-plan-top"><div><span className="account-plan-count">{plan.modules.length} WORKSPACE MODULES</span><h2>{plan.name}</h2></div><Avatar index={[33, 32, 39][index % 3]} className="account-plan-avatar" /></div>
         <p className="account-price"><Money plan={plan} /><span>/ month</span></p>
         <p className="account-plan-description">{plan.description}</p>
         <div className="account-plan-inclusions"><p>{includesPrevious && addedModules.length ? `Everything in ${previous.name}, plus` : plan.monthly_amount === 0 ? 'Your workspace essentials' : 'Included modules'}</p><ul className="account-plan-features">{(addedModules.length ? addedModules : plan.modules).map(module => <li key={module}><Icon name="check" />{MODULE_NAMES[module] || module}</li>)}</ul></div>
         {matches && <p className="account-plan-match"><Icon name="check" /> Includes {MODULE_NAMES[requestedModule]}</p>}
-        <Button secondary={current || administrator || index !== 1} busy={busy === plan.slug} disabled={Boolean(busy) || administrator || current || plan.monthly_amount === 0 || !plan.checkout_available}
-          onClick={() => checkoutOrPortal(hasSubscription ? 'portal' : plan.slug)}>{administrator ? 'Included in your access' : current ? <><Icon name="check" />Your current plan</> : plan.monthly_amount === 0 ? 'Free essentials' : !plan.checkout_available ? 'Not available yet' : hasSubscription ? 'Change plan in billing' : `Choose ${plan.name}`}{!administrator && !current && plan.checkout_available && <Icon name="arrow-up-right" />}</Button>
+        <Button secondary={current || administrator || index !== 1} busy={busy === plan.slug} disabled={Boolean(busy) || billingLoading || administrator || managedPlan || subscription?.cancellation_pending || current || plan.monthly_amount === 0 || !billing || Boolean(billingError) || planChangeBlocked || (portal ? !billing.configured : !plan.checkout_available)}
+          onClick={() => checkoutOrPortal(portal ? 'portal' : plan.slug)}>{administrator ? 'Included in your access' : current ? <><Icon name="check" />Your current plan</> : plan.monthly_amount === 0 ? 'Free essentials' : managedPlan ? 'Managed by administrator' : planChangeBlocked ? checkoutUncertain ? 'Confirming checkout' : 'Manage current subscription' : resume ? 'Finish checkout' : portal ? 'Change plan in billing' : !plan.checkout_available ? 'Not available yet' : `Choose ${plan.name}`}{!administrator && !managedPlan && !current && !planChangeBlocked && (portal || plan.checkout_available) && <Icon name="arrow-up-right" />}</Button>
       </article>;
     })}</div>
-    {data && !administrator && !subscriptionsAvailable && <p className="account-checkout-note"><Icon name="alert-triangle" /> Paid subscriptions aren’t open yet. Your current access remains available.</p>}
+    {data && !administrator && !subscriptionsAvailable && <p className="account-checkout-note"><Icon name="alert-triangle" />Payments aren’t set up yet. The app owner needs to finish {data.billing_provider === 'razorpay' ? 'Razorpay' : 'Stripe'} setup before you can subscribe. Your current access remains available.</p>}
     {data?.items.length > 0 && <details className="account-comparison" ref={comparison}><summary><span className="account-comparison-symbol"><Icon name="grid" /></span><span><strong>Compare every module</strong><small>See exactly what’s included in each plan.</small></span><span className="account-comparison-toggle"><span>View comparison</span><Icon name="chevron-down" /></span></summary><div className="account-comparison-body"><p className="account-comparison-hint"><Icon name="chevron-right" />Swipe to compare all plans</p><div className="account-table-scroll" role="region" aria-label="Compare plan modules" tabIndex={0}><table className="account-table account-comparison-table"><thead><tr><th scope="col">Workspace module</th>{data.items.map(plan => <th key={plan.slug} scope="col">{plan.name}</th>)}</tr></thead><tbody>{Object.entries(MODULE_NAMES).map(([module, label]) => <tr key={module} className={requestedModule === module ? 'is-highlighted' : ''}><th scope="row">{label}</th>{data.items.map(plan => <td key={plan.slug}>{plan.modules.includes(module) ? <span className="account-comparison-value is-included"><Icon name="check" /><span className="visually-hidden">Included</span></span> : <span className="account-comparison-value"><span aria-hidden="true">—</span><span className="visually-hidden">Not included</span></span>}</td>)}</tr>)}</tbody></table></div></div></details>}
     <div className="account-plan-notes"><section className="account-byop"><Avatar index={35} className="account-byop-avatar" /><div><h2 className="panel-title">Your AI subscription stays yours.</h2><p className="panel-sub">Bring your own Claude or Kiro subscription. Morrow plans cover workspace tools, not AI credits.</p><a className="account-inline-link" href="#/account">Set your AI preference <Icon name="arrow-up-right" /></a></div></section>
-      <section className="account-billing-footer"><div><h2 className="panel-title">Your billing</h2><p className="panel-sub">{hasBilling ? 'Invoices, payment details, and subscriptions.' : 'No paid subscription on this account.'}</p></div><Button secondary busy={busy === 'portal'} disabled={Boolean(busy) || !hasBilling || !billingAvailable} onClick={() => checkoutOrPortal('portal')}>Manage billing <Icon name="external" /></Button></section></div>
+      <section className="account-billing-footer account-subscription" aria-label="Subscription and payments"><div><h2 className="panel-title">Your billing</h2>
+        {!billing && !billingError ? <p className="panel-sub" role="status">Checking your subscription…</p> : <p className="panel-sub">{subscription ? <><strong>{subscription.plan_name || 'Your subscription'}</strong> · {subscriptionLabel}{periodLabel && <><br />{subscription.cancel_at_period_end ? 'Access until ' : 'Current period ends '}{periodLabel}</>}</> : 'No paid subscription on this account.'}</p>}
+        {subscription?.cancel_at_period_end && !subscription.cancellation_pending && <p className="account-billing-detail">Renewal is cancelled. Your paid access continues until this period ends.</p>}
+        {subscription?.cancellation_pending && <p className="account-billing-detail" role="status">Cancellation is being confirmed. Refresh billing shortly.</p>}
+        {billing && !billing.configured && subscription && <p className="account-billing-detail">Billing is temporarily unavailable. Your current access is unchanged.</p>}
+      </div><div className="account-billing-actions">
+        {billingProvider === 'stripe' && subscription && <Button secondary busy={busy === 'portal'} disabled={Boolean(busy) || billingLoading || !billing?.configured} onClick={() => checkoutOrPortal('portal')}>Manage billing <Icon name="external" /></Button>}
+        {billingProvider === 'razorpay' && subscription?.can_resume_checkout && <Button secondary busy={busy === subscription.plan_slug} disabled={Boolean(busy) || billingLoading || !billing?.configured || administrator || managedPlan || subscription.cancellation_pending} onClick={() => checkoutOrPortal(subscription.plan_slug)}>Finish checkout <Icon name="chevron-right" /></Button>}
+        {billingProvider === 'razorpay' && subscription?.can_cancel && (!confirmCancellation || subscription.cancellation_pending) && <Button secondary disabled={Boolean(busy) || billingLoading || !billing?.configured || subscription.cancellation_pending} onClick={() => setConfirmCancellation(true)}>{hasPaidPeriod ? 'Cancel renewal' : 'Cancel checkout'}</Button>}
+        <Button secondary busy={busy === 'refresh'} disabled={Boolean(busy) || billingLoading || !billing?.configured} onClick={refresh}>Refresh billing <Icon name="refresh" /></Button>
+      </div>
+      {confirmCancellation && !subscription?.cancellation_pending && <div className="account-billing-confirm" role="group" aria-label="Confirm subscription cancellation"><strong>{hasPaidPeriod ? 'Cancel automatic renewal?' : 'Cancel this checkout?'}</strong><p>{hasPaidPeriod ? `Your paid access continues until ${periodLabel}. You won’t be charged for the next renewal.` : 'This cancels the pending subscription request. Your current workspace access stays available.'}</p><div className="account-actions"><Button secondary disabled={Boolean(busy)} onClick={() => setConfirmCancellation(false)}>{hasPaidPeriod ? 'Keep subscription' : 'Keep checkout'}</Button><Button busy={busy === 'cancel'} disabled={Boolean(busy)} onClick={cancelRenewal}>Confirm cancellation</Button></div></div>}
+      </section></div>
     <p className="account-footnote account-availability-note"><Icon name="info" />Automated workflows need a personal connection. These connections are not available yet for new workspaces.</p>
   </>;
 }
@@ -386,19 +477,19 @@ function Inspection({ data, busy, onClose, onMore, onDownload }) {
   </section>;
 }
 
-function PlanEditor({ plans, reason, disabled, onError, onSaved }) {
+function PlanEditor({ plans, billingProvider, reason, disabled, onError, onSaved }) {
   const [busy, setBusy] = useState('');
   async function save(event, plan) {
     event.preventDefault(); setBusy(plan.slug); onError('');
     const form = new FormData(event.currentTarget);
     try {
       await adminRequest(`/plans/${plan.slug}`, reason, {
-        name: form.get('name'), description: form.get('description'), modules: form.getAll('modules'), stripe_price_id: form.get('stripe_price_id') || null,
+        name: form.get('name'), description: form.get('description'), modules: form.getAll('modules'), stripe_price_id: form.get('stripe_price_id') || null, razorpay_plan_id: form.get('razorpay_plan_id') || null,
       }, 'PUT');
       await onSaved('Plan updated. New module permissions apply on the next request.');
     } catch (err) { onError(err.message); } finally { setBusy(''); }
   }
-  return <section className="panel"><PanelHead title="Plans & module access" description="Name each plan, choose its modules, and connect its monthly Stripe price." />
+  return <section className="panel"><PanelHead title="Plans & module access" description={`Name each plan, choose its modules, and connect monthly billing. ${billingProvider === 'razorpay' ? 'Razorpay handles new subscriptions.' : 'Stripe handles new subscriptions.'}`} />
     <div className="account-admin-plans">{plans.map(plan => <form key={plan.slug} onSubmit={event => save(event, plan)}><fieldset className="account-fieldset" disabled={Boolean(busy) || disabled}>
       <legend className="account-plan-legend">{plan.name} <span><Money plan={plan} /> / month</span></legend>
       <Field label="Plan name" id={'account-plan-name-' + plan.slug} name="name" defaultValue={plan.name} maxLength={50} required />
@@ -407,6 +498,7 @@ function PlanEditor({ plans, reason, disabled, onError, onSaved }) {
         <input type="checkbox" name="modules" value={key} defaultChecked={plan.modules.includes(key)} disabled={CORE_MODULES.includes(key)} />{name}{CORE_MODULES.includes(key) && <><input type="hidden" name="modules" value={key} /><span>Core</span></>}
       </label>)}</fieldset>
       <Field label="Stripe monthly price ID" id={'account-price-' + plan.slug} name="stripe_price_id" defaultValue={plan.stripe_price_id || ''} placeholder="price_…" hint="The Stripe price must match this plan’s amount and currency." />
+      <Field label="Razorpay monthly plan ID" id={'account-razorpay-plan-' + plan.slug} name="razorpay_plan_id" defaultValue={plan.razorpay_plan_id || ''} placeholder="plan_…" hint="Use a monthly INR plan with this exact amount. Keep test and live plan IDs separate." />
       <Button secondary busy={busy === plan.slug} type="submit">Save {plan.name}</Button>
     </fieldset></form>)}</div>
   </section>;
@@ -414,6 +506,7 @@ function PlanEditor({ plans, reason, disabled, onError, onSaved }) {
 
 function Admin({ onRefresh }) {
   const [items, setItems] = useState(null), [plans, setPlans] = useState([]), [audit, setAudit] = useState([]);
+  const [billingProvider, setBillingProvider] = useState('stripe');
   const [reason, setReason] = useState(''), [error, setError] = useState(''), [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false), [selected, setSelected] = useState(null), [inspection, setInspection] = useState(null);
   const [hasMoreUsers, setHasMoreUsers] = useState(false), [hasMoreAudit, setHasMoreAudit] = useState(false);
@@ -423,7 +516,7 @@ function Admin({ onRefresh }) {
     setBusy(true); setError('');
     try {
       const results = await Promise.all([adminRequest('/users', reason), adminRequest('/plans', reason)]);
-      setItems(results[0].items); setHasMoreUsers(results[0].items.length === 50); setPlans(results[1].items);
+      setItems(results[0].items); setHasMoreUsers(results[0].items.length === 50); setPlans(results[1].items); setBillingProvider(results[1].billing_provider || 'stripe');
       const events = await adminRequest('/audit-events', reason); setAudit(events.items); setHasMoreAudit(events.items.length === 50);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   }
@@ -487,10 +580,10 @@ function Admin({ onRefresh }) {
       <label className="field"><span className="field-label">Role</span><select className="input select-control" name="role" defaultValue={selected.role}><option value="user">User</option><option value="admin">Administrator</option></select></label>
       <label className="field"><span className="field-label">Plan</span><select className="input select-control" name="plan" defaultValue={selected.plan_slug}>{plans.map(plan => <option key={plan.slug} value={plan.slug}>{plan.name}</option>)}</select></label>
       <label className="field"><span className="field-label">Account status</span><select className="input select-control" name="active" defaultValue={String(selected.active)}><option value="true">Active</option><option value="false">Disabled</option></select></label>
-    </div><p className="account-footnote">Administrator plan assignments override subscription access. Changing access does not cancel billing in Stripe.</p><div className="account-actions"><Button busy={busy} type="submit">Save access</Button><Button secondary type="button" onClick={() => setSelected(null)}>Cancel</Button></div></fieldset></form>}
+    </div><p className="account-footnote">Administrator plan assignments override subscription access. Changing access does not cancel a paid subscription.</p><div className="account-actions"><Button busy={busy} type="submit">Save access</Button><Button secondary type="button" onClick={() => setSelected(null)}>Cancel</Button></div></fieldset></form>}
     {inspection && <Inspection data={inspection} busy={locked} onClose={() => setInspection(null)} onMore={moreInspection} onDownload={download} />}
-    {items && <PlanEditor plans={plans} reason={reason} disabled={locked} onError={setError} onSaved={async text => {
-      setMessage(text); setPlans((await adminRequest('/plans', reason)).items); await onRefresh?.();
+    {items && <PlanEditor plans={plans} billingProvider={billingProvider} reason={reason} disabled={locked} onError={setError} onSaved={async text => {
+      const updated = await adminRequest('/plans', reason); setMessage(text); setPlans(updated.items); setBillingProvider(updated.billing_provider || 'stripe'); await onRefresh?.();
     }} />}
     {items && <section className="panel"><PanelHead title="Audit trail" description="Account reads, data access, and permission changes." /><div className="account-table-scroll" role="region" aria-label="Administrator audit log" tabIndex={0}><table className="account-table"><thead><tr><th>Action</th><th>Reason</th><th>Time</th></tr></thead><tbody>{audit.map(item => <tr key={item.id}><td>{item.action}</td><td>{item.reason}</td><td><time dateTime={item.created_at}>{new Date(item.created_at).toLocaleString()}</time></td></tr>)}</tbody></table></div>{!audit.length && <p className="panel-empty">No audit events recorded.</p>}{hasMoreAudit && <div className="account-pagination"><Button secondary busy={busy} disabled={locked} onClick={() => more('audit')}>Load more audit events</Button></div>}</section>}
   </>;

@@ -1,4 +1,6 @@
-/* Active agents remain visible in Activity; screenshots stay in the chosen preview. */
+/* Active agent counts and the separate manual sign-in browser controls. */
+.console.activity-console { display: flex; flex-direction: column; }
+.activity-console .console-body:not([hidden]) { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .activity-agent-section { flex: none; padding: 12px 16px 0; }
 .activity-agent-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .activity-agent-heading h3 { margin: 0; color: var(--text-900); font-size: 12px; font-weight: 600; }
@@ -7,62 +9,63 @@
 .activity-agent-row { padding: 10px; margin-bottom: 6px; border: 1px solid #ffffff14; border-radius: 10px; background: #ffffff03; }
 .activity-agent-row[data-selected="true"] { border-color: #b9a5ff66; background: #b9a5ff09; }
 .activity-agent-row-head { display: flex; justify-content: space-between; gap: 10px; }
-.activity-agent-row strong { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
-.activity-agent-run-state { flex: none; color: #95d6b5; font-size: 10px; line-height: 1.6; font-variant-numeric: tabular-nums; }
+.activity-agent-row strong { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.activity-agent-run-state { flex: none; color: #95d6b5; font-size: 11px; line-height: 1.6; font-variant-numeric: tabular-nums; }
 .activity-agent-row[data-stopping="true"] .activity-agent-run-state { color: #dfb878; }
-.activity-agent-browser-state { margin: 5px 0 0; color: var(--text-400); font-size: 10px; line-height: 1.5; }
+.activity-agent-row[data-uncertain="true"] .activity-agent-run-state { color: #dfb878; }
+.activity-console[data-state="unknown"] .activity-state { color: #dfb878; background: #dfb87818; }
+.activity-agent-browser-state { margin: 5px 0 0; color: var(--text-400); font-size: 11px; line-height: 1.5; }
 .activity-agent-row-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 7px; }
 .activity-agent-row-actions .btn { min-height: 32px; padding: 5px 9px; font-size: 11px; }
 .activity-agent-empty { margin: 7px 0 10px; color: var(--text-400); font-size: 11px; }
 .activity-console .activity-log-wrap { min-height: 105px; }
-.browser-catalog { width: min(1000px, calc(100vw - 48px)); height: min(820px, calc(100dvh - 48px)); max-width: none; max-height: none; margin: auto; padding: 0; border: 1px solid #ffffff26; border-radius: 22px; color: var(--text-900); background: #20222b; box-shadow: 0 30px 100px #0009; overflow: hidden; }
-.browser-catalog[open] { display: flex; flex-direction: column; }
-.browser-catalog::backdrop { background: #08090dc7; }
-.browser-catalog-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding: 24px 24px 0; flex: none; }
-.browser-catalog-header > div { min-width: 0; }
-.browser-catalog-eyebrow { color: #c5b5fa; font-size: 10px; letter-spacing: .14em; font-weight: 600; }
-.browser-catalog-header h2 { margin: 6px 0; font-size: 27px; letter-spacing: -.6px; }
-.browser-catalog-header .btn { min-height: 44px; flex: none; }
-.browser-catalog-summary { margin: 0; color: var(--text-600); font-size: 12px; line-height: 1.6; }
-.browser-catalog-description { margin: 16px 24px 0; color: var(--text-400); font-size: 12px; line-height: 1.6; flex: none; }
-.browser-catalog-status { margin: 12px 24px 0; padding-bottom: 14px; border-bottom: 1px solid #ffffff12; color: var(--text-400); font-size: 11px; line-height: 1.5; flex: none; }
-.browser-catalog-status[data-state="delayed"] { color: #dfb878; }
-.browser-catalog-scroll { flex: 1 1 auto; min-height: 0; padding: 18px 24px 24px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-.browser-catalog-agent { margin-bottom: 24px; }
-.browser-catalog-agent:last-child { margin-bottom: 0; }
-.browser-catalog-agent-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-.browser-catalog-agent-head h3 { margin: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
-.browser-catalog-agent-state { flex: none; color: var(--text-400); font-size: 11px; font-variant-numeric: tabular-nums; }
-.browser-catalog-agent-message { margin: 0 0 12px; color: var(--text-400); font-size: 12px; line-height: 1.6; }
-.browser-catalog-browser-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.browser-catalog-browser { min-width: 0; border: 1px solid #ffffff1c; border-radius: 13px; background: #17191f; padding: 15px; }
-.browser-catalog-browser-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.browser-catalog-browser-head h4 { margin: 0; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
-.browser-catalog-browser-state { flex: none; font-size: 10px; color: var(--text-400); line-height: 1.6; }
-.browser-catalog-browser[data-state="ready"] .browser-catalog-browser-state { color: #95d6b5; }
-.browser-catalog-sites, .browser-catalog-browser-message { margin: 8px 0 0; color: var(--text-400); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
-.browser-catalog-browser-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .browser-catalog-tabs { flex: 1; min-width: 0; width: 100%; min-height: 44px; border: 1px solid #ffffff26; border-radius: 9px; padding: 7px 26px 7px 9px; color: var(--text-900); background: #292c36; color-scheme: dark; font: inherit; font-size: 12px; text-overflow: ellipsis; }
-.browser-catalog-browser-actions .btn { min-height: 44px; font-size: 12px; }
-.browser-catalog-empty { padding: 40px 20px; text-align: center; }
-.browser-catalog-empty h3 { margin: 0 0 10px; font-size: 18px; }
-.browser-catalog-empty p { max-width: 360px; margin: auto; color: var(--text-400); font-size: 13px; line-height: 1.7; }
+.signin-browsers { min-width: 0; }
+.signin-browsers-heading, .signin-browser-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.signin-browsers-heading h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.signin-browsers-heading .btn { min-height: 36px; }
+.signin-browser-count { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; margin-left: 4px; border-radius: 6px; background: #b9a5ff16; color: #d6caff; font-size: 11px; }
+.signin-browsers-status, .signin-browsers-empty, .signin-browsers-help { margin: 9px 0; color: var(--text-400); font-size: 12px; line-height: 1.6; }
+.signin-browsers-status[data-state="error"] { color: #dfb878; }
+.signin-browser-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.signin-browser-card { min-width: 0; border: 1px solid #ffffff1c; border-radius: 13px; padding: 14px; background: #17191f; }
+.signin-browser-heading { align-items: flex-start; margin-bottom: 10px; }
+.signin-browser-heading h4 { margin: 0; font-size: 13px; line-height: 1.5; font-weight: 600; overflow-wrap: anywhere; }
+.signin-browser-state { flex: none; font-size: 11px; line-height: 1.6; color: #95d6b5; }
+.signin-browser-detail, .signin-browser-account { margin: 9px 0 0; color: var(--text-600); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.signin-browser-account { color: var(--text-400); }
+.signin-browser-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.signin-browser-actions .btn { min-height: 40px; font-size: 12px; }
+.signin-browser-card .field-error { margin-top: 9px; }
+.signin-browsers-help .text-link { display: inline; }
+.signin-browsers-compact { flex: none; padding: 12px 16px 0; }
+.signin-browsers-compact .signin-browser-list { grid-template-columns: 1fr; max-height: min(30dvh, 260px); overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.signin-browsers-compact .signin-browser-card { padding: 10px; border-radius: 10px; }
+.signin-browsers-compact .signin-browsers-heading h3 { font-size: 12px; }
+.signin-browsers-compact .signin-browsers-status, .signin-browsers-compact .signin-browsers-help, .signin-browsers-compact .signin-browsers-empty { font-size: 11px; }
+.signin-browsers-compact .signin-browser-detail, .signin-browsers-compact .signin-browser-account { font-size: 11px; }
 @media (max-width: 767px) {
   .activity-agent-section { padding: 10px 12px 0; }
   .activity-agent-roster { max-height: min(23dvh, 170px); }
   .activity-agent-heading .btn, .activity-agent-row-actions .btn { min-height: 44px; }
   .activity-agent-row-head { gap: 6px; }
-  .activity-agent-run-state { font-size: 9px; }
-  .browser-catalog { width: calc(100vw - 20px); height: calc(100dvh - 24px); border-radius: 17px; }
-  .browser-catalog-header { padding: 16px 14px 0; gap: 10px; }
-  .browser-catalog-header h2 { font-size: 23px; }
-  .browser-catalog-description { margin: 12px 14px 0; font-size: 11px; }
-  .browser-catalog-status { margin: 10px 14px 0; }
-  .browser-catalog-scroll { padding: 14px; }
-  .browser-catalog-browser-list { grid-template-columns: 1fr; }
-  .browser-catalog-agent-head { align-items: flex-start; }
-  .browser-catalog-agent-head h3 { font-size: 14px; }
-  .browser-catalog-agent-state { font-size: 10px; }
+  .activity-agent-run-state { font-size: 10px; }
   .browser-catalog-tabs { font-size: 16px; }
-  .browser-catalog-browser { padding: 12px; }
+  .signin-browsers-compact { padding: 10px 12px 0; }
+  .signin-browser-list { grid-template-columns: 1fr; }
+  .signin-browser-actions .btn, .signin-browsers-heading .btn { min-height: 44px; }
 }
+@media (max-height: 760px) {
+  .activity-console .activity-log-wrap { flex: none; height: 180px; }
+}
+
+.activity-browser-total, .activity-selected-browsers { color: var(--text-400); font-size: 11px; line-height: 1.5; }
+.activity-browser-total { text-align: right; }
+.activity-browser-overview-count { display: block; margin-top: 10px; color: var(--text-900); font-size: 18px; font-weight: 600; }
+.activity-selected-browsers { max-width: 145px; text-align: right; }
+
+/* Manual account choices follow the Activity sheet's light surface. */
+.activity-console .signin-browsers .browser-catalog-tabs { border-color: #d8cde2; background: #fff; color: #3d3146; color-scheme: light; }
+
+.activity-launch-control { position: relative; flex: none; width: 60px; height: 60px; }
+.activity-launch-control > .activity-launch-badge { pointer-events: none; }

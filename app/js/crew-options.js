@@ -2,7 +2,7 @@
 import {browserRunOptions} from './browser-mode.js';
 const pick = (values, keys) => Object.fromEntries(keys.filter(key => values[key] !== undefined).map(key => [key, values[key]]));
 
-export function crewRunSpec(bot, forms = {}, browserMode = 'background') {
+export function crewRunSpec(bot, forms = {}, browserMode = 'visible') {
   const action = bot.action || bot.id;
   const values = forms[action] || {};
   let options = {dry_run: false}, effect = '', reason = '', label = 'Run now';

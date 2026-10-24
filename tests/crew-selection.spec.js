@@ -114,22 +114,33 @@ const panel = page => page.getByRole('region', { name: 'Run agents together', ex
 const choose = (page, name) => page.getByRole('checkbox', { name: `Select ${name}`, exact: true }).check();
 const runSelected = page => panel(page).getByRole('button', { name: 'Run selected', exact: true });
 const crewBrowser = page => page.getByRole('combobox', { name: 'Browser for crew runs', exact: true });
-const browserLabels = { background: 'Background — no browser window', visible: 'Visible — watch Chrome' };
-async function selectBrowser(page, selector, value) {
-  if (await selector.evaluate(element => element.tagName === 'SELECT')) await selector.selectOption(value);
-  else {
-    await selector.click();
-    await page.getByRole('option', { name: browserLabels[value], exact: true }).click();
-  }
-}
-async function expectBrowser(selector, value) {
-  await expect.poll(() => selector.evaluate(element => element.tagName === 'SELECT' ? element.value : element.dataset.value)).toBe(value);
-}
+const backgroundGuidance = 'Chrome opens normally. Turn on Run in background to hide browser windows for the next run. Logs and progress stay in Activity.';
+const backgroundToggle = page => page.getByRole('checkbox', { name: 'Run in background', exact: true });
 const updateRequired = 'This dashboard service needs an update before it can run agents together. Restart the dashboard service, then try again. Your selection is saved.';
+
+test('Naukri, Hirist and Instahyre launch together with separate site selections', async ({page}) => {
+  const state = await workspace(page);
+  for (const name of ['Naukri', 'Hirist', 'Instahyre']) await choose(page, name);
+  await expect(page.getByText(/Each site has its own browser session/)).toBeVisible();
+  await runSelected(page).click();
+  const dialog = page.getByRole('dialog', {name: 'Start 3 agents?', exact: true});
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', {name: 'Start agents', exact: true}).click();
+  await expect.poll(() => state.batches.length).toBe(1);
+  expect(state.batches[0]).toEqual({runs: [
+    {key: 'naukri', action: 'naukri', options: {dry_run: false, browser_mode: 'visible'}},
+    {key: 'hirist', action: 'boards', options: {board: 'hirist', dry_run: false, browser_mode: 'visible'}},
+    {key: 'instahyre', action: 'boards', options: {board: 'instahyre', dry_run: false, browser_mode: 'visible'}},
+  ]});
+  expect(state.plans[0]).toEqual(state.batches[0]);
+  expect(state.denied).toEqual([]);
+});
 
 test('two selected assistants start real work together after one exact-command confirmation', async ({ page }) => {
   const state = await workspace(page);
-  await expectBrowser(crewBrowser(page), 'background');
+  await expect(crewBrowser(page)).toHaveCount(0);
+  await expect(page.getByText(backgroundGuidance, { exact: true })).toBeVisible();
+  await expect(backgroundToggle(page)).not.toBeChecked();
   await choose(page, 'Learning assistant');
   await choose(page, 'Daily briefing');
   await expect(panel(page)).toContainText('Learning assistant');
@@ -148,8 +159,8 @@ test('two selected assistants start real work together after one exact-command c
   await expect(dialog).toContainText('--only brief');
   expect(state.batches).toEqual([]);
   expect(state.plans).toEqual([{ runs: [
-    { key: 'learn', action: 'pipeline', options: { group: 'learn', dry_run: false, browser_mode: 'background' } },
-    { key: 'brief', action: 'pipeline', options: { group: 'brief', dry_run: false, browser_mode: 'background' } },
+    { key: 'learn', action: 'pipeline', options: { group: 'learn', dry_run: false, browser_mode: 'visible' } },
+    { key: 'brief', action: 'pipeline', options: { group: 'brief', dry_run: false, browser_mode: 'visible' } },
   ] }]);
   await dialog.getByRole('button', { name: 'Start agents', exact: true }).click();
   await expect.poll(() => state.batches.length).toBe(1);
@@ -160,37 +171,45 @@ test('two selected assistants start real work together after one exact-command c
   expect(state.denied).toEqual([]);
 });
 
-test('visible browser choice preserves the selected agents and applies to every command in the batch', async ({ page }) => {
+test('background choice and selected agents survive navigation before starting a batch', async ({ page }) => {
   const state = await workspace(page);
+  await backgroundToggle(page).check();
   await choose(page, 'Learning assistant');
   await choose(page, 'Daily briefing');
-  await selectBrowser(page, crewBrowser(page), 'visible');
-  await expectBrowser(crewBrowser(page), 'visible');
+  await expect(crewBrowser(page)).toHaveCount(0);
+  await expect(page.getByText(backgroundGuidance, { exact: true })).toBeVisible();
   await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Select Daily briefing', exact: true })).toBeChecked();
   await page.getByRole('button', { name: 'Career & research', exact: true }).click();
-  await expectBrowser(crewBrowser(page), 'visible');
+  await page.evaluate(() => { location.hash = '#/naukri'; });
+  await expect(page.getByText(backgroundGuidance, { exact: true })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Browser mode', exact: true })).toHaveCount(0);
+  await page.evaluate(() => { location.hash = '#/bots'; });
+  await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Select Daily briefing', exact: true })).toBeChecked();
+  await expect(backgroundToggle(page)).toBeChecked();
   await runSelected(page).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Start agents', exact: true }).click();
   await expect.poll(() => state.batches.length).toBe(1);
   expect(state.plans).toEqual([{ runs: [
-    { key: 'learn', action: 'pipeline', options: { group: 'learn', dry_run: false, browser_mode: 'visible' } },
-    { key: 'brief', action: 'pipeline', options: { group: 'brief', dry_run: false, browser_mode: 'visible' } },
+    { key: 'learn', action: 'pipeline', options: { group: 'learn', dry_run: false, browser_mode: 'background' } },
+    { key: 'brief', action: 'pipeline', options: { group: 'brief', dry_run: false, browser_mode: 'background' } },
   ] }]);
   expect(state.batches).toEqual(state.plans);
   expect(state.individual).toEqual([]);
   expect(state.denied).toEqual([]);
 });
 
-test('changing the crew browser choice updates existing card actions without losing selection', async ({ page }) => {
+test('a selected card can start actual work directly in the background', async ({ page }) => {
   const state = await workspace(page);
+  await backgroundToggle(page).check();
   await choose(page, 'Hirist');
-  await selectBrowser(page, crewBrowser(page), 'visible');
+  await expect(crewBrowser(page)).toHaveCount(0);
   await expect(page.getByRole('checkbox', { name: 'Select Hirist', exact: true })).toBeChecked();
   await page.getByRole('button', { name: 'Run now — Hirist', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Run it', exact: true }).click();
   await expect.poll(() => state.individual.length).toBe(1);
-  const approved = { action: 'boards', options: { board: 'hirist', dry_run: false, browser_mode: 'visible' } };
+  const approved = { action: 'boards', options: { board: 'hirist', dry_run: false, browser_mode: 'background' } };
   expect(state.previews.at(-1)).toEqual(approved);
   expect(state.individual).toEqual([approved]);
   expect(state.plans).toEqual([]);
@@ -198,46 +217,49 @@ test('changing the crew browser choice updates existing card actions without los
   expect(state.denied).toEqual([]);
 });
 
-test('batch browser choice is frozen while the exact selected commands are being reviewed', async ({ page }) => {
+test('background batch commands stay frozen while the selected agents are being reviewed', async ({ page }) => {
   const state = await workspace(page);
+  await backgroundToggle(page).check();
   await choose(page, 'Learning assistant');
   await choose(page, 'Daily briefing');
-  await selectBrowser(page, crewBrowser(page), 'visible');
   state.holdPlan();
   await runSelected(page).click();
   await expect.poll(() => Boolean(state.held)).toBe(true);
-  await expect(crewBrowser(page)).toBeDisabled();
+  await expect(backgroundToggle(page)).toBeDisabled();
+  await expect(crewBrowser(page)).toHaveCount(0);
   await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).toBeDisabled();
   const approved = structuredClone(state.held.request);
-  expect(approved.runs.every(run => run.options.browser_mode === 'visible' && !Object.hasOwn(run.options, 'headless'))).toBe(true);
+  expect(approved.runs.every(run => run.options.browser_mode === 'background' && !Object.hasOwn(run.options, 'headless'))).toBe(true);
   await state.releasePlan();
   await expect(page.getByRole('dialog', { name: 'Start 2 agents?', exact: true })).toBeVisible();
-  await expect(crewBrowser(page)).toBeDisabled();
+  await expect(page.getByRole('checkbox', { name: 'Select Daily briefing', exact: true })).toBeDisabled();
   await page.getByRole('dialog').getByRole('button', { name: 'Start agents', exact: true }).click();
   await expect.poll(() => state.batches.length).toBe(1);
   expect(state.batches[0]).toEqual(approved);
-  await expect(crewBrowser(page)).toBeEnabled();
-  await expectBrowser(crewBrowser(page), 'visible');
+  await expect(crewBrowser(page)).toHaveCount(0);
   expect(state.individual).toEqual([]);
   expect(state.denied).toEqual([]);
 });
 
-test('individual configuration offers background by default and submits the explicitly chosen visible mode', async ({ page }) => {
+test('individual settings default to visible Chrome and preview an explicit background choice', async ({ page }) => {
   const state = await workspace(page);
   await page.evaluate(() => { location.hash = '#/naukri'; });
   await expect(page.getByRole('heading', { name: 'Apply on Naukri', exact: true })).toBeVisible();
   const browser = page.getByRole('combobox', { name: 'Browser mode', exact: true });
-  await expect(browser).toBeVisible();
-  await expectBrowser(browser, 'background');
+  await expect(browser).toHaveCount(0);
+  await expect(page.getByText(backgroundGuidance, { exact: true })).toBeVisible();
   await expect(page.getByRole('checkbox', { name: /headless/i })).toHaveCount(0);
-  await expect.poll(() => state.previews.some(request => request.action === 'naukri' && request.options.browser_mode === 'background')).toBe(true);
-  await selectBrowser(page, browser, 'visible');
-  await expectBrowser(browser, 'visible');
-  await expect.poll(() => state.previews.at(-1)?.options.browser_mode).toBe('visible');
+  await expect(backgroundToggle(page)).not.toBeChecked();
+  await expect.poll(() => state.previews.some(request => request.action === 'naukri' && request.options.browser_mode === 'visible')).toBe(true);
+  await backgroundToggle(page).check();
+  await expect.poll(() => state.previews.at(-1)?.options.browser_mode).toBe('background');
+  await page.getByRole('textbox', { name: 'Keywords', exact: true }).fill('Platform engineer');
+  await expect.poll(() => state.previews.at(-1)?.options.keywords).toBe('Platform engineer');
   await page.getByRole('button', { name: 'Run', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Run it', exact: true }).click();
   await expect.poll(() => state.individual.length).toBe(1);
-  expect(state.individual[0]).toMatchObject({ action: 'naukri', options: { browser_mode: 'visible', dry_run: true } });
+  expect(state.individual[0]).toMatchObject({ action: 'naukri', options: { browser_mode: 'background', keywords: 'Platform engineer', dry_run: true } });
+  expect(state.previews.at(-1).options.browser_mode).toBe('background');
   expect(Object.hasOwn(state.individual[0].options, 'headless')).toBe(false);
   expect(state.individual[0]).toEqual(state.previews.at(-1));
   expect(state.denied).toEqual([]);
@@ -382,8 +404,8 @@ test('partial success removes only started agents and keeps failed agents with a
 });
 
 for (const [name, action, options] of [
-  ['Hirist', 'boards', { board: 'hirist', dry_run: false, browser_mode: 'background' }],
-  ['Naukri', 'naukri', { dry_run: false, browser_mode: 'background' }],
+  ['Hirist', 'boards', { board: 'hirist', dry_run: false, browser_mode: 'visible' }],
+  ['Naukri', 'naukri', { dry_run: false, browser_mode: 'visible' }],
 ]) {
   test(`${name} Run now starts actual work without practice mode`, async ({ page }) => {
     const state = await workspace(page);
@@ -407,7 +429,7 @@ test('LinkedIn writer creates a saved draft instead of simulating or publishing 
   await expect(dialog).toContainText('--mode propose');
   await dialog.getByRole('button', { name: 'Run it', exact: true }).click();
   await expect.poll(() => state.individual.length).toBe(1);
-  expect(state.individual[0]).toEqual({ action: 'linkedin', options: { mode: 'propose', browser_mode: 'background' } });
+  expect(state.individual[0]).toEqual({ action: 'linkedin', options: { mode: 'propose', browser_mode: 'visible' } });
   expect(state.denied).toEqual([]);
 });
 

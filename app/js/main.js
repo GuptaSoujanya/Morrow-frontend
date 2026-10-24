@@ -5,7 +5,8 @@ import { accountRequest } from './account-client.js';
 import { S, hooks, resetAccountState } from './state.js';
 import { parseRoute, SECTIONS, navigate } from './router.js';
 import { renderNav } from './components/nav.js';
-import { initConsole, appendRunLines, clearConsoleLines, updateConsoleStatus, updateConsoleConnection } from './components/console.js';
+import { initConsole, appendRunLines, clearConsoleLines, updateConsoleStatus, updateConsoleConnection, setConsoleAccess } from './components/console.js';
+import { resetSignInBrowsers } from './components/signin-browsers.js';
 import { updateRunButtons } from './forms.js';
 import { loadingState, errorState } from './components/panel.js';
 import { createRouteShell } from './route-shell.js';
@@ -15,6 +16,7 @@ import { AUTH_ROUTES as authPages, ACCOUNT_ROUTES as accountPages, routeAccess, 
 import { renderAccessState } from './views/access-state.js';
 import { renderNotFound } from './views/not-found.js';
 import { createRunStream, runLifecycleChanged } from './run-stream.js';
+import { receiveAnswerNotifications, resetAnswerNotifications } from './answer-notifications.js';
 normalizeFirebaseActionLink();
 const refreshBots=()=>import('./views/bots.js').then(m=>m.refreshBots());
 const content = document.getElementById('content');
@@ -38,12 +40,18 @@ function accountChrome(){
   const auth=authPages.has(S.route.name)||(S.accountMode==='accounts'&&!S.user);
   document.body.classList.toggle('auth-pending',!S.accountMode);
   document.body.classList.toggle('auth-screen',auth);
-  document.getElementById('console-dock').hidden=auth||!S.legacyAccess;
+  const available=!auth&&!!(S.accountMode==='local'||S.user);
+  const dock=document.getElementById('console-dock');
+  dock.hidden=!available;
+  dock.setAttribute('aria-label',S.legacyAccess?'Run console and browser controls':'Browser controls');
+  setConsoleAccess(available);
 }
 function clearWorkspace(pending=false){
   identityRevision+=1;refreshAfterBoot=false;
   runStream?.close();runStream=null;
   invalidateAccountRequests();
+  resetAnswerNotifications();
+  resetSignInBrowsers();
   clearTimeout(timer);clearTimeout(deferredRender);clearTimeout(lifecycleTimer);clearConsoleLines();
   pendingRunFinish=false;
   document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());
@@ -154,20 +162,21 @@ hooks.requestRender = (scroll = false) => {
   S.pendingRender = true;
   requestAnimationFrame(() => { S.pendingRender = false; render(scroll); });
 };
-hooks.refreshStatus = () => {
+hooks.refreshStatus = ({refreshRun=true}={}) => {
   const scope=accountRequestSignal();
-  if(statusRefresh?.scope===scope)return statusRefresh.promise;
+  // Mutation callers need a request made after their command, even when a
+  // background summary read is already pending or SSE is reconnecting.
+  const activityRefresh=refreshRun&&runStream?runStream.refresh():Promise.resolve();
+  if(statusRefresh?.scope===scope)return Promise.all([statusRefresh.promise,activityRefresh]).then(()=>scope.throwIfAborted());
   const work={scope};
   work.promise=(async()=>{
     const previous=S.status;
-    const status=await api('/api/status',undefined,{onOnline:online});
+    const [status]=await Promise.all([api('/api/status',undefined,{onOnline:online}),activityRefresh]);
     scope.throwIfAborted();
     // A slower summary request must never replace a newer streamed run or advance
     // its log cursor without delivering the corresponding lines.
     S.status={...status,run:runStream&&S.status?.run?S.status.run:status.run};
     updateConsoleStatus(S.status.run);updateRunButtons();
-    await runStream?.refresh();
-    scope.throwIfAborted();
     if(previous?.study&&JSON.stringify(previous.study)!==JSON.stringify(S.status.study))await hooks.refreshCourse();
     scope.throwIfAborted();
     if(JSON.stringify(previous&&{...previous,run:null})!==JSON.stringify({...S.status,run:null})){
@@ -196,7 +205,7 @@ function queueRunRefresh(finished){
         S.overview=null;S.pipeline=null;S.library=null;S.document=null;S.dataHub=null;
         await invalidateReads();scope.throwIfAborted();
       }
-      await hooks.refreshStatus();scope.throwIfAborted();
+      await hooks.refreshStatus({refreshRun:false});scope.throwIfAborted();
       if(['overview','bots'].includes(S.route.name)&&routeAccess('bots',S).kind==='allowed')await refreshBots();
       scope.throwIfAborted();
       if(completed&&['overview','analytics','bots','pipeline','reports','research','records','data'].includes(S.route.name))render();
@@ -205,18 +214,20 @@ function queueRunRefresh(finished){
 }
 
 function receiveRun(run){
-  if(!S.status)return;
+  if(!S.status)return false;
   const reset=!!run.reset||!!(S.runEpoch&&run.epoch&&S.runEpoch!==run.epoch);
-  if(!reset&&run.next<S.runNext)return;
+  if(!reset&&run.next<S.runNext)return false;
+  if(run.epoch===S.status.run?.epoch&&Number.isSafeInteger(run.revision)&&Number.isSafeInteger(S.status.run?.revision)&&run.revision<S.status.run.revision)return false;
   if(reset){clearConsoleLines();S.runNext=0;}
   const previous=reset?null:S.status.run;
-  if(!reset&&run.epoch===previous?.epoch&&Number.isSafeInteger(run.revision)&&Number.isSafeInteger(previous?.revision)&&run.revision<previous.revision)return;
   const lifecycle=runLifecycleChanged(previous,run);
   appendRunLines((run.lines||[]).filter(([sequence])=>sequence>=S.runNext));
   S.runNext=run.next;S.runEpoch=run.epoch||S.runEpoch;
   S.status.run=run;online(true);
+  receiveAnswerNotifications(run);
   updateConsoleStatus(run);updateRunButtons();
   if(lifecycle.changed||reset){runLifecycleRevision+=1;queueRunRefresh(lifecycle.finished||reset);}
+  return true;
 }
 
 function startRunStream(){
@@ -226,7 +237,7 @@ function startRunStream(){
   runStream=createRunStream({
     signal:scope,
     getCursor:()=>({next:S.runNext,epoch:S.runEpoch}),
-    readSnapshot:({next,epoch})=>api(`/api/run?${new URLSearchParams({after:String(next),...(epoch?{epoch}:{})})}`),
+    readSnapshot:({next,epoch},{signal})=>api(`/api/run?${new URLSearchParams({after:String(next),...(epoch?{epoch}:{})})}`,undefined,{signal}),
     onSnapshot:receiveRun,
     onState:state=>{updateConsoleConnection(state);if(state==='offline')online(false);},
     // Re-resolve the account before retaining any data from a revoked stream.
@@ -251,7 +262,7 @@ function poll(){
       if(JSON.stringify(S.user)!==previous)render();
     }
     if(!S.legacyAccess||!S.meta||document.hidden)return;
-    await hooks.refreshStatus();scope.throwIfAborted();
+    await hooks.refreshStatus({refreshRun:runStream?.state!=='live'});scope.throwIfAborted();
     if(['overview','bots'].includes(S.route.name)&&routeAccess('bots',S).kind==='allowed')await refreshBots();
     scope.throwIfAborted();
     if(S.route.name==='overview'&&S.overview&&Date.now()-S.overview.at>60000){S.overview=null;render();}
@@ -331,6 +342,7 @@ async function boot(preserveIdentity=false) {
     online(true);
     S.route = parseRoute();
     updateConsoleStatus(S.status.run);
+    receiveAnswerNotifications(S.status.run, {announce:false});
     startRunStream();
     render();
     clearTimeout(timer);

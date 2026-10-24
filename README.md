@@ -55,8 +55,10 @@ Override the interpreter with `DASHBOARD_PYTHON`, or choose a dashboard port wit
 - Each user has a private profile, application history, files, and saved records.
   Launchpad displays that account's actual activity; it does not reuse the original
   owner's quotas, runs, or results.
-- **Plans** opens Stripe subscription checkout and the customer billing portal.
-  Access changes only after the backend verifies subscription state.
+- **Plans** opens Razorpay subscription checkout for INR, UPI AutoPay, and cards,
+  with billing status, refresh, and cancellation in this dashboard. Stripe checkout
+  and its billing portal remain supported for existing installations. Access changes
+  only after the backend verifies payment and subscription state.
 - **People & access** lets administrators inspect users and change roles, plans,
   and enabled status. Administrative access requires a reason and is audited.
 - **My profile & files**, **Applications**, and **Data hub** use the signed-in user's
@@ -71,15 +73,17 @@ Override the interpreter with `DASHBOARD_PYTHON`, or choose a dashboard port wit
 Users bring their own **Claude or Kiro subscription**. These plans do not include AI
 subscriptions or credits. Choosing a provider saves a preference; it does not
 connect an AI session. Administrators can edit plan names, descriptions, module
-access, and the matching Stripe price IDs. Individual automation runtimes are still
+access, and the matching provider plan/price IDs. Individual automation runtimes are still
 pending, so included tools clearly show when execution is not connected.
 
-Configure Google, SMTP, and Stripe credentials in **`morrow-api/.env`**, not frontend
+Configure Google, SMTP, and payment credentials in **`morrow-api/.env`**, not frontend
 code or `.env.local`. Set `PUBLIC_ORIGIN=http://127.0.0.1:8100` there. Google callbacks
 use `/api/v1/auth/google/callback` on that dashboard origin; verification, recovery,
 and payment returns open the existing dashboard's hash routes. Provider credentials
-are required for live Google sign-in, email delivery, and Stripe checkout. The
-backend README documents configuration and local test-mode setup.
+are required for live Google sign-in, email delivery, and checkout. The
+backend README documents configuration and local test-mode setup. For India payments,
+follow [Razorpay setup](../morrow-api/PAYMENTS_SETUP.md). Restart the dashboard server
+after updating its API proxy so Razorpay webhook signatures are forwarded.
 
 ## Setup checklist and Connections
 
@@ -87,6 +91,12 @@ New accounts arriving after sign-in open **Setup checklist** (`#/onboarding`). E
 accounts can open it from the sidebar whenever their facts, resume, or chosen sites
 change. Drafts save to the account with version checks; conflicting saves preserve
 the edits on screen.
+
+Existing details are prefilled and marked **Saved**. The checklist distinguishes saved
+steps, unsaved changes, and missing details; saved account choices are separate from
+verified browser sign-ins. Validation messages appear beside the affected field and
+focus the first problem. Saved PDFs can be reused, including older files, without
+uploading again. Finishing setup requires saving any profile changes first.
 
 1. **Your profile:** save full name, contact email, phone, current location, and target
    roles. Skills, preferred locations, experience, and notice period can also be added.
@@ -111,6 +121,46 @@ requires confirmation and clears that provider's sign-in data in the selected br
 group. Changed account emails, including an explicitly cleared email, survive reload.
 Switching Morrow users cancels pending UI requests and removes the prior user's view;
 subsequent connection requests use the newly authenticated tenant's private directory.
+
+**Activity → Sign-in browsers** also controls the windows opened during setup, even
+when no bot is running. Choose the account in an open window, then **Check sign-in**
+or **Close browser**. Closing keeps the saved sign-ins. Google, Naukri, and the main
+job boards share one window; LinkedIn and parallel lanes have separate cards. These controls are
+available to every signed-in account, while shared runner activity remains owner-only.
+Browser status refreshes while Activity is visible; opening Activity never launches a sign-in window. **Manage connections** opens the full account
+controls for signing in or changing accounts.
+
+Connections distinguishes the shared Chrome window from the selected provider tab.
+Only the selected provider shows **Check sign-in** and **Close browser**; other
+providers show **Open sign-in** and explain which account is already open. Opening
+another provider reuses its existing tab or adds a tab to the same window, preserving
+other sites' sign-in pages. Checks return to that provider's tab. Previously checked
+details remain saved when reopening a tab; an explicit check refreshes them.
+Hirist, Cutshort, Wellfound, and Instahyre use visible account navigation or logout
+controls as evidence. An unknown page, a login screen, and an email that cannot be
+matched now have different guidance; a page URL alone is never proof of sign-in.
+Hirist checks open `/myprofile` in its existing tab and use the loaded account email
+beside the avatar plus work and education editing controls. An already-open profile
+is not reloaded, and a Google sign-in still in progress is left in place. Login
+redirects, unfinished profile setup, and a profile that fails to load have distinct
+guidance. The recommendation-recipient email is never used as the account identity.
+
+An abandoned Chrome lock no longer disables sign-in when its recorded process on
+this computer is confirmed gone. Chrome handles its own recovery when opened;
+Morrow does not delete lock files or saved sign-ins. Live or uncertain locks remain
+blocked, with separate guidance for a running workflow and an occupied browser
+profile. LinkedIn's separate profile does not block the main browser group.
+If an account page times out or encounters a network error, a usable sign-in
+window stays open. Finish loading or reload that tab, then use **Check sign-in**;
+**Close browser** remains available. Startup and verification failures have separate
+guidance. Diagnostics retain fixed failure codes and stages, never raw driver errors.
+
+LinkedIn checks recognize its visible member navigation across feed, profile, jobs,
+messaging, and settings views. Connections and LinkedIn workflows share this check;
+verification does not require opening the post composer. Login, authwall, and
+security-check screens take priority over old page elements. Public profile URLs
+alone never verify a session. An optional email remains a separate identity check;
+editable email fields and email addresses in posts do not identify the account.
 
 Google sign-in to **Morrow** authenticates the dashboard account through Firebase or
 the configured identity provider. Signing in to **Google / Gmail inside automation
@@ -199,11 +249,13 @@ these shared workflows. The original workspace includes:
   stays visible while browsing agents; confirmation describes each action, with commands under
   **Technical details**. An older dashboard service shows restart guidance and preserves the selection
   if it does not support group launches. Restart the service after backend updates once active runs finish.
-  **Browser for crew runs** defaults to **Background**, which opens no desktop window. Choose
-  **Visible — watch Chrome** for a normal Chrome window, sign-in or verification; its window opens centered and can take focus as tabs change.
-  Individual run settings offer the same **Browser mode** choice. Existing browser profiles are reused,
-  and a background run never switches itself into a visible session. The old `BACKGROUND=true`
-  setting now also means headless, rather than pushing a normal window off-screen.
+  Agent runs open normal Chrome windows by default. Turn on **Run in background** before starting
+  a card, selected crew, or configured workflow to hide its browser windows. Both modes retain
+  live logs, progress, and Stop controls in Activity. The choice affects new runs only.
+  Each job site keeps its own browser profile and Chrome instance. Naukri, Hirist, Instahyre, Cutshort and Wellfound can work together; each run writes its own résumé and screenshot files.
+  A visible Naukri run that needs sign-in waits in that same window for up to five minutes,
+  and resumes only after verified sign-in. A background run that needs human help fails with
+  connection guidance; turn off background mode to retry in Chrome.
 - **Flows:** inspect a selected date's saved stages with live five-second updates, the latest
   recorded error and specific repair guidance. **Resume workflow** runs only unfinished
   recorded stages using saved settings; **Retry this stage** targets one stage. Completed
@@ -222,7 +274,7 @@ these shared workflows. The original workspace includes:
   modules in expandable tracks and review or generate reports from the date archive.
 - **My profile & files / Preferences:** configuration editing, masked credentials, revision
   checks, unsaved drafts, private backups, preferences grouped by purpose and a 32-character workspace avatar picker.
-- **Activity:** the running-agent list shows who is working, their status and elapsed time. **View activity** selects that agent's progress and logs. **All browsers** lists the active runs' browsers and tabs, grouped by agent; **Open preview** goes straight to the chosen browser, with **Back to all browsers** for switching. **Watch browser** also opens the selected run's read-only preview, with tab selectors and a capture timestamp. Background runs stay off your desktop. Copy and Stop apply to the selected run; other agents keep working.
+- **Activity:** click the floating circle at the bottom right to open the panel. Its moving ring shows live work; the badge shows the running-agent count or an attention marker. Incoming updates keep a closed panel closed. The animated circle remains visible and is the only open/close control: click it again or press Escape to close Activity. **Expand** and **Restore** sit in the header; expansion adds reading space on desktop and phones while keeping the current tab and run selected. **Progress** opens first. The normal view is a compact dark panel. Click the selected agent's heading to switch runs; every run remains available, including completed ones. Expanded desktop adds a full run list beside the selected run's status, recovery action, and five newest progress updates. Both desktop and phones use a single scrolling detail view. Earlier updates and **Technical details** (including Copy) open on demand, while run controls and **Back to latest** stay reachable below the output. A notice surfaces other failed runs without changing the selected task. **Agents** lists running agents with their status and elapsed time; **View activity** returns to that run's progress. **Browsers** shows agent browser counts and separate sign-in controls. Accounts without runner access open directly to browser controls. Normal runs open actual Chrome windows; **Run in background** hides windows for newly started runs. Copy and Stop apply to the selected run; other agents keep working. Arrow keys, Home, and End switch Activity tabs; Escape collapses the panel.
 - **Schedules:** enable, inspect and disable the supported Naukri-profile/LinkedIn macOS jobs.
 - **Custom controls:** keyboard-accessible dropdowns, calendar date entry, persistent field errors,
   clear loading/retry states and draft-preserving saves.
@@ -248,9 +300,16 @@ the workspace. The batch preview validates the complete selection before the con
 The start request checks resources and capacity again under one lock; a conflict starts none
 of the selected agents. If process creation fails partway, the UI reports exactly which
 agents started and retains only the failed selections for review.
-Runs that share a browser session, resume compiler output, or the same pipeline stage
-are rejected with an explanation until that resource is free. For example, learning
-and tech-news research can run together, while two bots using the main browser must wait.
+Different job sites reserve separate browser sessions, and résumé output is isolated per run.
+A selected crew prepares every browser profile before any agent starts. A new board session
+can inherit the closed managed main session once; subsequent runs retain that board's own
+sign-in. Open or changing source profiles are never copied. Connect a fresh session under
+Connections → Parallel lane for that site when needed.
+
+Two tasks on the same job site still wait for one another, as do overlapping pipeline stages
+and workspace maintenance. This prevents duplicate account work. Shared answers, profile
+history and worklists use short locked writes, while logs and browser counts stay separate
+for each run. Stopping one run leaves the other agents working.
 
 Activity uses a same-origin server-sent event stream (`GET /api/events`); commands
 continue to use the JSON API. Logs carry run IDs and timestamps, and reconnects
@@ -258,8 +317,12 @@ resume from the last received cursor. If streaming is unavailable, a single
 non-overlapping request checks activity every 5 seconds while busy or 15 seconds
 while idle; general workspace refresh runs every 30 seconds. Recent history is
 kept in memory (50 runs, 5,000 log entries), and a server restart resets it.
-The browser viewer requests an uncached screenshot (`GET /api/run/browser`) about every two seconds while open and visible. Requests never overlap, errors are shown explicitly, and closing the viewer or changing accounts cancels requests and clears its images. Screenshots are not saved. A private per-run registry restricts capture to that run's browser instances and is removed when the run ends. Container runs use the browser screens in Flows instead. Choose visible Chrome before starting a run; an already-background browser stays headless.
-The browser list uses a separate, uncached metadata request (`GET /api/run/browsers`) every five seconds while Activity or All browsers is open. It pauses when hidden or while watching a preview. Listing browsers captures no images and never opens or focuses desktop windows. Closed runs disappear from the list; unavailable browser sessions and runs that have not opened a browser are labelled explicitly.
+Activity shows the number of open Chrome instances for each live agent and the combined total.
+It reads an uncached, counts-only request (`GET /api/run/browsers?counts=1`) every five seconds
+while Activity is open and visible. It never captures pages or lists private tabs. The removed
+remote viewer is replaced by the actual Chrome windows for normal runs. Unknown or delayed
+counts remain explicitly marked, and ended runs disappear even while cleanup finishes.
+Manual Connections sign-in windows remain managed separately in Activity.
 Account changes close the stream and clear private activity. Account mode retains
 the existing restriction that the shared local runner belongs to its explicit owner.
 Commands started separately in a terminal are outside this console's process control.
@@ -269,7 +332,7 @@ Commands started separately in a terminal are outside this console's process con
 | Layer | Responsibility |
 | --- | --- |
 | `froned-dashbord`, port 8100 | All screens, shared visual system, session-aware routing, and same-origin API proxy |
-| `morrow-api`, port 8200 | Authentication, roles, module access, Stripe, audit logs, and private storage APIs |
+| `morrow-api`, port 8200 | Authentication, roles, module access, subscriptions, audit logs, and private storage APIs |
 | PostgreSQL and artifact storage | Separate user records and private files; no user data is stored in Git |
 | Existing workspace scripts and files | Owner-only bot execution and original local history |
 
@@ -303,6 +366,10 @@ automation. Authentication is integrated; tenant-aware bot execution and schedul
 have not yet been implemented.
 
 ## Development and verification
+
+Agents announce successfully saved answers through the existing Activity stream. **Answer sheet updated → Review changes** opens **My profile & files → Agent answer sheet**, showing the saved question, answer, source, and agent. This owner-only sheet uses the runner's configured `DATA_DIR/answers.txt`; private account files keep their separate storage. New updates preserve editor drafts, and saving an outdated revision returns a conflict. Reload after keeping any unsaved edits. **Enable desktop alerts** requests browser permission only when clicked, lasts for this session, and uses generic notification text. No external push service is involved.
+
+Notifications and recent changes are held in memory and cleared when the account changes; the answer sheet itself persists on disk. Existing changes are loaded silently after refresh. Test the feature with `npx playwright test tests/answer-notifications.spec.js`; every API in those browser checks is mocked.
 
 ```sh
 npm run build                  # rebuild app/ into dist/, then reload the page

@@ -23,6 +23,8 @@ const PATHS = {
   play: ["M6 4l14 8-14 8z"],
   stop: ["M6 6h12v12H6z"],
   x: ["M5 5l14 14", "M19 5L5 19"],
+  maximize: ["M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"],
+  minimize: ["M3 8h5V3M16 3v5h5M21 16h-5v5M8 21v-5H3"],
   copy: ["M9 9h10v10H9z", "M5 15V5h10"],
   "chevron-down": ["M5 8l7 7 7-7"],
   "chevron-left": ["M15 5l-7 7 7 7"],

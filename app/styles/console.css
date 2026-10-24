@@ -173,6 +173,7 @@
 .activity-console .activity-summary { flex: none; padding: 14px 18px; }
 .activity-console .activity-summary span:not(.activity-state) { line-height: 1.5; }
 .activity-console .activity-summary .activity-elapsed { margin-top: 8px; font-size: 11px; color: var(--text-400); font-variant-numeric: tabular-nums; }
+.activity-console .activity-recovery { margin-top: 12px; }
 .activity-console .activity-log-wrap { flex: 1 1 auto; min-height: 0; height: min(34dvh, 290px); }
 .activity-console[data-size="expanded"] .activity-log-wrap { height: min(50dvh, 460px); }
 .activity-scroll { height: 100%; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }

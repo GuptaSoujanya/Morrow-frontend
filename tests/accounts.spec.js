@@ -186,7 +186,8 @@ test('the real login form opens the existing dashboard and account navigation', 
   await expect(page.locator('#nav')).toBeVisible();
   await expect(page.locator('#nav a[href="#/plans"]')).toBeVisible();
   await expect(page.locator('#nav a[href="#/admin"]')).toHaveCount(0);
-  await expect(page.locator('#console-dock')).toBeHidden();
+  await expect(page.locator('#console-dock')).toHaveAttribute('aria-label', 'Browser controls');
+  await expect(page.locator('#console-dock').getByRole('button', { name: 'Activity', exact: true })).toBeVisible();
   await screenshot(page, 'workspace-desktop');
 });
 
@@ -305,13 +306,16 @@ test('administrator data stays gated until a reason is entered', async ({ page }
   await accessible(page); await screenshot(page, 'admin-desktop');
 });
 
-test('admin plan save preserves Stripe price IDs and exposes recorded user data', async ({ page }) => {
+test('admin plan save preserves payment provider IDs and exposes recorded user data', async ({ page }) => {
   await openAdmin(page);
   const form = page.locator('.account-admin-plans form').first();
   const price = await form.getByLabel('Stripe monthly price ID', { exact: true }).inputValue();
+  const razorpayPlan = await form.getByLabel('Razorpay monthly plan ID', { exact: true }).inputValue();
   const update = page.waitForRequest(req => req.method() === 'PUT' && req.url().includes('/api/v1/admin/plans/'));
   await form.getByRole('button', { name: 'Save Free', exact: true }).click();
-  expect((await update).postDataJSON().stripe_price_id).toBe(price || null);
+  const savedPlan = (await update).postDataJSON();
+  expect(savedPlan.stripe_price_id).toBe(price || null);
+  expect(savedPlan.razorpay_plan_id).toBe(razorpayPlan || null);
   await expect(page.getByRole('status').filter({ hasText: 'Plan updated.' })).toBeVisible();
   await page.getByRole('button', { name: `View data for ${USER}`, exact: true }).click();
   await expect(page.locator('.account-inspection')).toBeVisible();

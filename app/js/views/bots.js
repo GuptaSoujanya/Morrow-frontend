@@ -3,14 +3,12 @@ import { icon } from '../icons.js';
 import { S, hooks } from '../state.js';
 import { api, accountRequestSignal } from '../api.js';
 import { navigate } from '../router.js';
-import { quickButton, updateRunButtons } from '../forms.js';
+import { quickButton, updateRunButtons, browserRunToggle } from '../forms.js';
 import { setConsoleSize } from '../components/console.js';
 import { num } from '../format.js';
 import {avatar} from '../components/identity.js';
 import {crewRunSpec} from '../crew-options.js';
 import {launchCrew} from '../crew-launch.js';
-import {BROWSER_MODES} from '../browser-mode.js';
-import {selectControl} from '../components/controls.js';
 
 export const BOTS = [
   { id:'naukri', name:'Naukri', mark:'n', color:'blue', group:'applications', description:'Find, rank and apply to matching roles.', route:'naukri', action:'naukri' },
@@ -108,13 +106,8 @@ export function renderBots() {
   const count = h('span',{class:'filter-count'});
   const tabs = h('div',{class:'segmented','aria-label':'Bot category'});
   const selectionSummary = h('p',{class:'crew-selection-summary',role:'status'});
-  const chips = h('div',{class:'crew-selected', 'aria-label':'Selected agents'});
+  const chips = h('div',{class:'crew-selected', role:'group', 'aria-label':'Selected agents'});
   const feedback = h('div',{class:'crew-launch-feedback'});
-  const browserMode = selectControl({label:'Browser for crew runs', options:BROWSER_MODES, value:S.crewBrowserMode, onChange:value=>{
-    S.crewBrowserMode=value;S.crewLaunch.error='';S.crewLaunch.conflicts=[];draw();
-  }});
-  browserMode.controlElement.id='crew-browser-mode';
-  browserMode.controlElement.setAttribute('aria-describedby','crew-browser-help');
   const clear = h('button',{class:'text-link',type:'button',text:'Clear selection',onclick:()=>{
     S.crewSelection=[];S.crewLaunch.error='';S.crewLaunch.conflicts=[];S.crewLaunch.results=[];drawSelection();
   }});
@@ -124,10 +117,11 @@ export function renderBots() {
     await launchCrew(selected,drawSelection);
     if(!scope.aborted&&S.legacyAccess&&S.crewLaunch.results.length){await refreshBots();if(!scope.aborted)hooks.requestRender();}
   }},icon('play','icon icon-sm'),'Run selected');
+  const browserSetting = browserRunToggle(S.crewBrowserMode, mode => { S.crewBrowserMode = mode; draw(); });
   const drawSelection = () => {
     const selected=BOTS.filter(bot=>S.crewSelection.includes(bot.id));
     const busy=S.crewLaunch.pending;
-    browserMode.controlElement.disabled=busy;
+    browserSetting.querySelector('input').disabled = busy;
     selectionSummary.textContent=selected.length ? `${selected.length} of 8 agents selected. Review their actions before starting.` : 'Choose up to 8 agents using the checkboxes below.';
     chips.replaceChildren(...selected.map(bot=>h('button',{class:'crew-selected-chip',type:'button',disabled:busy,'aria-label':`Remove ${bot.name}`,onclick:()=>{
       S.crewSelection=S.crewSelection.filter(id=>id!==bot.id);S.crewLaunch.error='';S.crewLaunch.conflicts=[];S.crewLaunch.results=[];drawSelection();
@@ -175,8 +169,8 @@ export function renderBots() {
   return h('div',{class:'page bot-page'},
     h('header',{class:'page-head'},h('div',{},h('p',{class:'eyebrow',text:'YOUR CAREER, WITH BACKUP'}),h('h1',{text:'Meet your Bot Crew'}),h('p',{class:'lead',text:'Find roles, keep your profiles fresh and keep learning. Give your crew the work.'})),h('a',{class:'btn',href:'#/pipeline'},icon('workflow'),'Build a flow')),
     steps,
-    h('div',{class:'crew-run-note'},h('span',{class:'crew-live-badge',text:'Actual runs'}),h('p',{text:'Applications are submitted. Profiles are updated. Writing agents save drafts. Agents that share a browser or resume file need separate runs.'})),
-    h('div',{class:'crew-browser-setting'},h('div',{},h('label',{class:'field-label',for:'crew-browser-mode',text:'Browser for crew runs'}),browserMode),h('p',{id:'crew-browser-help',text:'Background keeps your desktop free; use Watch browser in Activity to see its pages. Choose Visible to watch Chrome or sign in directly. Visible tabs may take focus.'})),
+    h('div',{class:'crew-run-note'},h('span',{class:'crew-live-badge',text:'Actual runs'}),h('p',{text:'Run agents on different job sites together. Each site has its own browser session, and each run saves separate résumé files. Applications are submitted; writing agents save drafts. Run one task per site at a time.'})),
+    h('div',{class:'crew-browser-setting'},browserSetting),
     selectionPanel,
     activeRuns.length ? h('div',{class:'fleet-notice'},icon('activity','icon icon-sm'),h('span',{text:activity}),h('button',{class:'text-link',type:'button',text:'Open Activity',onclick:()=>setConsoleSize('normal')})) : null,
     h('div',{class:'bot-toolbar'},tabs,search,count),

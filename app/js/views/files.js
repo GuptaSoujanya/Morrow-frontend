@@ -11,7 +11,8 @@ import { avatarPickerButton } from '../components/avatar-picker.js';
 import {profileForm} from '../components/profile-form.js';
 import { icon } from '../icons.js';
 
-export const FILES = { profile: 'Your profile', answers: 'Screening answers', company_sites: 'Company follow-ups', env: 'Settings' };
+export const FILES = { profile: 'Your profile', answers: 'Screening answers', automation_answers: 'Agent answer sheet', company_sites: 'Company follow-ups', env: 'Settings' };
+const fileEndpoint = name => name === 'automation_answers' ? '/api/run/answers' : `/api/file?name=${encodeURIComponent(name)}`;
 let pending = new Set();
 let failures = new Map();
 let fileSession;
@@ -26,7 +27,8 @@ async function load(name) {
   const loads=pending,errors=failures;
   loads.add(name);
   errors.delete(name);
-  try { const file = await api(`/api/file?name=${name}`); S.loadedFiles[name] = { ...file, draft: file.text }; }
+  const update = S.answerUpdates[0]?.id;
+  try { const file = await api(fileEndpoint(name)); S.loadedFiles[name] = { ...file, draft: file.text, externalUpdates:name==='automation_answers'&&update!==S.answerUpdates[0]?.id }; }
   catch (error) { if(error.name!=='AbortError')errors.set(name, error.message); }
   finally { loads.delete(name); }
   if (['files', 'setup'].includes(S.route.name)) hooks.requestRender();
@@ -40,19 +42,22 @@ export function fileEditor(name, settings = false) {
     return failures.has(name) ? errorState(failures.get(name), () => load(name)) : loadingState('Opening your file…');
   }
   const feedback = h('div',{class:'inline-feedback',role:'alert',hidden:true});
-  const status = h('span', { class: 'small muted', role: 'status', text: file.draft === file.text ? 'All changes saved' : 'Unsaved changes' });
+  const statusText = () => file.draft !== file.text ? 'Unsaved changes' : file.externalUpdates ? 'New saved answers available' : 'All changes saved';
+  const status = h('span', { class: 'small muted', role: 'status', text: statusText() });
   const save = h('button', { class: 'btn btn-primary', type: 'button', text: 'Save changes', disabled: file.draft === file.text, onclick: store });
-  const changed = () => { status.textContent = file.draft === file.text ? 'All changes saved' : 'Unsaved changes'; save.disabled = file.draft === file.text; };
+  const changed = () => { status.textContent = statusText(); save.disabled = file.draft === file.text; };
   async function store() {
     if (file.draft === file.text) return;
     if(editor?.validate && !editor.validate())return;
-    const privateFile=S.accountMode==='accounts'&&name!=='env';
-    if (!(await confirmDialog({ title: `Save ${FILES[name].toLowerCase()}?`, body: privateFile?'Save these changes to your private account. The previous version will be kept.':'The next run will use these changes. A backup of the previous file will be kept.', ok: 'Save changes' }))) return;
+    const privateFile=S.accountMode==='accounts'&&!['env','automation_answers'].includes(name);
+    if (!(await confirmDialog({ title: `Save ${FILES[name].toLowerCase()}?`, body: privateFile?'Save these changes to your private account. The previous version will be kept.':name==='automation_answers'?'Your agents use this saved sheet. A backup of the previous file will be kept.':'The next run will use these changes. A backup of the previous file will be kept.', ok: 'Save changes' }))) return;
     save.disabled = true;save.textContent='Saving…';feedback.hidden=true;
     const text = file.draft;
     try {
-      const reply = await api(`/api/file?name=${encodeURIComponent(name)}`, { name, text, revision: file.revision });
+      const reply = await api(fileEndpoint(name), { ...(name==='automation_answers'?{}:{name}), text, revision: file.revision });
       file.text = text; file.revision = reply.revision;
+      file.externalUpdates = false;
+      hooks.refreshAnswerReview();
       toast(privateFile?'Changes saved to your account.':'Changes saved. Previous version backed up.', 'ok');
       await hooks.refreshStatus();
     } catch (error) { feedback.textContent=`Could not save. ${error.message} Your edits are still here.`;feedback.hidden=false; }
@@ -112,17 +117,50 @@ export function fileEditor(name, settings = false) {
         h('button', { class: 'btn', type: 'button', text: 'Reveal settings file', onclick: e => { area.hidden = !area.hidden; e.currentTarget.textContent = area.hidden ? 'Reveal settings file' : 'Hide settings file'; } }), area);
     }
   }
-  return h('div', {class:'file-editor'}, h('div', { class: 'panel-foot editor-savebar' }, h('div',{class:'editor-save-meta'},h('span', { class: 'editor-path', text: file.path }),status),save, h('button', { class: 'btn', type: 'button', text: 'Reload file', onclick: async () => {
+  const review = name==='automation_answers' ? answerReview(file) : null;
+  if(review){const refreshReview=hooks.refreshAnswerReview;hooks.refreshAnswerReview=()=>{refreshReview();changed();};}
+  return h('div', {class:'file-editor'}, review, h('div', { class: 'panel-foot editor-savebar' }, h('div',{class:'editor-save-meta'},h('span', { class: 'editor-path', text: file.path }),status),save, h('button', { class: 'btn', type: 'button', text: 'Reload file', onclick: async () => {
       if (file.draft !== file.text && !(await confirmDialog({ title: 'Discard your unsaved changes?', body: 'This loads the latest saved version.', ok: 'Reload file', tone: 'danger' }))) return;
       await load(name);
     } })), editor, feedback);
 }
 
+function answerReview(file) {
+  const scope = accountRequestSignal();
+  const box = h('section', {class:'answer-review', 'aria-label':'Recent agent answer changes'});
+  const refresh = () => {
+    if(scope.aborted)return;
+    const changes = S.answerUpdates.slice(0,10);
+    const enable = h('button', {class:'btn',type:'button',text:S.desktopAnswerAlerts?'Desktop alerts enabled':'Enable desktop alerts',
+      disabled:!globalThis.Notification||S.desktopAnswerAlerts,onclick:async()=>{
+        enable.disabled=true;
+        try {
+          const permission=await Notification.requestPermission();scope.throwIfAborted();
+          S.desktopAnswerAlerts=permission==='granted';
+          toast(S.desktopAnswerAlerts?'Desktop alerts enabled for this session.':'Desktop alerts are blocked. Changes will still appear here.',S.desktopAnswerAlerts?'ok':'info');
+        } catch(error) { if(error.name!=='AbortError')toast('Desktop alerts are unavailable. Changes will still appear here.'); }
+        refresh();
+      }});
+    box.replaceChildren(h('div',{class:'answer-review-head'},h('div',{},h('h3',{text:'Recent agent changes'}),
+      h('p',{class:'muted',text:'Review or edit answers saved by your agents.'})),enable),
+      file.externalUpdates ? h('p',{class:'answer-review-notice',role:'status',text:file.draft!==file.text?
+        'New answers were saved while you were editing. Your draft is unchanged. Copy any edits you want to keep, then use Reload file to review the saved sheet.':
+        'New answers have been saved. Use Reload file to update the editor below.'}) : null,
+      changes.length ? h('ol',{class:'answer-review-list'},changes.map(item=>h('li',{class:'answer-review-entry'},
+        h('p',{class:'answer-review-question',text:item.question}),h('p',{class:'answer-review-answer',text:item.answer}),
+        h('p',{class:'small muted',text:`Saved by ${item.label||'your agent'} · ${item.source||'saved answer'}${item.at?' · '+new Date(item.at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):''}`})))) :
+      h('p',{class:'muted',text:'New answers saved during agent runs will appear here.'}));
+  };
+  hooks.refreshAnswerReview=refresh;
+  refresh();
+  return box;
+}
+
 export function renderFiles(arg) {
-  const visibleFiles = S.accountMode === 'accounts' && !S.legacyAccess ? Object.fromEntries(Object.entries(FILES).filter(([key]) => key !== 'env')) : FILES;
+  const visibleFiles = Object.fromEntries(Object.entries(FILES).filter(([key]) => !['env','automation_answers'].includes(key)||S.legacyAccess));
   const name = Object.hasOwn(visibleFiles, arg) ? arg : 'profile';
   return h('div', { class: 'page profile-page' }, h('header', { class: 'page-head' }, h('div', {}, h('p', { class: 'eyebrow', text: 'Your source of truth' }), h('h1', { text: 'My profile & files' }), h('p', { class: 'lead', text: 'Manage the facts, answers and settings your automations use.' }))),
     journeyBanner({image:workspaceAvatar(),eyebrow:'YOUR PERSONAL WORKSPACE',title:S.status.name||'Your profile, your story.',body:'Your saved facts power your crew.',action:avatarPickerButton()}),
-    h('nav', { class: 'file-tabs profile-tiles', 'aria-label': 'Workspace files' }, Object.entries(visibleFiles).map(([key, title]) => h('a', { class: `file-tile ${name === key ? 'is-current' : ''}`, href: `#/files/${key}`, 'aria-current': name === key ? 'page' : null },richIcon(({profile:'person',answers:'check',company_sites:'folder',env:'sliders'})[key]),h('strong',{text:title}),h('span',{text:({profile:'Facts & experience',answers:'Reusable responses',company_sites:'Next steps',env:'Local configuration'})[key]})))),
-    panel(FILES[name], {sub:name==='profile'?'The facts your crew uses. Edit a field or open the source file for advanced changes.':name==='env'?'Advanced editing · configuration format is preserved':'Your saved workspace file'}, fileEditor(name)));
+    h('nav', { class: 'file-tabs profile-tiles', 'aria-label': 'Workspace files' }, Object.entries(visibleFiles).map(([key, title]) => h('a', { class: `file-tile ${name === key ? 'is-current' : ''}`, href: `#/files/${key}`, 'aria-current': name === key ? 'page' : null },richIcon(({profile:'person',answers:'check',automation_answers:'check',company_sites:'folder',env:'sliders'})[key]),h('strong',{text:title}),h('span',{text:({profile:'Facts & experience',answers:'Reusable responses',automation_answers:'Live answers from your agents',company_sites:'Next steps',env:'Local configuration'})[key]})))),
+    panel(FILES[name], {sub:name==='profile'?'The facts your crew uses. Edit a field or open the source file for advanced changes.':name==='automation_answers'?(S.accountMode==='accounts'?'The answer sheet used by agents on this computer. It is separate from your private account files.':'The answer sheet your agents read and update on this computer.'):name==='env'?'Advanced editing · configuration format is preserved':'Your saved workspace file'}, fileEditor(name)));
 }

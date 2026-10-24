@@ -4,6 +4,11 @@
 .crew-browser-setting .field-label { display:block; margin-bottom:8px; }
 .crew-browser-setting p { flex:1; margin:0; font-size:13px; line-height:1.7; color:var(--text-600); }
 .run-preview-controls > .field { margin:18px 0; }
+.browser-run-toggle { margin: 0; align-items: flex-start; }
+.browser-run-toggle .switch { flex: none; margin-top: 3px; }
+.browser-run-toggle .toggle-text { min-width: 0; }
+.browser-run-toggle .browser-run-note { display: block; max-width: 650px; line-height: 1.6; margin-top: 5px; }
+.run-preview-controls > .browser-run-toggle { margin: 18px 0; }
 .crew-launch-panel {
   position: sticky;
   top: 12px;

@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { readFile, writeFile, mkdir, cp } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, cp, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const result = await build({ absWorkingDir: root,
@@ -30,6 +30,9 @@ for (const name of Object.keys(result.metafile.outputs).filter(name => /source-s
 }
 await mkdir(root + 'dist', { recursive: true });
 await writeFile(root + 'dist/index.html', html);
+// Retire the previous remote browser view from existing build directories too.
+await rm(root + 'dist/browser.html', {force: true});
+await rm(root + 'dist/assets/browser-page.js', {force: true});
 // A real HTTP 404 can recover without JavaScript, auth or API availability.
 let notFound = await readFile(root + 'app/404.html', 'utf8');
 notFound = notFound.replace(/  <link rel="stylesheet"[^>]+\/>\n/g, '');

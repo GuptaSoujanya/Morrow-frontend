@@ -96,6 +96,7 @@ const test = base.extend({
           questions: [], facts: [], sites: [], study: { today: 1, read: 0, total: 0 }, report: { ready: false, days: [] } },
         '/api/course': { today: 1, read: 0, total: 0, lessons: [], modules: [] },
         '/api/run': idle,
+        '/api/run/browsers': { runs: [] },
         '/api/v1/auth/options': { provider: 'local', google: false },
       };
       if (Object.hasOwn(replies, path)) return route.fulfill({ json: replies[path] });
@@ -125,7 +126,7 @@ test('failed steps explain the last cause and corrective action, then retry only
   const error = page.locator('.flow-latest-error');
   await expect(error).toContainText('Naukri session expired. Sign in again before retrying.');
   await expect(error).toContainText("Open the bot's browser and sign in to the affected site.");
-  await expect(error.getByRole('link', { name: 'Open Bot Crew' })).toHaveAttribute('href', '#/bots');
+  await expect(error.getByRole('link', { name: 'Open Connections' })).toHaveAttribute('href', '#/connections');
   await error.getByRole('button', { name: 'Retry this stage: Naukri profile', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Retry Naukri profile?', exact: true });
   await expect(dialog).toContainText('This stage restarts from its beginning.');

@@ -25,6 +25,7 @@ class AccountBridge:
         forwarded = {key: handler.headers[key] for key in (
             "Cookie", "Authorization", "Content-Type", "Accept", "Origin",
             "X-CSRF-Token", "X-Admin-Reason", "Stripe-Signature", "Idempotency-Key",
+            "X-Razorpay-Signature", "X-Razorpay-Event-Id",
         ) if handler.headers.get(key)}
         forwarded.update(headers or {})
         connection_type = http.client.HTTPSConnection if self.url.scheme == "https" else http.client.HTTPConnection

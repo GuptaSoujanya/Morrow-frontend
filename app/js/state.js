@@ -25,7 +25,7 @@ const initialState = () => ({
   previews: {},
   runButtons: {},
   crewSelection: [],
-  crewBrowserMode: 'background',
+  crewBrowserMode: 'visible',
   crewLaunch: {pending: false, error: '', conflicts: [], results: []},
 
   overview: null,
@@ -40,6 +40,8 @@ const initialState = () => ({
   consoleSize: "collapsed",
   revealedSecrets: new Set(),
   loadedFiles: {},
+  answerUpdates: [],
+  desktopAnswerAlerts: false,
 });
 
 export const S = initialState();
@@ -67,4 +69,5 @@ export const hooks = {
   refreshStatus: async () => {},
   refreshCourse: async () => {},
   requestRender: () => {},
+  refreshAnswerReview: () => {},
 };

@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
 import queue
 import shutil
 import threading
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from common import connections as browser
@@ -21,6 +23,43 @@ from common.models import Settings
 BOARDS = ("hirist", "instahyre", "cutshort", "wellfound")
 OPERATIONS = ("open", "check", "close", "switch", "disconnect")
 TRANSITIONAL = ("opening", "checking", "closing", "switching", "disconnecting")
+logger = logging.getLogger(__name__)
+
+
+def connection_failure(error, phase, browser_open=False):
+    """Return only fixed diagnostics; WebDriver text can contain auth secrets."""
+    from selenium.common.exceptions import (InvalidSessionIdException, NoSuchDriverException,
+                                            NoSuchWindowException, SessionNotCreatedException,
+                                            TimeoutException)
+
+    if phase == "navigating" and isinstance(error, TimeoutException):
+        if browser_open:
+            return "page_load_timeout", ("The account page is taking too long to load. Its browser is still open. "
+                "Wait for the page, finish sign-in if needed, then select Check sign-in. "
+                "If the page stays blank, reload that tab and check again.")
+        return "browser_disconnected", "The automation browser closed or stopped responding while loading the account page. Select Open sign-in to reconnect."
+    if isinstance(error, (InvalidSessionIdException, NoSuchWindowException)):
+        return "browser_disconnected", "The automation browser is no longer available. Select Open sign-in to reconnect."
+    if isinstance(error, NoSuchDriverException):
+        return "driver_unavailable", "Morrow could not prepare the Chrome automation driver. Check this computer's internet connection, then select Open sign-in to retry."
+    if isinstance(error, SessionNotCreatedException):
+        return "browser_start_failed", "Chrome could not start the private automation browser. Close any other window using this automation profile, then select Open sign-in to retry. Your saved login is kept."
+    if phase in ("preparing_profile", "saving") and isinstance(error, OSError):
+        return "profile_storage_failed", "Morrow could not save this connection on this computer. Check the workspace folder's permissions and available disk space, then retry."
+    if phase == "preparing_profile" or (phase == "starting" and isinstance(error, ValueError)):
+        return "profile_unavailable", "The private automation profile could not be opened. Close any other window using this profile, then select Open sign-in to retry."
+    if phase == "starting":
+        return "browser_start_failed", "The private automation browser could not start. Select Open sign-in to retry. If it still fails, check Chrome and the local runner on this computer."
+    if phase == "navigating":
+        if browser_open:
+            return "page_load_failed", ("The account page could not load, but its browser is still open. "
+                "Check this computer's internet connection and reload that tab, then select Check sign-in.")
+        return "page_load_failed", "The account page could not be opened. Check this computer's internet connection, then select Open sign-in to retry."
+    if phase == "verifying":
+        return "verification_failed", "Morrow could not complete the sign-in check. Reopen the account browser, finish sign-in, then select Check sign-in again."
+    if phase in ("switching", "disconnecting"):
+        return "account_change_failed", "Morrow could not finish changing this account. Reopen the automation browser and retry Change account before signing in with another account."
+    return "browser_step_failed", "The automation browser could not complete this step. Select Open sign-in to reconnect, then retry the action."
 
 
 class ConnectionError(ValueError):
@@ -37,6 +76,8 @@ class Session:
         self.open = False
         self.pending = False
         self.current_provider = ""
+        self.phase = "idle"  # Fixed worker stages; never includes a URL or account.
+        self.tabs = {}  # Provider -> tab handle; used only by this worker.
         self.touched = time.monotonic()
         self.thread = threading.Thread(target=self.work, daemon=True, name="morrow-connection")
         self.thread.start()
@@ -62,18 +103,26 @@ class Session:
             provider, operation = item
             try:
                 self.perform(provider, operation)
-            except Exception:
+            except Exception as error:
                 # Driver exceptions can include page URLs, auth codes and debug
-                # endpoints. Return a fixed explanation rather than their text.
+                # endpoints. Keep only a fixed stage, class name and error code.
+                from selenium.common.exceptions import WebDriverException
+                keep_open = (self.phase == "navigating" and isinstance(error, WebDriverException)
+                             and self.current_window_open())
+                code, message = connection_failure(error, self.phase, keep_open)
+                logger.warning("Automation connection failed (phase=%s, exception=%s, code=%s)",
+                               self.phase, type(error).__name__, code)
                 try:
                     self.service.set_record(self.base, provider.id, state="needs_attention",
-                        message="The automation browser could not complete this step. Close any window using this profile, check Chrome is installed, then reconnect.",
+                        message=message, error_code=code, error_phase=self.phase,
                         last_verified_at=None, verified_account="", identity_verified=False)
                 except OSError:
                     pass  # In-memory state is retained even when storage is full.
                 finally:
-                    self.close()
+                    if not keep_open:
+                        self.close()
             finally:
+                self.phase = "idle"
                 with self.service.lock:
                     self.pending = False
                     self.touched = time.monotonic()
@@ -84,6 +133,23 @@ class Session:
             if retired:
                 return
 
+    def current_window_open(self):
+        """Probe the existing window only; never reload or replace its page."""
+        if self.driver is None or not self.open:
+            return False
+        try:
+            return self.driver.current_window_handle in list(self.driver.window_handles)
+        except Exception:
+            return False
+
+    def save(self, provider, **values):
+        self.phase = "saving"
+        self.service.set_record(self.base, provider.id, error_code="", error_phase="", **values)
+
+    def navigate(self, url):
+        self.phase = "navigating"
+        self.driver.get(url)
+
     def close(self):
         if self.driver is not None:
             try:
@@ -91,50 +157,111 @@ class Session:
             except Exception:
                 pass
         self.driver = None
+        self.tabs.clear()
         with self.service.lock:
             self.open = False
             self.current_provider = ""
 
+    def select_provider_tab(self, provider):
+        """Reuse this site's tab without overwriting another site's sign-in.
+
+        Tabs are inspected locally; handles and page URLs never enter the API.
+        A known Google OAuth tab is kept in place so checking cannot interrupt it.
+        """
+        from selenium.common.exceptions import NoSuchWindowException
+
+        handles = list(self.driver.window_handles)
+        preferred = self.tabs.get(provider.id)
+        ordered = ([preferred] if preferred in handles else []) + [handle for handle in handles if handle != preferred]
+        blank = oauth = None
+        for handle in ordered:
+            try:
+                self.driver.switch_to.window(handle)
+                url = self.driver.current_url
+                if browser.allowed_host(url, provider):
+                    self.tabs[provider.id] = handle
+                    return True
+                if handle == preferred and urlsplit(url).scheme == "https" and urlsplit(url).hostname == "accounts.google.com":
+                    oauth = handle
+                if url in ("about:blank", "data:,"):
+                    blank = handle
+            except NoSuchWindowException:
+                continue  # A user may close a tab between enumeration and inspection.
+        if oauth:
+            self.driver.switch_to.window(oauth)
+            return True
+        if blank:
+            self.driver.switch_to.window(blank)
+        else:
+            self.driver.switch_to.new_window("tab")
+        self.tabs[provider.id] = self.driver.current_window_handle
+        return False
+
     def perform(self, provider, operation):
         if operation == "close":
+            self.phase = "closing"
             previous = self.service.record(self.base, provider.id).get("before_close", "needs_sign_in")
             self.close()
-            self.service.set_record(self.base, provider.id, state=previous,
+            self.save(provider, state=previous,
                 message="Browser closed. The saved session will be reused on this computer." if previous == "connected" else "Browser closed. Reopen it to finish sign-in.")
             return
         if self.driver is None:
+            self.phase = "preparing_profile"
             browser.private_dir(self.base)
             browser.mark_managed(self.base)
+            self.phase = "starting"
             self.driver = self.service.driver_factory(Settings(browser_profile_dir=str(self.base), session_only=True))
             with self.service.lock:
                 self.open = True
         with self.service.lock:
             self.current_provider = provider.id
+        self.phase = "selecting_tab"
+        existing_tab = self.select_provider_tab(provider)
         if operation in ("switch", "disconnect"):
+            self.phase = "switching" if operation == "switch" else "disconnecting"
             browser.clear_provider(self.driver, provider)
-            self.service.set_record(self.base, provider.id, state="needs_sign_in", last_verified_at=None,
+            self.save(provider, state="needs_sign_in", last_verified_at=None,
                 verified_account="", identity_verified=False,
                 message="Saved sign-in removed. Sign in to the replacement account, then check." if operation == "switch" else "Saved sign-in removed from this automation profile.")
             if operation == "disconnect":
                 self.close()
             return
-        if operation != "check" or not browser.allowed_host(self.driver.current_url, provider):
-            self.driver.get(provider.check if operation == "check" else provider.login)
+        if not existing_tab:
+            self.navigate(provider.check if operation == "check" else provider.login)
+        elif operation == "check" and provider.id == "hirist" and browser.allowed_host(self.driver.current_url, provider):
+            # Hirist's homepage can hide every account control after sign-in.
+            # Check its own-profile page in this same tab; the verifier still
+            # requires loaded account details and rejects login/setup redirects.
+            # A mapped Google OAuth tab stays untouched until sign-in returns.
+            if urlsplit(self.driver.current_url).path.rstrip("/") != urlsplit(provider.check).path.rstrip("/"):
+                self.navigate(provider.check)
         if operation == "open":
-            self.service.set_record(self.base, provider.id, state="needs_sign_in",
+            prior = self.service.record(self.base, provider.id)
+            if existing_tab and prior.get("before_open") == "connected" and prior.get("last_verified_at"):
+                self.save(provider, state="connected",
+                    message="This account's tab is open. Its previous sign-in check is saved; check again to refresh it.")
+                return
+            self.save(provider, state="needs_sign_in",
                 message="Sign in in the automation browser, complete any security check, then select Check sign-in.",
                 last_verified_at=None, verified_account="", identity_verified=False)
             return
         expected = self.service.record(self.base, provider.id).get("expected_account", "")
         deadline = time.monotonic() + self.service.verify_timeout
+        from selenium.common.exceptions import StaleElementReferenceException
+        self.phase = "verifying"
         while True:
-            result = self.service.verifier(self.driver, provider, expected)
-            if result.get("state") != "needs_sign_in" or time.monotonic() >= deadline:
+            try:
+                result = self.service.verifier(self.driver, provider, expected)
+            except StaleElementReferenceException:
+                result = {"state": "needs_attention", "retryable": True,
+                          "message": "The account page is still changing. Wait for it to finish loading, then check sign-in again."}
+            retryable = result.pop("retryable", False) or result.get("state") == "needs_sign_in"
+            if not retryable or time.monotonic() >= deadline:
                 break
             time.sleep(0.3)
         if result.get("state") != "connected":
             result.update(last_verified_at=None, verified_account="", identity_verified=False)
-        self.service.set_record(self.base, provider.id, **result)
+        self.save(provider, **result)
 
 
 class ConnectionService:
@@ -219,7 +346,9 @@ class ConnectionService:
             self.records[base][provider] = prior
             browser.write_metadata(base, self.records[base])
 
-    def _resource(self, provider):
+    def _resource(self, provider, scope="main"):
+        if scope.startswith("lane:"):
+            return "browser:" + scope
         return "browser:linkedin" if provider == "linkedin" else "browser:main"
 
     def _run_busy(self, resource, owner):
@@ -249,27 +378,39 @@ class ConnectionService:
                     session = self.sessions.get(base)
                     opened = bool(session and session.open)
                     pending = bool(session and session.pending)
-                    busy = self._run_busy(self._resource(key), owner) or (not opened and browser.profile_locked(base))
+                    run_busy = self._run_busy(self._resource(key, scope), owner)
+                    profile_busy = not opened and browser.profile_locked(base)
+                    busy = run_busy or profile_busy
+                    busy_reason = "workflow" if run_busy else "browser_profile" if profile_busy else ""
                     state = saved.get("state", "not_connected")
                     if state in TRANSITIONAL and not pending:
                         state = "needs_sign_in"
                         saved["message"] = "Browser setup was interrupted. Reopen the automation browser to continue."
                     row = {"id": key, "label": provider.label, "state": state,
                         "message": saved.get("message", "Connect your account in its private automation browser."),
+                        "error_code": saved.get("error_code", ""), "error_phase": saved.get("error_phase", ""),
                         "expected_account": saved.get("expected_account", ""),
                         "account_configured": bool(saved),
                         "verified_account": saved.get("verified_account", ""),
                         "identity_verified": bool(saved.get("identity_verified")),
                         "last_verified_at": saved.get("last_verified_at"),
-                        "browser_open": opened, "profile_busy": busy, "pending": pending,
+                        "browser_open": opened, "profile_busy": busy, "busy_reason": busy_reason, "pending": pending,
+                        "browser_group": "linkedin" if key == "linkedin" else scope,
+                        "browser_provider": session.current_provider if session else "",
+                        "browser_active": bool(opened and session.current_provider == key),
                         "session_scope": "LinkedIn browser" if key == "linkedin" else "Main browser · Google, Naukri and boards" if scope == "main" else "Parallel lane · " + scope.split(":", 1)[1],
                         "can_open": not busy and not pending and bool(self.availability()),
                         "can_check": not busy and not pending and bool(self.availability()),
                         "can_close": opened and not pending,
-                        "fix": "Close the running bot or browser before changing this login." if busy else "Finish sign-in, check it, then close the browser before running a workflow."}
+                        "fix": ("A workflow is using this browser. Wait for it to finish, or stop it from Activity."
+                                if run_busy else
+                                "This automation browser profile is in use or could not be confirmed idle. Close its other Chrome window, then select Check connection status."
+                                if profile_busy else
+                                "Finish sign-in, check it, then close the browser before running a workflow.")}
                 except ConnectionError as exc:
                     row = {"id": key, "label": provider.label, "state": "needs_attention", "message": str(exc),
                            "fix": str(exc), "browser_open": False, "profile_busy": True, "pending": False,
+                           "browser_group": "linkedin" if key == "linkedin" else scope, "browser_provider": "", "browser_active": False,
                            "can_open": False, "can_check": False, "can_close": False}
                 rows.append(row)
             active = sum(bool(item.open or item.pending) for item in self.sessions.values())
@@ -305,7 +446,7 @@ class ConnectionService:
                 session = self.sessions.get(base)
                 if session and session.pending:
                     raise ConnectionError(409, "This browser is finishing the previous action. Wait a moment.")
-                if self._run_busy(self._resource(provider), owner):
+                if self._run_busy(self._resource(provider, scope), owner):
                     raise ConnectionError(409, "A workflow is using this browser. Wait until it finishes before changing the login.")
                 if not (session and session.open) and browser.profile_locked(base):
                     raise ConnectionError(409, "This profile is already open. Close its other browser window, then reconnect.")
@@ -319,13 +460,15 @@ class ConnectionService:
                 if hint is not None and hint != previous.get("expected_account", ""):
                     previous.update(expected_account=hint, last_verified_at=None, verified_account="", identity_verified=False, state="needs_sign_in")
                 previous["before_close"] = previous.get("state") if previous.get("state") == "connected" else "needs_sign_in"
+                previous["before_open"] = previous.get("state") if previous.get("state") == "connected" else "needs_sign_in"
                 previous.update(state={"open": "opening", "check": "checking", "close": "closing", "switch": "switching", "disconnect": "disconnecting"}[operation],
-                                message="The automation browser is updating this connection.")
+                                message="The automation browser is updating this connection.", error_code="", error_phase="")
                 self.set_record(base, provider, **previous)
                 if not session:
-                    session = Session(self, base, self._resource(provider), owner)
+                    session = Session(self, base, self._resource(provider, scope), owner)
                     self.sessions[base] = session
                 session.pending = True
+                session.current_provider = provider
                 session.touched = time.monotonic()
                 session.queue.put((browser.PROVIDERS[provider], operation))
         return self.list(user, owner, scope)

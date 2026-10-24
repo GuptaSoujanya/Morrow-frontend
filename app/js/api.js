@@ -85,7 +85,7 @@ export async function api(path, body, { onOnline, fresh = false, signal } = {}) 
   // Live controls and editable source files must never be served from stale memory.
   // A caller-owned cancellation must not cancel or populate a shared query.
   // Browser frames are private, transient images and never belong in that cache.
-  if (signal || ['/api/session', '/api/run', '/api/run/browser', '/api/run/browsers', '/api/status', '/api/file'].includes(url.pathname)) {
+  if (signal || ['/api/session', '/api/run', '/api/run/browser', '/api/run/browsers', '/api/run/answers', '/api/status', '/api/file'].includes(url.pathname)) {
     const data = await request(path, undefined, { onOnline, scope });
     assertCurrent(scope);
     return data;

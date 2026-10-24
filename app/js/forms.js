@@ -7,14 +7,14 @@ import { setConsoleSize } from "./components/console.js";
 import { S, form, hooks } from "./state.js";
 import { sentence } from "./format.js";
 import { selectControl, dateControl } from './components/controls.js';
-import { BROWSER_ACTIONS, BROWSER_MODES, browserRunOptions } from './browser-mode.js';
+import { BROWSER_ACTIONS, BROWSER_RUN_MESSAGE, browserRunOptions } from './browser-mode.js';
 export { form } from "./state.js";
 
 let fieldId = 0;
 // A pending preview/confirmation belongs to one account. Other actions stay
 // available, and a late result cannot block or start work in a new workspace.
 const pendingStarts = new Map();
-export function field(label, control, hint) {
+export function field(label, control, hint, options = {}) {
   const id = `field-${++fieldId}`;
   const target = control.controlElement || control;
   target.dataset.focusKey = `field:${label}`;
@@ -22,21 +22,59 @@ export function field(label, control, hint) {
   target.setAttribute('aria-labelledby', `${id}-label`);
   const descriptions = [target.getAttribute('aria-describedby'), hint ? `${id}-hint` : null].filter(Boolean);
   const error = h('span', { id: `${id}-error`, class: 'field-error', role: 'status', hidden: true });
-  if (target.matches('input:not(.date-input),textarea')) {
-    descriptions.push(error.id);
-    const validate = () => {
-      let message = '';
-      if (target.validity.rangeUnderflow) message = `Use ${target.min} or more.`;
-      else if (target.validity.rangeOverflow) message = `Use ${target.max} or less.`;
-      else if (target.validity.typeMismatch) message = target.type === 'email' ? 'Enter a complete email address, like name@example.com.' : 'Enter a valid web address.';
-      else if (target.validity.stepMismatch || target.validity.badInput) message = 'Enter a valid number within the allowed range.';
-      target.setAttribute('aria-invalid', String(!!message)); error.hidden = !message; error.textContent = message;
-    };
-    target.addEventListener('blur', validate);
-    target.addEventListener('input', () => { if (target.getAttribute('aria-invalid') === 'true') validate(); });
-  }
+  descriptions.push(error.id);
   if (descriptions.length) target.setAttribute('aria-describedby', descriptions.join(' '));
-  return h("div", { class: "field" }, h("label", { class: "field-label", id: `${id}-label`, for:target.id, text: label }), control, hint ? h("span", { class: "field-hint", id: `${id}-hint`, text: hint }) : null, error);
+  const wrapper = h("div", { class: "field" }, h("label", { class: "field-label", id: `${id}-label`, for:target.id, text: label }), control, hint ? h("span", { class: "field-hint", id: `${id}-hint`, text: hint }) : null, error);
+  wrapper.controlElement = target;
+  let assignedError = '';
+  const showError = message => {
+    const text = String(message || '');
+    target.setAttribute('aria-invalid', String(Boolean(text)));
+    error.hidden = !text; error.textContent = text;
+    return !text;
+  };
+  wrapper.setError = message => { assignedError = String(message || ''); return showError(assignedError); };
+  wrapper.clearError = () => wrapper.setError('');
+  wrapper.validate = () => {
+    // A server rejection cannot be resolved by native validation alone. Keep it
+    // until the user edits this control or its caller explicitly clears it.
+    if (assignedError) return showError(assignedError);
+    // Calendar controls own their date parsing and error; wrapping them must not
+    // erase that state when another field is validated or a form is submitted.
+    if (target.matches('.date-input') && !options.validate) return target.getAttribute('aria-invalid') !== 'true';
+    const custom = options.validate?.(target);
+    if (custom) return showError(custom);
+    const validity = target.validity;
+    const value = String(target.value ?? '');
+    const name = String(label).replace(/\s*\*\s*$/, '').toLowerCase();
+    let message = '';
+    if (validity?.badInput) message = target.type === 'number' ? 'Enter a valid number.' : 'Enter a valid value.';
+    else if (validity?.valueMissing || (target.required && target.matches('input:not([type=checkbox]):not([type=radio]):not([type=file]),textarea') && !value.trim())) {
+      message = target.matches('select') ? `Choose ${name}.` : target.type === 'checkbox' ? 'Select this option to continue.' : `Enter ${name}.`;
+    }
+    else if (validity?.typeMismatch) message = target.type === 'email' ? 'Enter a complete email address, like name@example.com.' : 'Enter a valid web address.';
+    else if (validity?.rangeUnderflow) message = `Use ${target.min} or more.`;
+    else if (validity?.rangeOverflow) message = `Use ${target.max} or less.`;
+    else if (validity?.stepMismatch) message = 'Enter a valid number within the allowed range.';
+    else if (validity?.tooLong || (target.maxLength >= 0 && value.length > target.maxLength)) message = `Use ${target.maxLength} characters or fewer.`;
+    else if (validity?.tooShort) message = `Use at least ${target.minLength} characters.`;
+    else if (validity?.patternMismatch) message = target.title || `Check the format of ${name}.`;
+    else if (validity?.customError) message = target.validationMessage || `Check ${name}.`;
+    return showError(message);
+  };
+  if (target.matches('input:not(.date-input),textarea,select') || options.validate) {
+    target.addEventListener('invalid', event => { event.preventDefault(); wrapper.validate(); });
+    target.addEventListener('blur', event => {
+      // Action handlers validate before submitting. Inserting an error between
+      // pointerdown and click can move that button out from under the pointer.
+      if (options.deferButtonBlur && event.relatedTarget?.closest?.('button')) return;
+      wrapper.validate();
+    });
+    const edited = () => { assignedError = ''; if (target.getAttribute('aria-invalid') === 'true') wrapper.validate(); };
+    target.addEventListener('input', edited);
+    target.addEventListener('change', edited);
+  }
+  return wrapper;
 }
 
 export function toggle(action, key, label, hint) {
@@ -101,10 +139,22 @@ export function selectInput(action, key, choices, fallback = "") {
  * before any run button becomes clickable. */
 export function previewBox(action) {
   const box = h("div", { class: "preview", id: `preview-${action}` }, h("span", { class: "muted small", text: "Checking…" }));
-  const mode = BROWSER_ACTIONS.has(action) ? field('Browser mode', selectInput(action, 'browser_mode', BROWSER_MODES, browserRunOptions(action, form(action)).browser_mode),
-    'Background keeps your desktop free; use Watch browser in Activity to see its pages. Choose Visible to watch Chrome or sign in directly; visible tabs may take focus.') : null;
+  const browserNote = BROWSER_ACTIONS.has(action)
+    ? browserRunToggle(browserRunOptions(action, form(action)).browser_mode, mode => {
+      form(action).browser_mode = mode;
+      delete form(action).headless;
+      schedulePreview(action);
+    }) : null;
   schedulePreview(action);
-  return h('div', {class:'run-preview-controls'}, mode, h('details', {class:'run-details'}, h('summary', {text:'Run details'}), box));
+  return h('div', {class:'run-preview-controls'}, browserNote, h('details', {class:'run-details'}, h('summary', {text:'Run details'}), box));
+}
+
+export function browserRunToggle(mode, onChange) {
+  return h('label', {class: 'toggle browser-run-toggle'},
+    h('input', {type: 'checkbox', class: 'switch', checked: mode === 'background',
+      'aria-label': 'Run in background', onchange: event => onChange(event.target.checked ? 'background' : 'visible')}),
+    h('span', {class: 'toggle-text'}, h('span', {text: 'Run in background'}),
+      h('span', {class: 'muted small browser-run-note', text: BROWSER_RUN_MESSAGE})));
 }
 
 export function schedulePreview(action) {

@@ -10,6 +10,7 @@ import json
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.cookies import SimpleCookie
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import urlsplit
@@ -50,7 +51,8 @@ class AccountHandler(BaseHTTPRequestHandler):
             }
         )
         path = urlsplit(self.path).path
-        token = self.headers.get("Cookie", "").removeprefix("morrow_session=")
+        cookie = SimpleCookie(self.headers.get("Cookie", "")).get("morrow_session")
+        token = cookie.value if cookie else ""
         user = self.server.users.get(token)
         if path == "/api/v1/auth/google":
             return self.respond(
@@ -245,6 +247,8 @@ def test_public_shell_assets_load_without_disclosing_api_data(account_dashboard)
         ("GET", "/api/session"),
         ("GET", "/api/file?name=profile"),
         ("GET", "/api/run"),
+        ("GET", "/api/run/browser?id=private-run"),
+        ("POST", "/api/run/browser/input"),
         ("GET", "/api/events"),
         ("POST", "/api/run"),
     ):
@@ -664,3 +668,58 @@ def test_browser_inventory_is_private_to_the_current_workspace_owner(account_das
     assert code == 200 and body['runs'][0]['browsers'][0]['tabs'][0]['title'] == 'Private owner tab'
     assert dict(headers)['Cache-Control'] == 'no-store'
     assert calls == [True]
+
+
+def test_browser_input_requires_workspace_owner_and_current_csrf(account_dashboard, monkeypatch):
+    calls = []
+    def control(run_id, data, authorized):
+        assert authorized()
+        calls.append((run_id, data))
+        return {"ok": True}
+    monkeypatch.setattr(account_dashboard.app.runner, 'browser_input', control)
+    payload = dict(id='owned-run', browser='registered-browser', tab='owned-tab', frame_id='opaque-frame',
+                   viewport={'width': 800, 'height': 600}, action='click', x=50, y=60)
+    def headers(token, csrf='synthetic-csrf'):
+        return {'Cookie': f'morrow_session={token}; morrow_csrf=synthetic-csrf', 'X-CSRF-Token': csrf}
+    for token in ('', 'alice', 'bob', 'admin'):
+        code, _, _ = request(account_dashboard, '/api/run/browser/input', method='POST', body=payload, headers=headers(token))
+        assert code in (401, 403)
+    assert calls == []
+    assert request(account_dashboard, '/api/run/browser/input', method='POST', token='owner', body=payload)[0] == 403
+    assert request(account_dashboard, '/api/run/browser/input', method='POST', body=payload, headers=headers('owner', 'wrong'))[0] == 403
+    assert calls == []
+    code, response_headers, result = request(account_dashboard, '/api/run/browser/input', method='POST', body=payload, headers=headers('owner'))
+    assert code == 200 and result == {'ok': True} and dict(response_headers)['Cache-Control'] == 'no-store'
+    assert calls == [('owned-run', payload)]
+
+
+def test_agent_answer_sheet_is_owner_only_and_separate_from_private_account_files(account_dashboard, monkeypatch, tmp_path):
+    folder = tmp_path / 'automation-inputs'
+    folder.mkdir()
+    sheet = folder / 'answers.txt'
+    sheet.write_text('Q: Owner run question\nA: Owner automation answer\n')
+    monkeypatch.setenv('DATA_DIR', str(folder))
+    for token in ('alice', 'bob', 'admin', None):
+        code, _, body = request(account_dashboard, '/api/run/answers', token=token)
+        assert code in (401, 403)
+        assert 'Owner automation answer' not in json.dumps(body)
+    code, headers, body = request(account_dashboard, '/api/run/answers', token='owner')
+    assert code == 200 and body['scope'] == 'automation' and 'Owner automation answer' in body['text']
+    assert dict(headers)['Cache-Control'] == 'no-store'
+    code, _, private = request(account_dashboard, '/api/file?name=answers', token='owner')
+    assert code == 200 and 'Owner automation answer' not in private['text']
+    payload = {'text': body['text'] + '# Reviewed\n', 'revision': body['revision']}
+    assert request(account_dashboard, '/api/run/answers', method='POST', token='owner', body=payload)[0] == 403
+    headers = {'Cookie': 'morrow_session=owner; morrow_csrf=synthetic-csrf', 'X-CSRF-Token': 'synthetic-csrf'}
+    assert request(account_dashboard, '/api/run/answers', method='POST', body=payload, headers=headers)[0] == 200
+    assert sheet.read_text().endswith('# Reviewed\n')
+
+
+def test_answer_notifications_follow_existing_runner_owner_boundary(account_dashboard, monkeypatch):
+    monkeypatch.setattr(account_dashboard.app.runner, 'snapshot', lambda *args, **kwargs: {
+        'notifications': [{'kind': 'answer_saved', 'question': 'Private owner question', 'answer': 'Private owner answer'}]})
+    for token in ('alice', 'bob', 'admin', None):
+        code, _, body = request(account_dashboard, '/api/run', token=token)
+        assert code in (401, 403) and 'Private owner answer' not in json.dumps(body)
+    code, _, body = request(account_dashboard, '/api/run', token='owner')
+    assert code == 200 and body['notifications'][0]['answer'] == 'Private owner answer'
