@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { icon } from '../icons.js';
 import { avatar, workspaceAvatar } from '../components/identity.js';
+import { loadingState } from '../components/panel.js';
 import { accountRequestSignal } from '../api.js';
 import { prepareFirebase, runFirebaseAuth } from '../firebase-auth.js';
 import markUrl from '../../assets/morrow-mark.svg';
@@ -15,6 +16,7 @@ const MODULE_NAMES = {
   automations: 'Automations', outreach: 'Outreach', analytics: 'Insights',
 };
 const CORE_MODULES = ['profile', 'applications', 'files'];
+const MODULE_ART = { profile: 40, applications: 27, files: 26, resumes: 43, research: 25, learning: 30, automations: 28, outreach: 44, analytics: 45 };
 const MODULE_DETAILS = {
   profile: { icon: 'person', route: 'files/profile', description: 'Your experience, skills, and preferences.' },
   applications: { icon: 'file', route: 'records', description: 'Keep every opportunity in view.' },
@@ -121,26 +123,20 @@ function AuthField({ label, id, error, onValidate, ...props }) {
   </div>{error && <span className="account-inline-error" id={id + '-error'}>{error}</span>}</div>;
 }
 
-const AUTH_SCENES = [
-  { name: 'Your story', title: 'Make your experience shine.', description: 'A home for your experience, skills, and career documents.', image: 32, icon: 'person', details: ['Your career profile', 'Documents in one place', 'Ready for the next opportunity'] },
-  { name: 'Your search', title: 'Keep your next move in view.', description: 'Stay close to your applications, from the first step to the next conversation.', image: 33, icon: 'folder', details: ['Applications, organized', 'Progress at a glance', 'A clearer next step'] },
-  { name: 'Your growth', title: 'Make room to get ready.', description: 'Build on what you know as you prepare for the roles you want.', image: 39, icon: 'book', details: ['Research worth keeping', 'Preparation with purpose', 'Room to grow at your pace'] },
-];
 function AuthScene() {
-  const [selected, setSelected] = useState(0);
-  const scene = AUTH_SCENES[selected];
-  return <section className="account-auth-intro" aria-label="Explore your Morrow workspace">
-    <div className="account-auth-kicker"><span className="account-kicker-mark" /><span>MAKE SPACE FOR WHAT’S NEXT</span></div>
-    <h2>Your next move,<br /><span>a little clearer.</span></h2>
-    <p>Your profile, applications, and career tools.<br />Together in a workspace that feels like yours.</p>
-    <div className="account-crew-scene">
-      <div className="account-scene-top"><span><img src={markUrl} width="18" height="18" alt="" /> A PLACE FOR YOUR NEXT CHAPTER</span><Icon name="grid" /></div>
-      <div className="account-scene-tabs" role="group" aria-label="Explore workspace features">{AUTH_SCENES.map((item, index) => <button key={item.name} type="button" aria-pressed={selected === index} onClick={() => setSelected(index)}><Avatar index={item.image} className="account-scene-tab-art" /><span>{item.name}</span></button>)}</div>
-      <div className="account-scene-detail" aria-live="polite"><div className="account-scene-detail-head"><Avatar index={scene.image} className="account-scene-hero" /><div><span>{scene.name}</span><h3>{scene.title}</h3></div></div><p>{scene.description}</p>
-        <ul className="account-scene-features">{scene.details.map(item => <li key={item}><Icon name="check" />{item}</li>)}</ul>
-      </div>
+  return <section className="account-auth-intro" aria-label="Your Morrow workspace">
+    <div className="account-auth-kicker"><span className="account-kicker-mark" />A LITTLE SPACE FOR BIG PLANS</div>
+    <h2>Your career.<br /><span>A clearer view.</span></h2>
+    <p>Bring your profile, applications, and career tools into one personal workspace.</p>
+    <div className="account-welcome-art" aria-hidden="true">
+      <span className="account-welcome-orbit" /><span className="account-welcome-orbit is-inner" />
+      <Avatar index={12} className="account-scene-hero" />
+      <div className="account-art-label is-profile"><Avatar index={43} className="account-art-emblem" /><span>Your story,<br /><strong>ready to share.</strong></span></div>
+      <div className="account-art-label is-progress"><span className="account-art-check"><Icon name="check" /></span><span>Your next step,<br /><strong>in one place.</strong></span></div>
+      <span className="account-art-satellite" />
     </div>
-    <div className="account-auth-promise"><Icon name="check" /><span>Start free. Make it yours. Grow when you’re ready.</span></div>
+    <div className="account-welcome-tools">{[['person', 'Your profile', 'The story so far'], ['file', 'Applications', 'Every next step'], ['folder', 'Private files', 'Always together']].map(([glyph, title, detail]) => <div key={title}><Icon name={glyph} /><strong>{title}</strong><span>{detail}</span></div>)}</div>
+    <p className="account-auth-promise"><Icon name="check" />Start free. No payment details needed.</p>
   </section>;
 }
 function PageHead({ title, description, children }) {
@@ -152,7 +148,9 @@ function PanelHead({ title, description, children }) {
     {description && <p className="panel-sub">{description}</p>}</div>{children}</div>;
 }
 function Loading({ label = 'Loading your account…' }) {
-  return <div className="account-loading" role="status"><Icon name="refresh" className="account-spinner" /><span>{label}</span></div>;
+  const host = useRef(null);
+  useLayoutEffect(() => { host.current.replaceChildren(loadingState(label, { compact: true })); }, [label]);
+  return <div className="account-loading" ref={host} />;
 }
 function Money({ plan }) {
   return <>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: plan.currency, maximumFractionDigits: 0 }).format(plan.monthly_amount / 100)}</>;
@@ -203,7 +201,7 @@ function Auth({ page, onAuthenticated }) {
   function validateField(input) {
     setFieldErrors(previous => ({ ...previous, [input.name]: validationMessage(input) }));
   }
-  async function authenticated() { await onAuthenticated?.(); location.hash = '/overview'; }
+  async function authenticated() { await onAuthenticated?.(); }
   async function google() {
     if (!options) { setError('Sign-in options are not ready. Please retry loading them.'); return; }
     setBusy('google'); setError('');
@@ -249,10 +247,10 @@ function Auth({ page, onAuthenticated }) {
     </div>
     <div className="account-auth-grid">
       <AuthScene />
-      <section className="panel account-auth-panel" aria-labelledby="account-auth-title">
+      <section className="account-auth-panel" aria-labelledby="account-auth-title">
         {!recovery && <nav className="account-access-tabs" aria-label="Account access"><a href="#/login" aria-current={!isSignup ? 'page' : undefined}>Sign in</a><a href="#/signup" aria-current={isSignup ? 'page' : undefined}>Create account</a></nav>}
         {recovery && !hasSuccess && <a className="account-recovery-back" href="#/login"><Icon name="chevron-left" /> Back to sign in</a>}
-        {!hasSuccess && <><div className="account-auth-heading"><div><h1 id="account-auth-title">{title}</h1></div><Avatar index={isSignup ? 38 : recovery ? 35 : 32} className="account-form-character" /></div><p className="account-auth-description">{description}</p></>}
+        {!hasSuccess && <><div className="account-auth-heading"><div><p className="account-form-eyebrow">{recovery ? 'LET’S GET YOU BACK IN' : isSignup ? 'YOUR WORKSPACE STARTS HERE' : 'YOUR WORKSPACE IS WAITING'}</p><h1 id="account-auth-title">{title}</h1></div><Avatar index={isSignup ? 38 : recovery ? 35 : 32} className="account-form-character" /></div><p className="account-auth-description">{description}</p></>}
         {!recovery && !hasSuccess && <><Button secondary type="button" className="account-wide account-google" busy={busy === 'google'} disabled={!options?.google || Boolean(busy)}
           onClick={google}><GoogleMark />Continue with Google</Button>
           {options && !options.google && <p className="field-hint account-provider-note">Google sign-in is unavailable. Continue with email.</p>}
@@ -285,6 +283,7 @@ function Auth({ page, onAuthenticated }) {
 
 function Plans({ user, onRefresh }) {
   const [data, setData] = useState(null), [busy, setBusy] = useState(''), [error, setError] = useState('');
+  const comparison = useRef(null);
   const checkout = hashParams().get('checkout');
   const requestedModule = hashParams().get('module');
   const administrator = user.role === 'admin';
@@ -295,6 +294,7 @@ function Plans({ user, onRefresh }) {
   const hasSubscription = hasBilling && !['canceled', 'incomplete_expired'].includes(user.subscription_status);
   async function load() { setError(''); try { setData(await request('/plans')); } catch (err) { setError(err.message); } }
   useEffect(() => { load(); }, []);
+  useEffect(() => { if (comparison.current && MODULE_NAMES[requestedModule]) comparison.current.open = true; }, [data, requestedModule]);
   async function refresh() {
     setBusy('refresh'); setError('');
     try { await onRefresh?.(); } catch (err) { setError(err.message); } finally { setBusy(''); }
@@ -306,12 +306,12 @@ function Plans({ user, onRefresh }) {
       location.assign(result.url);
     } catch (err) { setError(err.message); } finally { setBusy(''); }
   }
-  return <><PageHead title="Plans & billing" description="A little support, or the whole toolkit. Choose what fits your next move."><a className="btn" href="#/account">My account <Icon name="chevron-right" /></a></PageHead>
+  return <><PageHead title="Plans & billing" description="Your workspace. The tools that fit you."><a className="btn" href="#/account">My account <Icon name="chevron-right" /></a></PageHead>
     <Notice error>{error}{error && !data && <> <button className="account-text-button" onClick={load}>Try again</button></>}</Notice>
     {checkout === 'success' && <Notice>Your payment is being confirmed. Access updates after Stripe confirms the subscription. <Button secondary busy={busy === 'refresh'} onClick={refresh}>Refresh access</Button></Notice>}
     {checkout === 'cancelled' && <Notice>Checkout was cancelled. Your current plan is unchanged.</Notice>}
-    <section className="account-access-summary" aria-label="Your current access"><Avatar index={administrator ? 46 : 33} className="account-summary-avatar" /><div><p className="eyebrow">{administrator ? 'ADMINISTRATOR ACCESS' : 'YOUR CURRENT PLAN'}</p><h2>{administrator ? 'Every module. Already yours.' : `${user.plan_name || 'Free'}, made for your next step.`}</h2><p>{administrator ? 'Your administrator role includes every paid-plan feature. You don’t need to purchase a plan.' : `${availableModules.length} of ${Object.keys(MODULE_NAMES).length} workspace modules included. Your files and profile stay with your account.`}</p></div><a href="#/account" className="account-summary-link">View my access <Icon name="chevron-right" /></a></section>
-    <div className="account-section-heading"><div><h2>Find your fit</h2><p>Start with the essentials. Add more when you need it.</p></div><span className="account-billing-period">Monthly plans</span></div>
+    <section className="account-access-summary" aria-label="Your current access"><span className="account-summary-check"><Icon name="check" /></span><div><strong>{administrator ? 'Administrator · all modules included' : `You’re on ${user.plan_name || 'Free'}`}</strong><span>{administrator ? 'Your role already includes every plan. No purchase needed.' : `${availableModules.length} workspace modules included. Upgrade when you need more.`}</span></div><a href="#/account" className="account-summary-link">View my access <Icon name="chevron-right" /></a></section>
+    <div className="account-section-heading"><div><h2>A little support. More possibilities.</h2><p>One account, with room to grow.</p></div><span className="account-billing-period"><span />Billed monthly</span></div>
     {data && MODULE_NAMES[requestedModule] && <div className="account-plan-focus"><Icon name={MODULE_DETAILS[requestedModule].icon} /><p>Looking for <strong>{MODULE_NAMES[requestedModule]}</strong>? {data.items.some(plan => plan.modules.includes(requestedModule)) ? 'Plans with this module are marked below.' : 'This module is not currently offered in a paid plan.'}</p></div>}
     {!data && !error && <Loading label="Loading plans…" />}
     <div className="account-plan-grid">{data?.items.map((plan, index) => {
@@ -320,22 +320,21 @@ function Plans({ user, onRefresh }) {
       const includesPrevious = previous && previous.modules.every(module => plan.modules.includes(module));
       const addedModules = includesPrevious ? plan.modules.filter(module => !previous.modules.includes(module)) : plan.modules;
       const matches = Boolean(MODULE_NAMES[requestedModule] && plan.modules.includes(requestedModule));
-      return <article className={`panel account-plan ${current ? 'is-current' : ''} ${matches ? 'includes-requested-module' : ''}`} key={plan.slug}>
-        <div className="account-plan-top"><Avatar index={[33, 32, 39][index % 3]} className="account-plan-avatar" /><span className={`account-tag ${current ? 'is-current' : ''}`}>{current ? 'Current plan' : `${plan.modules.length} modules`}</span></div>
-        <h2>{plan.name}</h2>
-        <p className="account-plan-description">{plan.description}</p>
+      return <article className={`panel account-plan ${current ? 'is-current' : ''} ${matches ? 'includes-requested-module' : ''}`} data-tone={['mint', 'lavender', 'peach'][index % 3]} key={plan.slug}>
+        <div className="account-plan-top"><div><span className="account-plan-count">{plan.modules.length} WORKSPACE MODULES</span><h2>{plan.name}</h2></div><Avatar index={[33, 32, 39][index % 3]} className="account-plan-avatar" /></div>
         <p className="account-price"><Money plan={plan} /><span>/ month</span></p>
-        <Button secondary={current || administrator || index !== 1} busy={busy === plan.slug} disabled={Boolean(busy) || administrator || current || plan.monthly_amount === 0 || !plan.checkout_available}
-          onClick={() => checkoutOrPortal(hasSubscription ? 'portal' : plan.slug)}>{administrator ? 'Included in your access' : current ? 'Your current plan' : plan.monthly_amount === 0 ? 'Free essentials' : !plan.checkout_available ? 'Not available yet' : hasSubscription ? 'Change plan in billing' : `Choose ${plan.name}`}{!administrator && !current && plan.checkout_available && <Icon name="arrow-up-right" />}</Button>
+        <p className="account-plan-description">{plan.description}</p>
         <div className="account-plan-inclusions"><p>{includesPrevious && addedModules.length ? `Everything in ${previous.name}, plus` : plan.monthly_amount === 0 ? 'Your workspace essentials' : 'Included modules'}</p><ul className="account-plan-features">{(addedModules.length ? addedModules : plan.modules).map(module => <li key={module}><Icon name="check" />{MODULE_NAMES[module] || module}</li>)}</ul></div>
         {matches && <p className="account-plan-match"><Icon name="check" /> Includes {MODULE_NAMES[requestedModule]}</p>}
+        <Button secondary={current || administrator || index !== 1} busy={busy === plan.slug} disabled={Boolean(busy) || administrator || current || plan.monthly_amount === 0 || !plan.checkout_available}
+          onClick={() => checkoutOrPortal(hasSubscription ? 'portal' : plan.slug)}>{administrator ? 'Included in your access' : current ? <><Icon name="check" />Your current plan</> : plan.monthly_amount === 0 ? 'Free essentials' : !plan.checkout_available ? 'Not available yet' : hasSubscription ? 'Change plan in billing' : `Choose ${plan.name}`}{!administrator && !current && plan.checkout_available && <Icon name="arrow-up-right" />}</Button>
       </article>;
     })}</div>
     {data && !administrator && !subscriptionsAvailable && <p className="account-checkout-note"><Icon name="alert-triangle" /> Paid subscriptions aren’t open yet. Your current access remains available.</p>}
-    <section className="panel account-byop"><Avatar index={41} className="account-byop-avatar" /><div><h2 className="panel-title">Your AI subscription stays yours.</h2><p className="panel-sub">Morrow unlocks workspace tools. Bring your own Claude or Kiro subscription for AI workflows; AI subscriptions and credits are not included.</p></div><a className="btn" href="#/account">AI preference <Icon name="chevron-right" /></a></section>
-    {data?.items.length > 0 && <section className="panel account-comparison"><PanelHead title="A clear view of what’s included" description="Every plan includes a private account, your profile, and your files." /><p className="account-comparison-hint"><Icon name="chevron-right" />Swipe to compare all plans</p><div className="account-table-scroll" role="region" aria-label="Compare plan modules" tabIndex={0}><table className="account-table account-comparison-table"><thead><tr><th scope="col">Workspace module</th>{data.items.map(plan => <th key={plan.slug} scope="col">{plan.name}</th>)}</tr></thead><tbody>{Object.entries(MODULE_NAMES).map(([module, label]) => <tr key={module} className={requestedModule === module ? 'is-highlighted' : ''}><th scope="row">{label}</th>{data.items.map(plan => <td key={plan.slug}>{plan.modules.includes(module) ? <span className="account-comparison-value is-included"><Icon name="check" /><span className="visually-hidden">Included</span></span> : <span className="account-comparison-value"><span aria-hidden="true">—</span><span className="visually-hidden">Not included</span></span>}</td>)}</tr>)}</tbody></table></div></section>}
-    <section className="panel account-billing-footer"><div><h2 className="panel-title">Billing, without the guesswork.</h2><p className="panel-sub">{hasBilling ? 'View invoices, update payment details, or manage your subscription through Stripe.' : 'There’s no paid subscription on this account.'}</p></div><Button secondary busy={busy === 'portal'} disabled={Boolean(busy) || !hasBilling || !billingAvailable} onClick={() => checkoutOrPortal('portal')}>Manage billing <Icon name="external" /></Button></section>
-    <p className="account-footnote">Automated workflows also require a connected personal workspace and provider session. Module access and workflow availability are shown separately.</p>
+    {data?.items.length > 0 && <details className="account-comparison" ref={comparison}><summary><span className="account-comparison-symbol"><Icon name="grid" /></span><span><strong>Compare every module</strong><small>See exactly what’s included in each plan.</small></span><span className="account-comparison-toggle"><span>View comparison</span><Icon name="chevron-down" /></span></summary><div className="account-comparison-body"><p className="account-comparison-hint"><Icon name="chevron-right" />Swipe to compare all plans</p><div className="account-table-scroll" role="region" aria-label="Compare plan modules" tabIndex={0}><table className="account-table account-comparison-table"><thead><tr><th scope="col">Workspace module</th>{data.items.map(plan => <th key={plan.slug} scope="col">{plan.name}</th>)}</tr></thead><tbody>{Object.entries(MODULE_NAMES).map(([module, label]) => <tr key={module} className={requestedModule === module ? 'is-highlighted' : ''}><th scope="row">{label}</th>{data.items.map(plan => <td key={plan.slug}>{plan.modules.includes(module) ? <span className="account-comparison-value is-included"><Icon name="check" /><span className="visually-hidden">Included</span></span> : <span className="account-comparison-value"><span aria-hidden="true">—</span><span className="visually-hidden">Not included</span></span>}</td>)}</tr>)}</tbody></table></div></div></details>}
+    <div className="account-plan-notes"><section className="account-byop"><Avatar index={35} className="account-byop-avatar" /><div><h2 className="panel-title">Your AI subscription stays yours.</h2><p className="panel-sub">Bring your own Claude or Kiro subscription. Morrow plans cover workspace tools, not AI credits.</p><a className="account-inline-link" href="#/account">Set your AI preference <Icon name="arrow-up-right" /></a></div></section>
+      <section className="account-billing-footer"><div><h2 className="panel-title">Your billing</h2><p className="panel-sub">{hasBilling ? 'Invoices, payment details, and subscriptions.' : 'No paid subscription on this account.'}</p></div><Button secondary busy={busy === 'portal'} disabled={Boolean(busy) || !hasBilling || !billingAvailable} onClick={() => checkoutOrPortal('portal')}>Manage billing <Icon name="external" /></Button></section></div>
+    <p className="account-footnote account-availability-note"><Icon name="info" />Automated workflows need a personal connection. These connections are not available yet for new workspaces.</p>
   </>;
 }
 
@@ -353,25 +352,24 @@ function Settings({ user, onRefresh, onLogout }) {
     setBusy('logout'); setError('');
     try { await onLogout?.(); } catch (err) { setError(err.message); } finally { setBusy(''); }
   }
-  return <><PageHead title="Account settings" description="A workspace that’s yours. Keep your details and preferences together."><a className="btn" href="#/plans">Plans & billing <Icon name="chevron-right" /></a></PageHead>
+  return <><PageHead title="Account settings" description="Your details, your tools, your preferences."><a className="btn" href="#/plans">Plans & billing <Icon name="chevron-right" /></a></PageHead>
     <Notice error>{error}</Notice><Notice>{message}</Notice>
-    <div className="account-settings-grid"><section className="panel account-identity-panel"><PanelHead title="Your account" description="Your own corner of Morrow." />
-      <div className="account-person"><Avatar index={workspaceAvatar()} className="account-person-avatar" /><div><strong>{user.name || 'Your account'}</strong><span>{user.email}</span></div></div>
-      <dl className="account-details"><div><dt>Role</dt><dd>{administrator ? 'Administrator' : 'Member'}</dd></div><div><dt>{administrator ? 'Access' : 'Plan'}</dt><dd>{administrator ? 'All modules included' : user.plan_name || user.effective_plan || 'Free'}</dd></div><div><dt>Email</dt><dd><span className="account-tag is-verified"><Icon name="check" /> Verified</span></dd></div></dl>
-      <p className="account-identity-note">{administrator ? 'Administrator access includes all paid-plan features, regardless of your billing plan.' : 'Your documents and application history belong to this account.'}</p>
-    </section>
-      <form className="panel" onSubmit={save}><PanelHead title="Bring your own AI" description="Choose the subscription you’ll use for your workflows." />
+    <section className="account-identity-panel" aria-label="Your account"><div className="account-person"><Avatar index={workspaceAvatar()} className="account-person-avatar" /><div><div className="account-person-meta"><span>{administrator ? 'ADMINISTRATOR' : 'YOUR PERSONAL WORKSPACE'}</span><span className="account-verified"><Icon name="check" /> Verified email</span></div><strong>{user.name || 'Your account'}</strong><span>{user.email}</span></div></div><div className="account-identity-access"><div><strong>{availableModules.length}<span> / {Object.keys(MODULE_NAMES).length}</span></strong><span>{administrator ? 'All modules included' : `${user.plan_name || 'Free'} · modules included`}</span></div><div className="account-access-meter" aria-hidden="true">{Object.keys(MODULE_NAMES).map(module => <span key={module} data-included={availableModules.includes(module)} />)}</div></div></section>
+    <div className="account-settings-grid"><aside className="account-settings-aside" aria-label="Preferences and security">
+      <form className="panel account-ai-panel" onSubmit={save}><PanelHead title="Bring your own AI" description="Pick the subscription you’ll use." />
         <fieldset className="account-fieldset" disabled={Boolean(busy)}><legend className="visually-hidden">AI provider</legend><div className="account-provider-grid">{['claude', 'kiro'].map(value => <label className={`account-provider ${provider === value ? 'is-selected' : ''}`} key={value}>
           <input type="radio" name="provider" value={value} checked={provider === value} onChange={() => setProvider(value)} /><strong>{value === 'claude' ? 'Claude' : 'Kiro'}</strong><span>Your own subscription</span>
         </label>)}</div><p className="account-footnote">Your AI subscription is billed separately. Saving a preference does not connect your provider account.</p><Button busy={busy === 'save'} type="submit">Save preference <Icon name="check" /></Button></fieldset>
-      </form></div>
-    <section className="panel account-module-access"><PanelHead title="Your workspace access" description={administrator ? 'Every module is included with your administrator role.' : `${availableModules.length} of ${Object.keys(MODULE_NAMES).length} modules included with ${user.plan_name || 'your plan'}.`}><span className="account-tag">{administrator ? 'Full access' : user.plan_name || 'Your plan'}</span></PanelHead><div className="account-module-grid">{Object.entries(MODULE_NAMES).map(([module, label]) => {
-      const included = availableModules.includes(module), details = MODULE_DETAILS[module];
-      return <a key={module} className={`account-module-card ${included ? 'is-included' : 'requires-plan'}`} href={included ? '#/' + details.route : '#/plans?module=' + module}><span className="account-module-symbol"><Icon name={details.icon} /></span><div><strong>{label}</strong><p>{details.description}</p><span className="account-module-state">{included ? <><Icon name="check" /> Included</> : <>View plans <Icon name="chevron-right" /></>}</span></div></a>;
-    })}</div><p className="account-module-note">Included workflows may need a connected personal workspace before they can run.</p></section>
-    <section className="panel account-security"><PanelHead title="Account security" description="Keep your sign-in details up to date." /><div className="account-security-row"><div><strong>Password</strong><p className="panel-sub">Request a secure password reset link by email.</p></div><a className="btn" href="#/forgot">Reset password <Icon name="chevron-right" /></a></div>
-      <div className="account-security-row"><div><strong>Current session</strong><p className="panel-sub">Sign out of Morrow on this browser.</p></div><Button secondary busy={busy === 'logout'} disabled={Boolean(busy)} onClick={logout}>Sign out</Button></div>
-    </section>
+      </form>
+      <section className="panel account-security"><PanelHead title="Sign-in & security" description="Keep your workspace yours." /><div className="account-security-row"><span className="account-security-symbol"><Icon name="lock" /></span><div><strong>Password</strong><p className="panel-sub">Reset securely by email.</p></div><a className="account-inline-link" href="#/forgot">Reset password <Icon name="chevron-right" /></a></div>
+        <div className="account-security-row"><span className="account-security-symbol"><Icon name="person" /></span><div><strong>This browser</strong><p className="panel-sub">Your current session.</p></div><Button secondary busy={busy === 'logout'} disabled={Boolean(busy)} onClick={logout}>Sign out</Button></div>
+      </section><p className="account-privacy-note"><Icon name="lock" /><span>Your files and activity stay with your account. Administrator access is recorded.</span></p>
+    </aside>
+      <section className="panel account-module-access"><PanelHead title="Your workspace access" description={administrator ? 'Every module is included with your administrator role.' : 'A clear view of what’s yours to use.'}><span className="account-tag">{administrator ? 'Full access' : user.plan_name || 'Your plan'}</span></PanelHead><div className="account-module-grid">{Object.entries(MODULE_NAMES).map(([module, label]) => {
+        const included = availableModules.includes(module), details = MODULE_DETAILS[module];
+        return <a key={module} className={`account-module-card ${included ? 'is-included' : 'requires-plan'}`} href={included ? '#/' + details.route : '#/plans?module=' + module}><Avatar index={MODULE_ART[module]} className="account-module-symbol" /><div><strong>{label}</strong><p>{details.description}</p></div><span className="account-module-state">{included ? <><Icon name="check" /> Included</> : <>View plans <Icon name="chevron-right" /></>}</span></a>;
+      })}</div><p className="account-module-note"><Icon name="info" />Included workflows may still need a personal connection.</p></section>
+    </div>
   </>;
 }
 

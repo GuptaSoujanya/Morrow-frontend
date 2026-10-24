@@ -78,10 +78,13 @@ test('sign-in keeps the established Morrow theme and accessible controls', async
   await expect(page.getByLabel('Password', { exact: true })).toHaveAttribute('type', 'text');
   const theme = await page.evaluate(() => ({ canvas: getComputedStyle(document.documentElement).getPropertyValue('--canvas').trim(), font: getComputedStyle(document.querySelector('h1')).fontFamily }));
   expect(theme.canvas).toBe('#121318'); expect(theme.font).toContain('Space Grotesk');
-  await expect(page.locator('.account-scene-hero .crew-avatar.morrow-world')).toHaveCount(1);
-  await expect(page.locator('.account-scene-tab-art .crew-avatar.morrow-world')).toHaveCount(3);
+  await expect(page.locator('.account-scene-hero .crew-avatar')).toHaveCount(1);
+  await expect(page.locator('.account-welcome-tools strong')).toHaveText(['Your profile', 'Applications', 'Private files']);
   await accessible(page); await screenshot(page, 'login-desktop');
   await page.setViewportSize({ width: 375, height: 812 }); await fit(page);
+  for (const link of await page.locator('.account-access-tabs a, .account-forgot a, .account-resend-link').all()) {
+    expect((await link.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  }
   const buttonLayout = await page.getByRole('button', { name: 'Sign in to Morrow' }).evaluate(button => {
     const range = document.createRange(); range.selectNodeContents([...button.childNodes].find(node => node.nodeType === Node.TEXT_NODE));
     return { label: button.textContent, color: getComputedStyle(button).color, button: button.getBoundingClientRect().toJSON(), text: range.getBoundingClientRect().toJSON() };
@@ -139,13 +142,9 @@ test('recovery waits for sign-in configuration and can retry a failed load', asy
   expect(submissions).toEqual([]);
 });
 
-test('workspace preview and password guide explain the next step without fake activity', async ({ page }) => {
+test('signup gives clear password guidance before account creation', async ({ page }) => {
   await page.goto('/#/signup');
-  await page.getByRole('button', { name: 'Your search', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Your search', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('heading', { name: 'Keep your next move in view.', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Your growth', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Make room to get ready.', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create your account.', exact: true })).toBeVisible();
   await page.getByLabel('Password', { exact: true }).fill('short');
   await expect(page.locator('.account-password-guide')).toContainText('Use at least 12 characters.');
   await page.getByLabel('Password', { exact: true }).fill('exactly12abc');
@@ -236,8 +235,39 @@ test('plans show clear prices, BYO AI access, and preserve the dashboard shell',
   await expect(page.getByText('Your AI subscription stays yours.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Your current plan' })).toBeDisabled();
   await expect(page.locator('#nav .sidebar-brand')).toBeVisible();
+  const comparison = page.locator('details.account-comparison');
+  const summary = comparison.locator('summary');
+  await expect(comparison).toHaveJSProperty('open', false);
+  await expect(page.getByRole('region', { name: 'Compare plan modules' })).toBeHidden();
+  await summary.focus();
+  await page.keyboard.press('Enter');
+  await expect(comparison).toHaveJSProperty('open', true);
+  await expect(page.getByRole('region', { name: 'Compare plan modules' })).toBeVisible();
+  await expect(comparison.getByRole('row').filter({ has: page.getByRole('rowheader', { name: 'Automations', exact: true }) }).getByRole('cell').locator('.visually-hidden')).toHaveText(['Not included', 'Not included', 'Included']);
+  await page.keyboard.press('Space');
+  await expect(comparison).toHaveJSProperty('open', false);
+  await expect(page.getByRole('region', { name: 'Compare plan modules' })).toBeHidden();
   await accessible(page); await screenshot(page, 'plans-desktop');
   await page.setViewportSize({ width: 375, height: 812 }); await fit(page); await screenshot(page, 'plans-mobile');
+});
+
+test('account module links open included tools and explain the plans for locked tools', async ({ page }) => {
+  await open(page, 'account');
+  const access = page.locator('.account-module-access');
+  await expect(access.getByRole('link').filter({ hasText: 'Included' })).toHaveCount(3);
+  await expect(access.getByRole('link').filter({ hasText: 'View plans' })).toHaveCount(6);
+  await access.getByRole('link').filter({ has: page.getByText('Applications', { exact: true }) }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Applications', exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('heading', { level: 1, name: 'Account settings', exact: true })).toBeVisible();
+  await access.getByRole('link').filter({ has: page.getByText('Resume studio', { exact: true }) }).click();
+  await expect(page).toHaveURL(/#\/plans\?module=resumes$/);
+  const comparison = page.locator('details.account-comparison');
+  await expect(comparison).toHaveJSProperty('open', true);
+  await expect(comparison.getByRole('rowheader', { name: 'Resume studio', exact: true })).toBeVisible();
+  await expect(comparison.getByRole('row').filter({ has: page.getByRole('rowheader', { name: 'Resume studio', exact: true }) }).getByRole('cell').locator('.visually-hidden')).toHaveText(['Not included', 'Included', 'Included']);
+  await expect(page.locator('.account-plan-match')).toHaveCount(2);
+  await accessible(page);
 });
 
 test('provider preference saves and survives a reload', async ({ page }) => {

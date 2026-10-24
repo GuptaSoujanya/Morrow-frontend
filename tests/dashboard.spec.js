@@ -203,25 +203,27 @@ test('bot inventory is visible, searchable and opens the selected board', async 
   await expect(page.locator('.preview')).toContainText('--only learn');
 });
 
-test('individual bot practice run previews and submits exactly that board', async ({ page }) => {
+test('individual bot live run previews and submits exactly that board', async ({ page }) => {
   const runs=[];
   await page.route('**/api/run', route => {
     if(route.request().method()==='POST') { runs.push(route.request().postDataJSON()); return route.fulfill({json:{label:'Hirist · practice',ok:true}}); }
     return route.fallback();
   });
   await page.goto('/#/bots');
-  await page.getByRole('button', {name:'Practice run — Hirist',exact:true}).click();
-  await expect(page.getByRole('dialog', {name:'Preview Hirist?'})).toBeVisible();
-  await expect(page.locator('.confirm-code')).toContainText('--site hirist --dry-run');
+  await page.getByRole('button', {name:'Run now — Hirist',exact:true}).click();
+  await expect(page.getByRole('dialog', {name:'Run Hirist?'})).toBeVisible();
+  await expect(page.locator('.confirm-code')).toContainText('--site hirist');
+  await expect(page.locator('.confirm-code')).not.toContainText('--dry-run');
   await page.getByRole('button',{name:'Cancel',exact:true}).click();
   expect(runs).toHaveLength(0);
-  await page.getByRole('button', {name:'Practice run — Hirist',exact:true}).click();
+  await page.getByRole('button', {name:'Run now — Hirist',exact:true}).click();
   await page.getByRole('button',{name:'Run it',exact:true}).click();
   await expect.poll(()=>runs.length).toBe(1);
-  expect(runs[0]).toEqual({action:'boards',options:{board:'hirist',dry_run:true}});
+  expect(runs[0]).toEqual({action:'boards',options:{board:'hirist',dry_run:false}});
 });
 
-test('active bot disables competing runs and exposes confirmed stop', async ({ page }) => {
+test('active bot keeps other run controls available and exposes confirmed stop', async ({ page }) => {
+  await page.addInitScript(() => { window.EventSource = undefined; });
   const active={running:true,action:'boards',label:'Hirist · practice',shown:'python -m sites_bot.platforms --site hirist --dry-run',seconds:24,stopping:false,last:null,next:0,lines:[]};
   await page.route('**/api/status',async route=>{const r=await route.fetch(); await route.fulfill({json:{...await r.json(),run:active}});});
   await page.route('**/api/bots',async route=>{const r=await route.fetch();const d=await r.json();await route.fulfill({json:{...d,run:active,bots:d.bots.map(b=>({...b,running:b.id==='hirist'}))}});});
@@ -230,11 +232,11 @@ test('active bot disables competing runs and exposes confirmed stop', async ({ p
   await page.route('**/api/stop',route=>{stops++;return route.fulfill({json:{ok:true,message:'Stopping fixture'}});});
   await page.goto('/#/bots');
   await expect(page.locator('[data-bot="hirist"] .bot-status')).toHaveText('In current run');
-  await expect(page.getByRole('button',{name:'Practice run — Naukri',exact:true})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'Run now — Naukri',exact:true})).toBeEnabled();
   await page.getByRole('button',{name:'View live run',exact:true}).click();
   await expect(page.locator('.console')).toHaveAttribute('data-size','normal');
   await page.getByRole('button',{name:'Stop',exact:true}).click();
-  await expect(page.getByRole('dialog',{name:'Stop the run?'})).toBeVisible();
+  await expect(page.getByRole('dialog',{name:'Stop Hirist · practice?'})).toBeVisible();
   await page.getByRole('dialog').getByRole('button',{name:'Stop',exact:true}).click();
   await expect.poll(()=>stops).toBe(1);
 });
@@ -271,9 +273,9 @@ test('route and dialog motion settles and Escape restores the triggering control
   await page.locator('.nav-group a[href="#/bots"]').click();
   await expect(page.getByRole('heading',{name:'Meet your Bot Crew',exact:true})).toBeVisible();
   await page.locator('main').evaluate(async el=>{await Promise.all(el.getAnimations({subtree:true}).filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})));});
-  const trigger=page.getByRole('button',{name:'Practice run — Hirist',exact:true});
+  const trigger=page.getByRole('button',{name:'Run now — Hirist',exact:true});
   await trigger.click();
-  const dialog=page.getByRole('dialog',{name:'Preview Hirist?'});
+  const dialog=page.getByRole('dialog',{name:'Run Hirist?'});
   await expect(dialog).toBeVisible();
   expect(await dialog.evaluate(el=>getComputedStyle(el).animationName)).toBe('dialog-in');
   await dialog.evaluate(async el=>{await Promise.all(el.getAnimations().map(a=>a.finished));});
@@ -594,6 +596,7 @@ test('workspace avatar picker persists choice without changing platform profiles
 });
 
 test('Activity is compact, keyboard accessible and explains idle and failed runs',async({page})=>{
+  await page.addInitScript(() => { window.EventSource = undefined; });
   await page.goto('/#/overview');
   await expect(page.getByRole('button',{name:'Copy output',exact:true})).not.toBeVisible();
   await page.getByRole('button',{name:/^Activity/}).click();
@@ -608,6 +611,7 @@ test('Activity is compact, keyboard accessible and explains idle and failed runs
   await page.route('**/api/run?*',route=>route.fulfill({json:failed}));
   await page.reload();await page.getByRole('button',{name:/^Activity/}).click();
   await expect(page.locator('.activity-state')).toHaveText('Needs attention');
+  await page.locator('.activity-details > summary').click();
   await expect(page.getByRole('log',{name:'Run output'})).toContainText('Sign-in required.',{timeout:10000});
   await expect(page.getByRole('button',{name:'Stop',exact:true})).not.toBeVisible();
   await page.setViewportSize({width:375,height:812});
@@ -760,8 +764,8 @@ test('loading indicator is centered and respects reduced motion',async({page})=>
   await page.goto('/#/overview');await expect(page.locator('main h1')).toBeVisible();
   let release;const held=new Promise(resolve=>{release=resolve;});await page.route('**/assets/chunks/data-*.js',async route=>{await held;return route.continue();});
   await page.locator('.nav-group a[href="#/data"]').click();const state=page.locator('main .state-loading');await expect(state).toBeVisible();
-  const box=await state.boundingBox(),emblem=await state.locator('.loading-emblem').boundingBox();expect(Math.abs(emblem.x+emblem.width/2-box.x-box.width/2)).toBeLessThan(2);expect(emblem.y).toBeGreaterThan(200);
-  expect(await page.locator('.loading-orbit').evaluate(el=>getComputedStyle(el).animationName)).toBe('none');await page.screenshot({path:'artifacts/centered-loading-laptop.png',animations:'disabled'});release();await expect(page.locator('main h1')).toHaveText('Data hub');
+  const box=await state.boundingBox(),track=await state.locator('.loading-progress').boundingBox();expect(Math.abs(track.x+track.width/2-box.x-box.width/2)).toBeLessThan(2);expect(track.y).toBeGreaterThan(200);
+  expect(await state.locator('.loading-progress > span').evaluate(el=>getComputedStyle(el).animationName)).toBe('none');await page.screenshot({path:'artifacts/centered-loading-laptop.png',animations:'disabled'});release();await expect(page.locator('main h1')).toHaveText('Data hub');
 });
 
 test('legacy course URL opens the real lesson and provides a safe progress control',async({page})=>{

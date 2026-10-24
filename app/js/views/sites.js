@@ -96,7 +96,6 @@ export function renderSites() {
           field("Company", withKey(textInput("external", "company", { placeholder: "Company" }), "company")),
           toggle("external", "dry_run", "Dry run", "Fill the form without submitting it."),
           toggle("external", "no_tailor", "Skip resume tailoring", "Use the base resume instead of tailoring one for this job."),
-          toggle("external", "headless", "Headless browser"),
           previewBox("external"),
           runButton("external", "Run", { confirm: () => (S.forms.external && S.forms.external.dry_run ? null : liveRunConfirm("This submits a real application on the company’s site.")) }),
         ),

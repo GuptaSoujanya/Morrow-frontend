@@ -30,6 +30,11 @@ for (const name of Object.keys(result.metafile.outputs).filter(name => /source-s
 }
 await mkdir(root + 'dist', { recursive: true });
 await writeFile(root + 'dist/index.html', html);
+// A real HTTP 404 can recover without JavaScript, auth or API availability.
+let notFound = await readFile(root + 'app/404.html', 'utf8');
+notFound = notFound.replace(/  <link rel="stylesheet"[^>]+\/>\n/g, '');
+notFound = notFound.replace('</head>', `  <style>${css}</style>\n</head>`);
+await writeFile(root + 'dist/404.html', notFound);
 await cp(root + 'app/assets/morrow-mark.svg', root + 'dist/assets/morrow-mark.svg');
 await mkdir(root + 'artifacts', { recursive: true });
 await writeFile(root + 'artifacts/build-meta.json', JSON.stringify(result.metafile, null, 2));

@@ -20,7 +20,6 @@ export function renderProfile() {
           toggle("profile", "dry_run", "Dry run", "Show what would change without saving it."),
           toggle('profile','review','Review the full profile','Audit and update profile sections from your saved facts, beyond the headline and resume.'),
           toggle("profile", "if_due", "Only if due", "Skip unless the schedule says it’s time."),
-          toggle("profile", "headless", "Headless browser"),
           previewBox("profile"),
           runButton("profile", "Run", { confirm: () => (S.forms.profile && S.forms.profile.dry_run ? null : liveRunConfirm("This updates your live Naukri profile.")) }),
         ),

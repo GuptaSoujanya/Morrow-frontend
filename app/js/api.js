@@ -3,10 +3,11 @@ import { sentence } from './format.js';
 import { queryClient, queryKey, invalidateReads } from './query-client.js';
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, details) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -65,23 +66,26 @@ async function request(path, body, { onOnline, signal, scope = accountRequestSig
   onOnline?.(true);
   if (!reply.ok) {
     if (reply.status === 401 && path !== '/api/session') window.dispatchEvent(new Event('account-expired'));
-    throw new ApiError(sentence(data.error || (typeof data.detail === 'string' ? data.detail : '') || `${reply.status} ${reply.statusText}`), reply.status);
+    throw new ApiError(sentence(data.error || (typeof data.detail === 'string' ? data.detail : '') || `${reply.status} ${reply.statusText}`), reply.status, data);
   }
   return data;
 }
 
-export async function api(path, body, { onOnline, fresh = false } = {}) {
-  const scope = accountRequestSignal();
+export async function api(path, body, { onOnline, fresh = false, signal } = {}) {
+  const accountScope = accountRequestSignal();
+  const scope = signal ? AbortSignal.any([accountScope, signal]) : accountScope;
   if (body !== undefined) {
     const data = await request(path, body, { onOnline, scope });
     assertCurrent(scope);
-    if (new URL(path, window.location.origin).pathname !== '/api/preview') await invalidateReads();
+    if (!['/api/preview', '/api/run/batch/preview'].includes(new URL(path, window.location.origin).pathname)) await invalidateReads();
     assertCurrent(scope);
     return data;
   }
   const url = new URL(path, window.location.origin);
   // Live controls and editable source files must never be served from stale memory.
-  if (['/api/session', '/api/run', '/api/status', '/api/file'].includes(url.pathname)) {
+  // A caller-owned cancellation must not cancel or populate a shared query.
+  // Browser frames are private, transient images and never belong in that cache.
+  if (signal || ['/api/session', '/api/run', '/api/run/browser', '/api/run/browsers', '/api/status', '/api/file'].includes(url.pathname)) {
     const data = await request(path, undefined, { onOnline, scope });
     assertCurrent(scope);
     return data;

@@ -25,7 +25,6 @@ export function renderResume() {
         field("Title", textInput("resume", "title", { placeholder: "Job title" })),
         field("Company", textInput("resume", "company", { placeholder: "Company" })),
       ),
-      toggle("resume", "headless", "Headless browser"),
       previewBox("resume"),
       runButton("resume", "Build the resume"),
     ),

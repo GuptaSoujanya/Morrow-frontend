@@ -43,6 +43,57 @@ def test_dashboard_and_modules_are_served(app):
     assert request(app, 'GET', '/.env')[0] == 404
     assert request(app, 'GET', '/../web/state.py')[0] == 404
 
+
+DOCUMENT_HEADERS = {'Accept': 'text/html', 'Sec-Fetch-Dest': 'document', 'Sec-Fetch-Mode': 'navigate'}
+
+
+@pytest.mark.parametrize('method', ['GET', 'HEAD'])
+def test_missing_browser_page_is_a_static_html_404_without_account_lookup(app, method):
+    class UnavailableAccounts:
+        def identity(self, handler):
+            raise AssertionError('The public missing page must not look up an account')
+    app[0].account_bridge = UnavailableAccounts()
+    connection = http.client.HTTPConnection('127.0.0.1', app[0].server_port)
+    connection.request(method, '/does-not-exist/nested?token=must-not-appear', headers=DOCUMENT_HEADERS)
+    response = connection.getresponse()
+    body = response.read()
+    assert response.status == 404
+    assert response.getheader('Content-Type') == 'text/html; charset=utf-8'
+    assert int(response.getheader('Content-Length')) > 100
+    if method == 'HEAD':
+        assert body == b''
+    else:
+        assert b'A little off course.' in body and b'Back to Morrow' in body
+        assert b'href="/#/"' in body and b'<script' not in body
+        assert b'must-not-appear' not in body and b'/api/' not in body
+    connection.close()
+
+
+@pytest.mark.parametrize('path', [
+    '/api/status', '/api/unknown', '/course', '/course/missing', '/reports/missing',
+    '/profile.yaml', '/.env', '/does-not-exist%2f..%2fprofile', '/does-not-exist/../profile',
+])
+def test_missing_document_does_not_bypass_private_or_ambiguous_paths(app, path):
+    class SignedOutAccounts:
+        def identity(self, handler):
+            return None
+    app[0].account_bridge = SignedOutAccounts()
+    status, body = request(app, 'GET', path, headers=DOCUMENT_HEADERS)
+    assert status == 401 and isinstance(body, dict)
+
+
+def test_missing_document_keeps_host_methods_and_assets_protected(app):
+    class SignedOutAccounts:
+        def identity(self, handler):
+            return None
+    app[0].account_bridge = SignedOutAccounts()
+    assert request(app, 'GET', '/does-not-exist', headers={**DOCUMENT_HEADERS, 'Host': 'untrusted.example'})[0] == 403
+    assert request(app, 'POST', '/does-not-exist', {}, DOCUMENT_HEADERS)[0] == 401
+    assert request(app, 'GET', '/does-not-exist')[0] == 401
+    for path in ['/assets/missing.js', '/styles/missing.css', '/js/missing.js', '/fonts/missing.woff2']:
+        status, body = request(app, 'GET', path, headers=DOCUMENT_HEADERS)
+        assert status == 404 and isinstance(body, dict)
+
 def test_foreign_origin_and_host_cannot_change_files(app):
     assert request(app, 'GET', '/api/file?name=profile', headers={'Host': 'untrusted.example'})[0] == 403
     assert request(app, 'POST', '/api/file', {'name': 'profile', 'text': 'changed'}, {'Origin': 'https://untrusted.example'})[0] == 403
@@ -92,6 +143,59 @@ def test_bot_status_matches_the_selected_board_only(monkeypatch):
             return {'running':True,'action':'boards','shown':'python -m sites_bot.platforms --site hirist --dry-run'}
     data=dashboard.bots_status(FakeRunner())
     assert [bot['id'] for bot in data['bots'] if bot['running']] == ['hirist']
+
+
+def test_bot_status_includes_each_parallel_run_and_ignores_completed_runs(monkeypatch):
+    monkeypatch.setattr(dashboard.state, '_query', lambda *args: [])
+    class FakeRunner:
+        def snapshot(self):
+            return {'running': True, 'action': 'boards', 'runs': [
+                {'id': 'jobs', 'running': True, 'action': 'boards',
+                 'shown': 'python -m sites_bot.platforms --site hirist --dry-run'},
+                {'id': 'learn', 'running': True, 'action': 'pipeline',
+                 'shown': 'python -m pipeline continue --only learn'},
+                {'id': 'news', 'running': True, 'action': 'pipeline',
+                 'shown': 'python -m pipeline continue --only brief:tech-news'},
+                {'id': 'finished', 'running': False, 'action': 'linkedin', 'shown': 'python -m linkedin_bot'},
+            ]}
+    bots = {bot['id']: bot for bot in dashboard.bots_status(FakeRunner())['bots']}
+    assert {key for key, bot in bots.items() if bot['running']} == {'hirist', 'learn', 'brief'}
+    assert bots['hirist']['run_ids'] == ['jobs']
+    assert bots['learn']['run_ids'] == ['learn']
+    assert bots['brief']['run_ids'] == ['news']
+    assert bots['linkedin']['run_ids'] == []
+
+
+@pytest.mark.parametrize('selection,expected', [
+    ('--only apply', {'naukri', *dashboard.BOARDS}),
+    ('--only profile --skip profile:linkedin', {'profile', *(board + '_profile' for board in dashboard.BOARDS)}),
+    ('--only apply:wellfound', {'wellfound'}),
+    ('--only profile:linkedin', {'linkedin_profile'}),
+    ('--only research:resume', {'research'}),
+    ('--only brief:tech-news --only brief:papers', {'brief'}),
+    ('--skip apply --skip profile', {'learn', 'research', 'brief'}),
+])
+def test_pipeline_inventory_matches_selected_stages_and_skips(monkeypatch, selection, expected):
+    monkeypatch.setattr(dashboard.state, '_query', lambda *args: [])
+    class FakeRunner:
+        def snapshot(self):
+            return {'running': True, 'runs': [
+                {'id': 'flow', 'running': True, 'action': 'pipeline',
+                 'shown': 'python -m pipeline continue ' + selection},
+            ]}
+    bots = dashboard.bots_status(FakeRunner())['bots']
+    assert {bot['id'] for bot in bots if bot['running']} == expected
+    assert all(bot['run_ids'] == ['flow'] for bot in bots if bot['running'])
+
+
+@pytest.mark.parametrize('command', ['status', 'check', 'learn --done'])
+def test_pipeline_checkpoint_commands_do_not_claim_agents_are_running(monkeypatch, command):
+    monkeypatch.setattr(dashboard.state, '_query', lambda *args: [])
+    class FakeRunner:
+        def snapshot(self):
+            return {'running': True, 'action': 'pipeline', 'shown': 'python -m pipeline ' + command}
+    assert not any(bot['running'] for bot in dashboard.bots_status(FakeRunner())['bots'])
+
 
 def test_missing_database_is_honest_and_bot_endpoint_is_local(app,monkeypatch):
     monkeypatch.setattr(dashboard.state,'database',lambda:app[1].parent/'missing.db')

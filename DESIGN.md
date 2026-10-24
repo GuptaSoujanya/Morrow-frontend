@@ -156,3 +156,33 @@ Latest user correction: Today must expose Papers, Tech, Companies and the daily 
 Learning contains the 90-day next unfinished lesson, that date's goal/design briefs, saved weekly plans and course links. Resume lab lists every numbered resume topic, completion and its README overview, independently of the daily news. Progress remains shared and durable. Fetch actions carry the selected date and exact existing research-only stage to the runner, with the existing command preview and confirmation; they never run application/profile stages. Show pending, failed and saved-file states; refresh after generation completes. Existing saved content remains readable during refetch. Empty sections always explain the missing source and give the appropriate fetch action.
 
 Use the established tokens, typography and atlas. Source section anatomy: 48px dimensional emblem, title/date/read state, 2–3 actual headline previews, explicit Open and Fetch/Refresh controls. Single-column source sections and compact digest preserve laptop readability. Tabs wrap on mobile, 44px controls and calendar focus behavior remain. Verification must cover a complete saved date and a missing date, all six daily files, separate learning/resume views, exact dated stage previews, cancellation/failure, and preservation of progress.
+
+## 16. Account entrance, plans and access
+
+Account screens belong to the existing Morrow dashboard. Follow the approved Launchpad composition: satin charcoal and lavender, restrained mint/peach accents, Space Grotesk headings, Source Sans body text, and the bundled dimensional artwork. Prefer a clear focal point and varied panel sizes over repeated nested cards.
+
+Sign-in uses one split surface: an illustrated welcome panel and a focused form. A single main mascot anchors the illustration; the mobile form keeps its primary action in the first viewport. Keep Google/email behavior, inline validation, recovery receipts, keyboard focus, and adequate touch targets.
+
+Plans show a compact current-access strip followed by mint/lavender/peach tiers with prices near their names. A native expandable comparison reveals all modules; module-specific links open it and highlight the relevant row. Prices, included modules, subscription status and checkout readiness remain server-driven. Administrator access is separate from billing. Do not claim unavailable checkout or personal connections are ready.
+
+Account settings combine a compact identity header, AI/security controls and illustrated module-access rows. Locked screens lead with a feature-specific explanation and action; their compact summary distinguishes subscription requirements from unavailable personal connections. Navigation, shortcuts and direct links continue to use the shared entitlement policy.
+
+Verify login, plans, account and access states on desktop, short laptops, tablets and mobile, including expandable comparison, included/locked module links, no horizontal overflow, and preserved authentication/account-switch behavior.
+
+## 17. Loading, empty states and missing pages
+
+Loading is deliberately quiet: a 160px, 2px flat lavender indeterminate line and one real operation label in the dashboard body type. Use the same indicator during startup, lazy page loading and account requests, with a shorter container inside account panels. No floating logo tile, orbit, glow, slogan or decorative dots. Animate only the line’s horizontal translation; reduced motion fixes it in place. Never invent a percentage or delay a completed request. Initial HTML includes the same loader so startup does not flash unstyled text. Keep initial loaders fully opaque; only existing results dim while being refreshed.
+
+Empty collections use a small layered document illustration and the existing contextual explanation/action. Recoverable errors use a peach emblem, readable message and a 44px retry control. Preserve real failure messages, keyboard operation, existing content during refresh and polite loading/alert semantics. Shared feedback rules live in `feedback.css`; earlier competing state rules have been removed.
+
+Unknown or malformed hash routes display a real missing-page view rather than silently opening the workspace. A large 4 / bundled crew avatar / 4 composition leads to a safe Sign in or Back to workspace action. Missing pages do not fetch protected workspace data, and displayed paths exclude query values. Use finite entrance motion only, with reduced-motion support. Review at 375, 768 and 1440px, including keyboard recovery, error retry and no page overflow.
+
+Normal missing browser document addresses also receive a static branded page with HTTP 404 and a fixed root recovery link. This page needs no JavaScript or account service. The server fallback is limited to clean extensionless document navigations; API, assets, course/report resources, encoded paths and host checks retain their existing handling.
+
+## 18. Flow progress and recovery
+
+Flows leads with the selected workflow date, saved progress counts and Resume workflow. The latest error follows with its recorded cause, concise repair steps and a relevant workspace link. Grouped stage history exposes interruption, missing output and quiet-process guidance; advanced run controls stay in a separate configuration panel. Retain the dashboard's charcoal, lavender and bundled Flow artwork, with peach for errors and mint for completed work. Stack controls below progress on smaller screens.
+
+Resume preserves the selected date, saved CLI/concurrency settings and completed stages. Retry restarts one unfinished stage from its beginning. Both preview and confirm the exact command, then recheck progress before starting. Neither action inherits reset/rerun switches from the new-run form. New partial workflows record only selected stages. Keep last errors during a retry and mark them resolved after success. A saved running label alone is not live evidence; distinguish confirmed active work from interrupted checkpoints, and describe missing recent checkpoints without declaring an active process stuck.
+
+Poll every five seconds while visible, preserving configuration inputs, focus, expanded stage guidance and the last successful view after refresh failure. Keep launch errors visible across successful background refreshes. Account changes and route departure cancel pending confirmations and ignore late results. Browser verification uses synthetic API fixtures only, with exact-date/stage assertions, confirmation races, refresh failures and desktop/tablet/mobile accessibility checks.

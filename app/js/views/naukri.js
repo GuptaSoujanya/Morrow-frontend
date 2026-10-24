@@ -25,7 +25,6 @@ export function renderNaukri() {
         field('Early-access collection limit', textInput('naukri','early_access_limit',{type:'number',min:1,max:500,placeholder:'Use configured limit'})),
       ),
       toggle("naukri", "dry_run", "Dry run", "Rank and preview jobs without applying to any of them."),
-      toggle("naukri", "headless", "Headless browser", "Run Chrome without a visible window."),
       toggle("naukri", "early_access", "Include early-access jobs", "Also consider jobs from Naukri’s early-access feed."),
       toggle("naukri", "early_access_only", "Early-access only", "Only look at the early-access feed."),
       previewBox("naukri"),

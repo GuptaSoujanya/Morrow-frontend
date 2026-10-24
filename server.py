@@ -8,6 +8,7 @@ import http.client
 import gzip
 import json
 import os
+import re
 from pathlib import Path
 import sys
 import tempfile
@@ -23,6 +24,9 @@ from web import server, state
 import commands
 import dashboard_data
 import research_learning
+import pipeline_status as flow_status
+from connections import ConnectionService, ConnectionError
+import runner_setup
 
 BOARDS = ("hirist", "instahyre", "cutshort", "wellfound")
 BOT_IDS = ("naukri", *BOARDS, "external", "profile", "linkedin", "linkedin_profile", "cold_email", "resume", "learn", "brief", "research", *(board + '_profile' for board in BOARDS))
@@ -57,20 +61,8 @@ def pipeline_command(options, save=False):
     return commands.pipeline_command(options, save)
 
 
-def pipeline_status():
-    today = dt.date.today().isoformat()
-    path = state.APPLY / ".memory" / "progress.json"
-    try:
-        data = json.loads(path.read_text()) if path.exists() else {}
-    except (ValueError, OSError):
-        raise ValueError("The pipeline checkpoint could not be read. Check .memory/progress.json.")
-    entry = data.get("days", {}).get(today, {})
-    stages = entry.get("stages", {})
-    from pipeline import lanes
-    return {"date": today, "status": entry.get("status", "not started"),
-            "watch": [{"site": site, "url": lanes.watch_url(site)} for site in lanes.WATCH_PORTS],
-            "stages": [{"name": name, **stages.get(name, {"status": "pending", "attempts": 0})}
-                       for name in entry.get("plan", list(stages))]}
+def pipeline_status(day=None, runner=None):
+    return flow_status.read_status(state.APPLY, day, runner.snapshot(after=0) if runner else None)
 
 
 def revision(text):
@@ -106,28 +98,119 @@ def bots_status(runner):
                                "found": summary.get("collected")}
     except (OSError, sqlite3.Error):
         history_error = "Run history is unavailable. Bot controls are still available."
-    tokens = shlex.split(run.get("shown") or "")
-    active = []
-    if run["running"]:
-        action = run.get("action")
+    active = {}
+    # The legacy snapshot represents one run; newer runners retain it alongside
+    # the complete list so older clients and test doubles remain compatible.
+    runs = run.get("runs") if isinstance(run.get("runs"), list) else [run]
+    for entry in runs:
+        if not entry.get("running"):
+            continue
+        try:
+            tokens = shlex.split(entry.get("shown") or "")
+        except ValueError:
+            tokens = []
+        selected = []
+        action = entry.get("action")
         if action == "boards" and "--site" in tokens:
             index = tokens.index("--site") + 1
             board = tokens[index] if index < len(tokens) else ""
-            active = list(BOARDS) if board == "all" else [board]
+            selected = list(BOARDS) if board == "all" else [board]
             if '--profile-only' in tokens:
-                active = [key + '_profile' for key in active]
-        elif action == "pipeline" and "--only" in tokens:
-            index = tokens.index("--only") + 1
-            group = tokens[index] if index < len(tokens) else ""
-            active = [group] if group in ("learn", "brief", "research") else []
+                selected = [key + '_profile' for key in selected]
+            elif '--update-profile' in tokens:
+                selected += [key + '_profile' for key in selected]
+        elif action == "pipeline":
+            def values(flag):
+                return [tokens[index + 1] for index, token in enumerate(tokens[:-1]) if token == flag]
+
+            command_index = tokens.index('pipeline') + 1 if 'pipeline' in tokens else len(tokens)
+            command = tokens[command_index] if command_index < len(tokens) else ''
+            only = ['learn'] if command == 'learn' else values('--only')
+            skipped = values('--skip')
+
+            def matches(stage, choices):
+                return any(stage == choice or stage.startswith(choice + ':') for choice in choices)
+
+            stages = [] if command in ('status', 'check') or '--done' in tokens else [
+                stage for stage in commands.STAGES
+                if (not only or matches(stage, only)) and not matches(stage, skipped)
+            ]
+            for stage in stages:
+                group, _, name = stage.partition(':')
+                if group == 'profile':
+                    selected.append('profile' if name == 'naukri' else name + '_profile')
+                elif group == 'apply':
+                    selected.append(name)
+                else:
+                    selected.append(group)
         elif action in BOT_IDS:
-            active = [action]
+            selected = [action]
+        for key in selected:
+            if key in BOT_IDS:
+                ids = active.setdefault(key, [])
+                if entry.get('id') and entry['id'] not in ids:
+                    ids.append(entry['id'])
     return {"bots": [{"id": key, "running": key in active,
-                      "status": "running" if key in active else "idle", "last_run": latest.get(key)}
+                      "status": "running" if key in active else "idle", "run_ids": active.get(key, []),
+                      "last_run": latest.get(key)}
                      for key in BOT_IDS], "run": run, "history_error": history_error}
 
 
 class DashboardHandler(server.Handler):
+    def connection_request(self, user=None, owner=False):
+        url = urlsplit(self.path)
+        if url.path != '/api/connections' and not url.path.startswith('/api/connections/'):
+            return False
+        try:
+            if self.command in ('GET', 'HEAD') and url.path == '/api/connections':
+                scope = parse_qs(url.query).get('scope', ['main'])[-1]
+                self.json(self.server.connections.list(user, owner, scope))
+            elif self.command == 'POST':
+                if not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
+                    self.error(403, 'Only this dashboard can change browser connections.')
+                    return True
+                parts = url.path.strip('/').split('/')
+                if len(parts) != 4:
+                    self.error(404, 'Choose a supported connection action.')
+                else:
+                    self.json(self.server.connections.action(user, owner, parts[2], parts[3], self.body()))
+            else:
+                self.error(405, 'Method not supported for browser connections.')
+        except ConnectionError as exc:
+            self.error(exc.status, str(exc))
+        except server.ApiError as exc:
+            self.error(exc.status, str(exc))
+        except OSError:
+            self.error(503, 'The browser connection could not be saved. Check this computer’s storage and try again.')
+        return True
+
+    def missing_document(self, path):
+        """Serve only a fixed public error page; never fall through to private files."""
+        if (self.command not in ("GET", "HEAD")
+                or self.headers.get("Sec-Fetch-Dest") != "document"
+                or self.headers.get("Sec-Fetch-Mode") != "navigate"
+                or "text/html" not in self.headers.get("Accept", "")):
+            return False
+        # Browser page addresses only. Encoded/dotted paths and all API, asset and
+        # legacy-content namespaces retain their existing authentication boundary.
+        if not re.fullmatch(r"/[A-Za-z0-9][A-Za-z0-9_-]*(?:/[A-Za-z0-9][A-Za-z0-9_-]*)*/?", path):
+            return False
+        if path.startswith(("/api", "/course", "/reports", "/assets", "/js", "/styles", "/fonts", "/static")):
+            return False
+        assets = ROOT / 'dist' if (ROOT / 'dist' / 'index.html').is_file() else ROOT / 'app'
+        target = server.inside(assets, path.lstrip("/"))
+        if target is None or target.is_file() or (target / 'index.html').is_file():
+            return False
+        document = assets / '404.html'
+        if not document.is_file():
+            document = ROOT / 'app' / '404.html'
+        try:
+            body = document.read_bytes()
+        except OSError:
+            return False
+        self.send(HTTPStatus.NOT_FOUND, body, 'text/html; charset=utf-8')
+        return True
+
     def account_request(self):
         """Account APIs and tenant adapters run before legacy file/bot handlers."""
         if not self.host_ok():
@@ -135,9 +218,13 @@ class DashboardHandler(server.Handler):
             return True
         bridge = getattr(self.server, "account_bridge", None)
         url = urlsplit(self.path)
+        if self.missing_document(url.path):
+            return True
         if not bridge:
             if url.path == "/api/session":
                 self.json({"mode": "local", "user": None, "legacy_access": True})
+                return True
+            if self.connection_request(owner=True):
                 return True
             return False
         if url.path.startswith("/api/v1/"):
@@ -152,6 +239,28 @@ class DashboardHandler(server.Handler):
                 self.error(401, "Sign in to your Morrow account first.")
                 return True
             owner = bridge.is_owner(self, user)
+            if url.path == '/api/runner/setup':
+                if self.command != 'POST':
+                    self.error(405, 'Use POST to prepare this computer.')
+                    return True
+                if not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
+                    self.error(403, 'Only this dashboard can prepare local runner inputs.')
+                    return True
+                try:
+                    expected = self.body()
+                    setup = bridge.json_request(self, '/api/v1/onboarding')
+                    resume = setup.get('resume')
+                    if not resume:
+                        raise runner_setup.SetupError(409, 'Choose a private resume before preparing this computer.')
+                    code, _, content = bridge.request(self, '/api/v1/artifacts/' + str(resume['id']) + '/content')
+                    if code != 200:
+                        raise runner_setup.SetupError(409, 'The selected resume is no longer available in your account.')
+                    self.json(runner_setup.sync_inputs(state.APPLY, self.server.runner, user, owner, setup, content, expected))
+                except runner_setup.SetupError as exc:
+                    self.error(exc.status, str(exc))
+                return True
+            if self.connection_request(user, owner):
+                return True
             if url.path == "/api/session":
                 self.json({"mode": "accounts", "user": user, "legacy_access": owner})
                 return True
@@ -254,7 +363,8 @@ class DashboardHandler(server.Handler):
             if url.path == "/api/document":
                 return self.json(dashboard_data.artifact(query.get('id', '')))
             if url.path == "/api/pipeline":
-                return self.json(pipeline_status())
+                day = parse_qs(url.query, keep_blank_values=True).get('date', [None])[-1]
+                return self.json(pipeline_status(day, self.server.runner))
             if url.path == "/api/bots":
                 return self.json(bots_status(self.server.runner))
             if url.path == "/api/file":
@@ -335,11 +445,19 @@ class DashboardServer(server.ControlServer):
         super().__init__(port)
         self.RequestHandlerClass = DashboardHandler
         self.file_lock = threading.Lock()
+        self.connections = ConnectionService(state.APPLY, self.runner)
+        self.runner.start_guard = self.connections.blocks_command
         self.account_bridge = None
         self.workspace_owner_email = os.getenv("MORROW_WORKSPACE_OWNER_EMAIL", "")
+        self.runner.environment_provider = lambda command, action: runner_setup.runtime_environment(state.APPLY, self.workspace_owner_email)
         if account_url:
             from auth_bridge import AccountBridge
             self.account_bridge = AccountBridge(account_url)
+
+    def server_close(self):
+        if getattr(self, 'connections', None) is not None:
+            self.connections.shutdown()
+        super().server_close()
 
 
 def register_actions():

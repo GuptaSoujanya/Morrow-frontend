@@ -81,6 +81,105 @@ and payment returns open the existing dashboard's hash routes. Provider credenti
 are required for live Google sign-in, email delivery, and Stripe checkout. The
 backend README documents configuration and local test-mode setup.
 
+## Setup checklist and Connections
+
+New accounts arriving after sign-in open **Setup checklist** (`#/onboarding`). Existing
+accounts can open it from the sidebar whenever their facts, resume, or chosen sites
+change. Drafts save to the account with version checks; conflicting saves preserve
+the edits on screen.
+
+1. **Your profile:** save full name, contact email, phone, current location, and target
+   roles. Skills, preferred locations, experience, and notice period can also be added.
+   Existing profile facts outside this form remain intact.
+2. **Your resume:** upload or select a private PDF, up to 10 MB. Use an unlocked PDF
+   with selectable text, no more than 20 pages, and less than 1 MB of extracted text.
+   Selecting a replacement keeps the previous private file.
+3. **Connect accounts:** choose Naukri, LinkedIn, Hirist, Instahyre, Cutshort, Wellfound,
+   and optionally Google / Gmail. **Open sign-in** opens the dedicated automation
+   Chrome window. Enter passwords, OTPs, and other verification directly on the site,
+   then use **Check sign-in**. An optional account email must match visible account
+   evidence before it is reported as checked. Close the window before running a bot.
+4. **Review setup:** review saved facts, resume, selected accounts, and browser status.
+   **Finish setup** prepares private profile/resume inputs on this computer before
+   recording completion. A running owner workflow or unreadable PDF leaves setup
+   unfinished with an explanation. Completion records saved setup; sites can still
+   expire a session or ask for verification later.
+
+**Connections** (`#/connections`) remains available after onboarding. Open, check,
+close, reconnect, or **Change account** there. Changing or disconnecting an account
+requires confirmation and clears that provider's sign-in data in the selected browser
+group. Changed account emails, including an explicitly cleared email, survive reload.
+Switching Morrow users cancels pending UI requests and removes the prior user's view;
+subsequent connection requests use the newly authenticated tenant's private directory.
+
+Google sign-in to **Morrow** authenticates the dashboard account through Firebase or
+the configured identity provider. Signing in to **Google / Gmail inside automation
+Chrome** establishes a separate browser session used by job sites. One does not sign
+you into the other, and onboarding does not ask for passwords or cookie exports.
+
+### This computer's prerequisites and browser groups
+
+Run the dashboard's Python service on the computer where Chrome and the automation
+tools should operate. A hosted dashboard alone cannot open a visitor's personal Chrome;
+this build does not pair a hosted service with a separate remote runner.
+
+- Install the parent project's Python dependencies and Google Chrome. Chrome can be
+  located through `CHROME_BINARY`; `CHROMEDRIVER` can specify an installed compatible
+  driver when automatic driver discovery is unavailable.
+- Install **Poppler** so `pdftotext` is on the Python service's `PATH`. Setup validates
+  that the uploaded PDF has usable text before preparing runner inputs.
+- Install and sign in to your own **Claude or Kiro CLI** for AI-assisted workflows.
+  Finding the executable does not verify its subscription or authentication.
+- Uploaded PDFs can supply profile text and be attached unchanged by supported bots.
+  LaTeX-based resume tailoring still requires a `.tex` source and its existing compiler
+  dependencies; uploading a PDF does not create that source.
+
+Connections reuses the exact dedicated automation profile used by the corresponding
+bot. It never imports the person's ordinary Chrome profile or copies its cookies.
+The **Main browser** shares Google, Naukri, and sequential job-board sessions. LinkedIn
+has its own profile. Parallel board runs use separate **Hirist**, **Instahyre**,
+**Cutshort**, and **Wellfound** lanes; connect that board and Google in its lane when
+using it. Signing in to Main does not copy the session into parallel lanes. Locked
+profiles and conflicting active runs block connection changes. Up to three managed
+windows may be open; idle managed windows close after 15 minutes while saved sessions
+remain on disk.
+
+### Local runner APIs and private storage
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/v1/onboarding` | Current versioned preferences, profile, selected private resume, and computed readiness |
+| `PUT /api/v1/onboarding` | Save a draft or completion with `expected_version`, `platforms`, `account_hints`, `resume_artifact_id`, and `completed` |
+| `GET /api/connections?scope=main` | This account's browser status; supported parallel scopes are `lane:hirist`, `lane:instahyre`, `lane:cutshort`, and `lane:wellfound` |
+| `POST /api/connections/{provider}/{action}` | `open`, `check`, `close`, `switch`, or `disconnect`, with `scope` and optional `expected_account` |
+| `POST /api/runner/setup` | Prepare the selected private inputs using the saved `version` and `profile_version`; the server fetches files through the authenticated account API |
+
+Onboarding state and profile facts live in tenant-scoped PostgreSQL tables; uploaded
+resumes use the existing private artifact store. Apply backend migration
+`005_onboarding` before starting the updated API. No browser session is uploaded by
+these endpoints or included in downloadable artifacts.
+
+Paths below are relative to the parent workspace and are private runtime data:
+
+| Data | Location |
+| --- | --- |
+| Ordinary account browser groups | `data/private/connections/<tenant-id>/<main\|linkedin\|lane-board>/chrome/` |
+| Owner's existing browser groups | Configured `BROWSER_PROFILE_DIR` and `LINKEDIN_BROWSER_PROFILE_DIR`, each with its `chrome/` subfolder; defaults are `data/browser/naukri` and `data/browser/linkedin` |
+| Owner's parallel board groups | `lanes/<board>/chrome/` beside the configured main profile directory |
+| Connection status/account labels | `.morrow-connections.json` beside each group's `chrome/` folder |
+| Prepared profile and resume | `data/private/runner/<tenant-id>/<snapshot-id>/profile.yaml` and `resume.pdf`; `current.json` selects that tenant's snapshot |
+
+Private directories use restrictive filesystem permissions, and these paths stay out
+of Git. Browser session state remains on this computer. The original profile/resume
+files are preserved: a verified owner snapshot sets `PROFILE_PATH` and `RESUME_PATH`
+for future dashboard jobs through `data/private/runner/active-owner.json`.
+
+**Current execution boundary:** all authenticated accounts can save private setup and
+manage their isolated local browser sessions. Individual tenant workflow execution is
+still not wired to those sessions. Only the configured workspace owner may execute the
+existing shared workflows; administrator status or a paid plan alone does not grant
+that access. Preparing a tenant's inputs does not switch the owner's active snapshot.
+
 ## Existing workspace tools
 
 The original owner's dashboard retains its existing tools and data. Execution,
@@ -94,10 +193,25 @@ these shared workflows. The original workspace includes:
 - **Data hub:** all-time record counts, source paths and searchable research/report/profile/resume files; inline PDF preview, explicit downloads, URL-backed pagination and clear missing/error states.
 - **Applications:** search the actual ledger, switch between discovered jobs and attempts,
   filter by platform/outcome/date, sort by score and open the underlying records.
-- **Bot Crew:** 18 application, profile and career assistants with original 3D avatars, practice
-  controls, configuration links, busy states and recorded history.
-- **Flows:** select groups or exact stages, continue or rerun completed work, skip groups,
-  choose date/CLI/concurrency, inspect grouped checkpoints and validate material.
+- **Bot Crew:** 18 application, profile and career assistants with original 3D avatars, actual-run
+  controls, configuration links, busy states and recorded history. Select cards in **Run agents together**
+  and use **Run selected** to launch a compatible group after one confirmation. The selection panel
+  stays visible while browsing agents; confirmation describes each action, with commands under
+  **Technical details**. An older dashboard service shows restart guidance and preserves the selection
+  if it does not support group launches. Restart the service after backend updates once active runs finish.
+  **Browser for crew runs** defaults to **Background**, which opens no desktop window. Choose
+  **Visible — watch Chrome** for a normal Chrome window, sign-in or verification; its window opens centered and can take focus as tabs change.
+  Individual run settings offer the same **Browser mode** choice. Existing browser profiles are reused,
+  and a background run never switches itself into a visible session. The old `BACKGROUND=true`
+  setting now also means headless, rather than pushing a normal window off-screen.
+- **Flows:** inspect a selected date's saved stages with live five-second updates, the latest
+  recorded error and specific repair guidance. **Resume workflow** runs only unfinished
+  recorded stages using saved settings; **Retry this stage** targets one stage. Completed
+  results remain saved, and a failed stage restarts from its beginning. Missing output files
+  are flagged for recovery. Active runs block conflicting retries; a quiet process is labelled
+  without assuming it has stopped. Configure a separate run, validate material, or open
+  container browser screens from the same page. Stage errors survive restarts; failures
+  before the first checkpoint use the dashboard runner's retained history.
 - **Insights:** conversion funnel, outcomes, match scores, platform/search comparisons,
   recent runs and 7/14/30/all-time CSV exports.
 - **Research Studio:** search and read generated briefings, study plans, resume research and
@@ -108,7 +222,7 @@ these shared workflows. The original workspace includes:
   modules in expandable tracks and review or generate reports from the date archive.
 - **My profile & files / Preferences:** configuration editing, masked credentials, revision
   checks, unsaved drafts, private backups, preferences grouped by purpose and a 32-character workspace avatar picker.
-- **Activity:** compact illustrated launcher, run summary, expandable output, copy, follow-latest, graceful stop and force stop for owned runs.
+- **Activity:** the running-agent list shows who is working, their status and elapsed time. **View activity** selects that agent's progress and logs. **All browsers** lists the active runs' browsers and tabs, grouped by agent; **Open preview** goes straight to the chosen browser, with **Back to all browsers** for switching. **Watch browser** also opens the selected run's read-only preview, with tab selectors and a capture timestamp. Background runs stay off your desktop. Copy and Stop apply to the selected run; other agents keep working.
 - **Schedules:** enable, inspect and disable the supported Naukri-profile/LinkedIn macOS jobs.
 - **Custom controls:** keyboard-accessible dropdowns, calendar date entry, persistent field errors,
   clear loading/retry states and draft-preserving saves.
@@ -121,9 +235,33 @@ See [CAPABILITIES.md](CAPABILITIES.md) for the original local-tool inventory and
 semantics. The account boundary above determines which workflows are available to
 each signed-in user.
 
-Owner-workspace runs show an exact command preview and ask for confirmation. Practice mode is selected by
-default wherever supported. Pipeline practice mode still permits its learning/research stages
-to invoke the configured AI CLI. Only one command can run through this server at a time.
+Owner-workspace runs show an exact command preview and ask for confirmation. Bot Crew's
+**Run now** and **Run selected** perform actual work: application agents submit applications,
+profile agents save changes, and research agents save their output. LinkedIn creates a saved
+draft (and its configured Telegram alert); recruiter writers save drafts. Agents needing a
+job URL or description ask you to set that up first. Practice mode remains available in
+individual settings. Explicit run-mode choices override inherited `DRY_RUN` settings for
+that process without editing `.env`.
+
+Select up to eight independent agents across categories; selections remain while navigating
+the workspace. The batch preview validates the complete selection before the confirmation.
+The start request checks resources and capacity again under one lock; a conflict starts none
+of the selected agents. If process creation fails partway, the UI reports exactly which
+agents started and retains only the failed selections for review.
+Runs that share a browser session, resume compiler output, or the same pipeline stage
+are rejected with an explanation until that resource is free. For example, learning
+and tech-news research can run together, while two bots using the main browser must wait.
+
+Activity uses a same-origin server-sent event stream (`GET /api/events`); commands
+continue to use the JSON API. Logs carry run IDs and timestamps, and reconnects
+resume from the last received cursor. If streaming is unavailable, a single
+non-overlapping request checks activity every 5 seconds while busy or 15 seconds
+while idle; general workspace refresh runs every 30 seconds. Recent history is
+kept in memory (50 runs, 5,000 log entries), and a server restart resets it.
+The browser viewer requests an uncached screenshot (`GET /api/run/browser`) about every two seconds while open and visible. Requests never overlap, errors are shown explicitly, and closing the viewer or changing accounts cancels requests and clears its images. Screenshots are not saved. A private per-run registry restricts capture to that run's browser instances and is removed when the run ends. Container runs use the browser screens in Flows instead. Choose visible Chrome before starting a run; an already-background browser stays headless.
+The browser list uses a separate, uncached metadata request (`GET /api/run/browsers`) every five seconds while Activity or All browsers is open. It pauses when hidden or while watching a preview. Listing browsers captures no images and never opens or focuses desktop windows. Closed runs disappear from the list; unavailable browser sessions and runs that have not opened a browser are labelled explicitly.
+Account changes close the stream and clear private activity. Account mode retains
+the existing restriction that the shared local runner belongs to its explicit owner.
 Commands started separately in a terminal are outside this console's process control.
 
 ## Integration and data
@@ -169,6 +307,7 @@ have not yet been implemented.
 ```sh
 npm run build                  # rebuild app/ into dist/, then reload the page
 npm run test:auth-unit          # account isolation and managed-auth client flows
+npm run test:onboarding         # fully mocked setup/Connections, mobile and accessibility checks
 npm run test:accounts           # integration checks against synthetic preview :8102
 npm test                       # Playwright UI, accessibility and responsive checks
 npm run audit                  # 3 desktop + 3 mobile Lighthouse runs in Chromium
@@ -181,6 +320,10 @@ Legacy UI checks replace write requests with fixtures. Account integration check
 synthetic users and an isolated API preview; they do not run bots or edit your personal
 files. Backend tests use temporary data. Reports are deliberately sandboxed: the automated
 accessibility scan checks the dashboard shell separately from report documents.
+Onboarding checks intercept every API request and never open a real automation profile
+or contact Google/job sites. Set `ONBOARDING_DASHBOARD_URL` to another local preview
+origin if needed; the default is `http://127.0.0.1:8102`. Real provider sign-ins have
+not been exercised by this automated suite.
 
 Source: `app/js/` (ES modules), `app/styles/` (design tokens and primitives), `server.py`
 (dashboard server, authentication bridge, and tenant adapters). React 19 owns lazy route boundaries and Suspense; existing DOM components render inside a route adapter and account screens use the same application root. TanStack Query v5 caches and deduplicates read requests. Typography uses locally hosted Space Grotesk and Source Sans 3. Original avatar graphics are bundled from
@@ -198,7 +341,7 @@ For the original workspace owner, course lessons, research notes and 90-day lear
 
 - Research Studio → **Today**: choose a date, open its daily README, and read Papers, Tech radar and Company radar. Missing dates remain explicitly empty, with a link to the latest saved date. Fetch a whole briefing or one section directly, after reviewing its exact command.
 - **Learning**: your first unfinished learning day, 90-day progress, daily goal, system-design brief and saved weekly plans. **Resume lab**: a separate topic library based on your resume, with its own overview and completion count.
-- Fetch actions use your configured AI agents and persist their output in `.research/`; they are not simulated feeds. The Activity panel shows the run, and the view refreshes when it finishes. Only one dashboard run can execute at a time.
+- Fetch actions use your configured AI agents and persist their output in `.research/`; they are not simulated feeds. The Activity panel follows each run, and its output views refresh when that agent finishes, even while another agent is still working. Independent research stages can run in parallel.
 - Open a read → **Mark complete**. **Reopen reading** reverses it. Opening alone never completes an item.
 - **Progress**: dated course/research completions and reopens, plus imported work whose original dates were not recorded.
 - Learning path and the hosted course reader share the same progress. `/course/01-system-design/` redirects to `/course/#/01-system-design/`. The course reader still uses its existing CDN scripts.

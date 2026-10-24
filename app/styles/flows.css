@@ -1,0 +1,112 @@
+/* Flows puts recovery and saved progress ahead of advanced run controls. */
+.flows-page { min-width: 0; }
+.flows-page .page-head { align-items: center; }
+.flows-page .btn { min-height: 44px; }
+.flow-date-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 16px 24px;
+  margin-bottom: 24px; padding: 18px 22px;
+  background: var(--canvas-raised); border: 1px solid var(--border); border-radius: 16px;
+}
+.flow-date-bar > .field { width: 190px; margin: 0; flex: none; }
+.flow-date-bar .field-label { font-size: 12px; margin: 0; }
+.flow-date-bar .field-error { margin: 0; }
+.flow-date-copy { flex: 1; min-width: 180px; }
+.flow-date-copy > p { margin: 0; font-size: 13px; color: var(--text-600); line-height: 1.6; }
+.flow-date-copy > .flow-freshness { margin-top: 4px; color: var(--text-400); font-size: 12px; }
+.flow-saved-dates { display: flex; flex-wrap: wrap; gap: 4px 12px; max-width: 280px; }
+.flow-date-link { border: 0; background: none; color: var(--emerald-700); font: inherit; font-size: 12px; padding: 4px 0; min-height: 44px; cursor: pointer; }
+.flow-date-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+.flow-feedback:not(:empty) { margin-bottom: 20px; }
+.flow-feedback > .state-error + .state-error { margin-top: 12px; }
+.flow-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 24px; align-items: start; }
+.flow-progress, .flow-sidebar { min-width: 0; display: flex; flex-direction: column; gap: 24px; }
+.flow-status-card { padding: 24px; border: 1px solid #b9a5ff32; border-radius: 22px; background: linear-gradient(120deg, #282531, #21212b); }
+.flow-status-heading { display: flex; gap: 16px; align-items: flex-start; }
+.flow-status-art { width: 54px; height: 54px; border-radius: 14px; flex: none; }
+.flow-status-heading > div { min-width: 0; }
+.flow-status-heading .eyebrow { font-size: 10px; margin: 0 0 8px; color: #c1b5d8; }
+.flow-status-heading h2 { font-family: var(--font-display); font-weight: 500; font-size: clamp(21px, 2vw, 26px); line-height: 1.3; letter-spacing: -.6px; margin: 0 0 8px; }
+.flow-status-heading p:not(.eyebrow) { margin: 0; color: #beb9cb; font-size: 14px; line-height: 1.6; }
+.flow-counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 22px 0; margin: 20px 0; border-block: 1px solid #b9a5ff1c; gap: 10px; }
+.flow-counts > div { min-width: 0; }
+.flow-counts strong { display: block; font-family: var(--font-display); font-size: 26px; font-weight: 500; line-height: 1.2; margin-bottom: 6px; }
+.flow-counts span { font-size: 12px; color: #beb9cb; }
+.flow-status-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.flow-status-actions > span { width: 100%; font-size: 12px; line-height: 1.6; color: #beb9cb; margin-top: 2px; }
+.flow-latest-error { border-color: #e6b69c40; background: linear-gradient(120deg, #2b2528, #1b1d24); }
+.flow-latest-error .panel-title { color: #f1c7b6; }
+.flow-latest-error h3 { margin: 0 0 10px; font-family: var(--font-display); font-size: 17px; font-weight: 500; letter-spacing: -.3px; }
+.flow-fix { min-width: 0; }
+.flow-fix > p { margin: 0 0 12px; color: var(--text-600); font-size: 14px; line-height: 1.65; }
+.flow-fix ol { padding-left: 20px; margin: 0 0 16px; }
+.flow-fix li { padding-left: 3px; margin-bottom: 7px; font-size: 14px; line-height: 1.6; color: var(--text-900); }
+.flow-fix li::marker { color: #d6b7a9; }
+.flow-error-message { padding: 12px 14px; border: 1px solid #ffffff0c; border-radius: 10px; background: #12131880; margin: 14px 0 10px; }
+.flow-error-message > span { display: block; color: var(--text-400); font-size: 11px; margin-bottom: 7px; }
+.flow-error-message code { display: block; color: #d8bdc2; font-size: 12px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.flow-fix-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; font-weight: 600; }
+.flow-recovery-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.flow-step-list { padding: 0 0 12px; margin: 0; }
+.flow-step { display: block; padding: 16px 0; border-bottom: 1px solid #ffffff09; }
+.flow-step:last-child { border-bottom: 0; padding-bottom: 4px; }
+.flow-step-line { display: flex; align-items: center; gap: 12px; }
+.flow-step-number { display: grid; place-items: center; flex: none; width: 34px; height: 34px; background: #272a34; border: 1px solid #ffffff0e; border-radius: 10px; font-size: 12px; color: var(--text-400); font-variant-numeric: tabular-nums; }
+.step-done .flow-step-number { color: #a7dfc2; background: #25382f; }
+.step-running .flow-step-number { color: #d3c4ff; background: #342c48; }
+.step-failed .flow-step-number, .step-interrupted .flow-step-number, .step-missing_output .flow-step-number { color: #f2bfab; background: #3b2e2c; }
+.flow-step-copy { min-width: 0; flex: 1; }
+.flow-step-copy strong { font-size: 14px; font-weight: 600; }
+.flow-step-copy p { font-size: 12px; line-height: 1.5; color: var(--text-400); margin: 4px 0 0; }
+.flow-step-status { font-size: 11px; line-height: 1.4; max-width: 100px; text-align: right; color: var(--text-400); }
+.step-done .flow-step-status { color: var(--success); }
+.step-running .flow-step-status { color: #cdbbff; }
+.step-failed .flow-step-status, .step-interrupted .flow-step-status, .step-missing_output .flow-step-status { color: #efc2ad; }
+.flow-step-help { margin: 8px 0 0 46px; }
+.flow-step-help > summary { min-height: 44px; display: list-item; align-content: center; cursor: pointer; font-size: 13px; color: #e1bcab; line-height: 1.5; padding: 8px 0; }
+.flow-step-help .flow-fix { margin-top: 6px; }
+.flow-config .panel-title, .flow-diagnostics .panel-title { font-size: 18px; }
+.flow-config .panel-sub { font-size: 13px; line-height: 1.6; }
+.flow-config .field { margin-bottom: 18px; }
+.flow-config .field-label { font-size: 13px; }
+.flow-config .toggle { align-items: start; margin: 0; padding: 14px 0; border-bottom: 1px solid var(--border); width: 100%; }
+.flow-config .toggle-text { font-size: 14px; }
+.flow-config .toggle-text .small { font-size: 12px; line-height: 1.6; }
+.flow-config .switch { margin-top: 3px; flex: none; }
+.flow-advanced { margin: 6px 0 14px; border-bottom: 1px solid var(--border); }
+.flow-advanced > summary { min-height: 48px; align-content: center; cursor: pointer; font-size: 14px; color: #cdbbff; }
+.flow-advanced .field:first-of-type { margin-top: 16px; }
+.flow-config .run-details { margin: 18px 0; }
+.flow-config .btn-primary { width: 100%; justify-content: center; }
+.flow-diagnostics .muted { font-size: 14px; line-height: 1.6; margin: 0 0 16px; }
+.flow-diagnostic-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.flow-diagnostic-buttons .btn { font-size: 12px; padding-inline: 10px; }
+.flow-browser-screens { margin-top: 16px; border-top: 1px solid var(--border); }
+.flow-browser-screens > summary { cursor: pointer; min-height: 44px; align-content: center; font-size: 14px; color: #cdbbff; }
+.flow-browser-screens ul { display: flex; flex-wrap: wrap; gap: 0 16px; }
+.flow-browser-screens a { display: inline-flex; min-height: 44px; align-items: center; font-size: 13px; }
+@media (max-width: 1150px) {
+  .flow-workspace { grid-template-columns: minmax(0, 1fr) 285px; gap: 18px; }
+  .flow-sidebar .panel { padding: 20px; }
+  .flow-date-bar { gap: 14px; }
+}
+@media (max-width: 900px) {
+  .flow-workspace { grid-template-columns: minmax(0, 1fr); }
+  .flow-sidebar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 18px; }
+  .flow-saved-dates { max-width: 100%; }
+}
+@media (max-width: 600px) {
+  .flows-page .page-head { align-items: start; }
+  .flow-date-bar { padding: 16px; }
+  .flow-date-bar > .field { width: 100%; }
+  .flow-status-card { padding: 20px; }
+  .flow-status-heading { gap: 12px; }
+  .flow-status-art { width: 42px; height: 42px; }
+  .flow-status-heading h2 { font-size: 21px; }
+  .flow-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+  .flow-status-actions > .btn { flex: 1; justify-content: center; white-space: nowrap; }
+  .flow-step-status { max-width: 74px; font-size: 11px; }
+  .flow-step-help { margin-left: 0; }
+  .flow-sidebar { display: flex; }
+  .flow-recovery-actions .btn { flex: 1; justify-content: center; }
+  .flow-saved-dates { gap: 4px 14px; }
+}

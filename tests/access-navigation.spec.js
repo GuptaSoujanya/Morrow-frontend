@@ -168,10 +168,13 @@ test('paid and administrator deep links explain access without loading protected
   await page.screenshot({ path: 'artifacts/accounts/access-upgrade-mobile.png', fullPage: true, animations: 'disabled' });
   await page.getByRole('link', { name: 'Compare plans', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Plans & billing' })).toBeVisible();
+  await expect(page).toHaveURL(/#\/plans\?module=automations$/);
+  await expect(page.locator('details.account-comparison')).toHaveJSProperty('open', true);
+  await expect(page.locator('.account-comparison').getByRole('rowheader', { name: 'Automations', exact: true })).toBeVisible();
   await expectFreeNavigation(page);
   await page.goto('/#/admin');
   await expect(page.getByRole('heading', { level: 1, name: 'Administration' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'This space is for administrators.', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'A space for administrators.', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open administration', exact: true })).toHaveCount(0);
   await expectFreeNavigation(page);
   await expectAccessible(page);
@@ -185,7 +188,7 @@ test('administrators keep every module across plans while tenant runtime availab
   expect(await hrefs(sidebarLinks(page))).toEqual(ADMIN_ROUTES.map(route => '#/' + route));
   await page.locator('#nav .sidebar-scroll a[href="#/bots"]').click();
   await expect(page.getByRole('heading', { level: 1, name: 'Bot Crew' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Your tools, with a little setup.', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Bot Crew needs a connection.', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Compare plans', exact: true })).toHaveCount(0);
   expect(await hrefs(sidebarLinks(page))).toEqual(ADMIN_ROUTES.map(route => '#/' + route));
   await page.locator('#nav .sidebar-scroll a[href="#/admin"]').click();

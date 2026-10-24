@@ -1,0 +1,81 @@
+/* Bot Crew: select a group, review its actions, and start it from one place. */
+.crew-browser-setting { display:flex; align-items:center; gap:20px; margin-bottom:22px; padding:18px 20px; border:1px solid var(--border); border-radius:14px; }
+.crew-browser-setting > div { flex:0 1 320px; min-width:0; }
+.crew-browser-setting .field-label { display:block; margin-bottom:8px; }
+.crew-browser-setting p { flex:1; margin:0; font-size:13px; line-height:1.7; color:var(--text-600); }
+.run-preview-controls > .field { margin:18px 0; }
+.crew-launch-panel {
+  position: sticky;
+  top: 12px;
+  z-index: 20;
+  border: 1px solid #b9a5ff40;
+  border-radius: 18px;
+  background: var(--canvas-raised, #202128);
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 24px #0003, inset 0 1px 0 #ffffff05;
+}
+.crew-launch-heading { display: flex; justify-content: space-between; gap: 20px; align-items: center; }
+.crew-launch-heading h2 { font-family: var(--font-display); font-size: 21px; font-weight: 500; margin: 0; letter-spacing: -.4px; }
+.crew-selection-summary { font-size: 13px; line-height: 1.6; color: var(--text-600); margin: 5px 0 0; }
+.crew-launch-actions { display: flex; gap: 16px; align-items: center; flex: none; }
+.crew-launch-actions .btn, .crew-launch-actions .text-link { min-height: 44px; white-space: nowrap; }
+.crew-launch-actions .text-link:disabled { opacity: .45; cursor: default; }
+.crew-steps { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); list-style: none; padding: 0; margin: 0 0 22px; gap: 24px; }
+.crew-steps li { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.crew-step-number { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border: 1px solid #b9a5ff45; border-radius: 10px; color: #d3c7ff; background: #b9a5ff0c; font-size: 13px; }
+.crew-steps strong { display: block; font-size: 14px; font-weight: 600; margin: 2px 0 5px; }
+.crew-steps li div > span { display: block; font-size: 13px; line-height: 1.6; color: var(--text-600); }
+.crew-run-note { display: flex; gap: 12px; align-items: flex-start; margin: 0 0 22px; }
+.crew-run-note p { margin: 3px 0 0; font-size: 13px; line-height: 1.7; color: var(--text-600); max-width: 720px; }
+.crew-live-badge { flex: none; display: inline-flex; align-items: center; gap: 7px; border: 1px solid #95d6b535; background: #95d6b50a; color: #a5dfc1; padding: 7px 10px; border-radius: 99px; font-size: 11px; }
+.crew-live-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.crew-selected { display: flex; flex-wrap: wrap; gap: 8px; max-height: 108px; overflow-y: auto; padding: 2px; }
+.crew-selected:not(:empty) { margin-top: 12px; }
+.crew-selected-chip { display: inline-flex; gap: 8px; align-items: center; min-height: 44px; max-width: 100%; padding: 7px 10px 7px 8px; border: 1px solid #b9a5ff45; border-radius: 12px; color: var(--text-900); background: #b9a5ff0c; font: inherit; font-size: 12px; cursor: pointer; }
+.crew-selected-chip .bot-icon { width: 26px; height: 26px; border-radius: 7px; }
+.crew-selected-chip > span:not(.bot-icon) { overflow-wrap: anywhere; }
+.crew-selected-chip > span:last-child { color: #cdbfff; font-size: 18px; padding-left: 6px; }
+.crew-launch-feedback { display: grid; gap: 6px; max-height: 160px; overflow-y: auto; }
+.crew-launch-feedback:has(p) { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px; }
+.crew-launch-feedback p { margin: 0; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.crew-launch-error, .crew-launch-result.is-failed { color: #f0c090; }
+.crew-launch-result.is-started { color: #a5dfc1; }
+.bot-card.is-selected { border-color: #b9a5ff88; background: linear-gradient(#b9a5ff08, #b9a5ff08), var(--glass); box-shadow: inset 0 0 0 1px #b9a5ff15; }
+.bot-page .bot-card { scroll-margin-top: 260px; }
+.crew-pick { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px; margin: 12px 0 16px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; font-size: 13px; color: var(--text-600); }
+.crew-pick:hover { border-color: #b9a5ff70; }
+.crew-pick:has(:checked) { color: #d3c7ff; }
+.crew-pick:has(:disabled) { cursor: default; }
+.crew-pick input { appearance: auto; width: 18px; height: 18px; flex: none; margin: 0; accent-color: #b9a5ff; cursor: inherit; }
+.crew-pick input:focus-visible { outline: 2px solid #cdbfff; outline-offset: 4px; }
+.crew-setup-note { font-size: 11px; line-height: 1.5; color: #dfb878; margin: 8px 0 0; }
+.bot-page .bot-actions { flex-wrap: wrap; gap: 8px; }
+.bot-page .crew-configure { flex: none; font-size: 12px; gap: 6px; }
+.crew-command-details { margin-bottom: 20px; color: var(--text-600); font-size: 13px; }
+.crew-command-details summary { cursor: pointer; min-height: 44px; padding: 12px 0; }
+.crew-command-details summary:focus-visible { outline: 2px solid #cdbfff; outline-offset: 2px; }
+.crew-confirm-list { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 12px; }
+.crew-confirm-list li { display: grid; gap: 5px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.crew-confirm-list strong { font-size: 14px; font-weight: 600; }
+.crew-confirm-list span { font-size: 12px; line-height: 1.6; color: var(--text-600); }
+@media (max-width: 900px) {
+  .crew-launch-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .crew-launch-actions { width: 100%; justify-content: flex-end; }
+  .crew-steps { gap: 12px; }
+}
+@media (max-width: 767px) {
+  .crew-browser-setting { flex-direction:column; align-items:stretch; gap:12px; padding:16px; }
+  .crew-browser-setting > div { flex-basis:auto; }
+  .crew-launch-panel { padding: 16px; border-radius: 16px; top: 8px; }
+  .crew-launch-heading h2 { font-size: 20px; }
+  .crew-live-badge { padding: 5px 9px; }
+  .crew-launch-actions { justify-content: space-between; gap: 12px; }
+  .crew-launch-actions .btn { flex: 1; }
+  .crew-steps { grid-template-columns: 1fr; gap: 14px; }
+  .crew-steps strong { margin-bottom: 2px; }
+  .crew-run-note { flex-direction: column; gap: 5px; }
+  .crew-launch-feedback { max-height: 115px; }
+  .bot-page .bot-card { scroll-margin-top: 300px; }
+}
+@media (max-height: 600px) { .crew-launch-panel { position: static; } }

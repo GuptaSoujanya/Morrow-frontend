@@ -4,25 +4,46 @@ import { avatar } from '../components/identity.js';
 import { SECTIONS } from '../router.js';
 
 const FEATURES = {
-  automations: { name: 'Automations', image: 38, description: 'Bring your application tools together and keep the next step in sight.', benefits: ['A place for your application tools', 'Connected steps in your workflow', 'Follow-ups in your action inbox'] },
-  resumes: { name: 'Resume studio', image: 43, description: 'Keep your experience ready for the opportunities you want to pursue.', benefits: ['Your experience, ready to reuse', 'Resumes tailored to a role', 'Documents kept in your workspace'] },
-  research: { name: 'Research', image: 47, description: 'Give your company research and preparation a place of their own.', benefits: ['Your private research library', 'Company and role preparation', 'Notes you can return to'] },
-  learning: { name: 'Learning', image: 35, description: 'Make space for the skills and preparation behind your next move.', benefits: ['A focused learning routine', 'Preparation alongside your search', 'Your progress in one place'] },
-  outreach: { name: 'Outreach', image: 39, description: 'Prepare thoughtful introductions and keep your outreach organized.', benefits: ['Recruiter introduction drafts', 'Follow-ups in your own voice', 'LinkedIn preparation tools'] },
-  analytics: { name: 'Insights', image: 45, description: 'See the story behind your saved application activity.', benefits: ['Your application outcomes', 'A clearer view of your activity', 'Patterns across your job search'] },
+  automations: { name: 'Automations', image: 38, heading: 'Meet your application crew.', description: 'Bring your application tools, workflows, and next steps together.', benefits: ['Application tools', 'Connected workflows', 'Follow-up planning'] },
+  resumes: { name: 'Resume studio', image: 43, heading: 'Make your experience stand out.', description: 'Prepare your experience for the opportunities you want to pursue.', benefits: ['Reusable experience', 'Role-specific resumes', 'Private documents'] },
+  research: { name: 'Research', image: 47, heading: 'Know more before your next move.', description: 'Give company research, role preparation, and your own notes a home.', benefits: ['Research library', 'Company preparation', 'Saved notes'] },
+  learning: { name: 'Learning', image: 35, heading: 'Build toward your next opportunity.', description: 'Keep your learning and preparation alongside your job search.', benefits: ['Focused learning', 'Interview preparation', 'Saved progress'] },
+  outreach: { name: 'Outreach', image: 39, heading: 'Make the right introduction.', description: 'Prepare thoughtful introductions and organize your next follow-up.', benefits: ['Introduction drafts', 'Follow-up preparation', 'LinkedIn tools'] },
+  analytics: { name: 'Insights', image: 45, heading: 'Find the story in your search.', description: 'Understand your saved application activity and the patterns behind it.', benefits: ['Application outcomes', 'Activity overview', 'Search patterns'] },
+};
+
+const ROUTE_HEADINGS = {
+  pipeline: 'Give your search a clear flow.',
+  todo: 'Keep your next steps in one place.',
 };
 
 function workspaceEssentials() {
   return h('section', { class: 'access-essentials', 'aria-labelledby': 'access-essentials-title' },
-    h('div', { class: 'access-section-heading' }, h('h2', { id: 'access-essentials-title', text: 'Keep moving with your essentials' }), h('p', { text: 'These are ready in your workspace.' })),
+    h('div', { class: 'access-section-heading' },
+      h('h2', { id: 'access-essentials-title', text: 'Your essentials are ready' }),
+      h('span', { class: 'access-ready-label' }, icon('check', 'icon icon-sm'), 'Included in your access')),
     h('div', { class: 'access-essential-grid' }, [
-      ['person', 'My profile', 'Keep your experience up to date.', '#/files/profile'],
-      ['file', 'Applications', 'Pick up where your search left off.', '#/records'],
-      ['folder', 'Private files', 'Your documents, in one place.', '#/data'],
-    ].map(([glyph, title, description, href]) => h('a', { class: 'access-essential', href },
-      h('span', { class: 'access-essential-icon' }, icon(glyph)),
-      h('span', {}, h('strong', { text: title }), h('small', { text: description })),
-      icon('chevron-right', 'icon icon-sm')))),
+      [35, 'My profile', 'Keep your experience up to date', '#/files/profile', 'mint'],
+      [43, 'Applications', 'Pick up where your search left off', '#/records', 'lavender'],
+      [44, 'Private files', 'Your documents, neatly together', '#/data', 'peach'],
+    ].map(([image, title, description, href, tone]) => h('a', { class: `access-essential access-essential-${tone}`, href },
+      avatar(image, 'access-essential-art'),
+      h('span', { class: 'access-essential-copy' }, h('strong', { text: title }), h('small', { text: description })),
+      icon('arrow-up-right', 'icon icon-sm')))),
+  );
+}
+
+function accessSummary({ feature, forbidden, upgrade, user, plan }) {
+  const current = user?.role === 'admin' ? 'Administrator' : plan;
+  return h('aside', { class: 'access-summary', 'aria-label': 'Access requirements' },
+    h('div', { class: 'access-art', 'aria-hidden': 'true' },
+      h('span', { class: 'access-art-halo' }),
+      avatar(forbidden ? 46 : feature.image, 'access-character'),
+      h('span', { class: 'access-art-stamp' }, icon(forbidden || upgrade ? 'lock' : 'check', 'icon icon-sm'))),
+    h('dl', { class: 'access-requirements' },
+      h('div', {}, h('dt', { text: user?.role === 'admin' ? 'Your access' : 'Your plan' }), h('dd', { text: current })),
+      h('div', {}, h('dt', { text: forbidden || upgrade ? 'Needed' : 'Tool access' }), h('dd', { text: forbidden ? 'Administrator role' : upgrade ? feature.name : 'Included', class: forbidden || upgrade ? '' : 'access-included' }))),
+    h('p', { class: 'access-summary-note', text: forbidden ? 'Roles are managed by an administrator.' : upgrade ? 'Choose a plan that includes this module.' : 'Personal connection unavailable' }),
   );
 }
 
@@ -30,32 +51,30 @@ export function renderAccessState({ route, kind, user, module }) {
   const upgrade = kind === 'upgrade', forbidden = kind === 'forbidden';
   const title = SECTIONS.find(([name]) => name === route.name)?.[1] || 'Workspace access';
   const feature = FEATURES[module] || FEATURES.automations;
-  const plan = user?.plan_name || 'current';
-  const heading = forbidden ? 'This space is for administrators.' : upgrade ? 'More room for your next move.' : 'Your tools, with a little setup.';
-  const description = forbidden ? 'Your account has its own workspace. Managing members, plans, and access requires an administrator role.'
-    : upgrade ? `${feature.name} is not included in your ${plan} plan. Compare the available plans to find the tools you need.`
-      : `${title} is included in your access. It needs a personal connection before you can use it. Personal connections are not available yet.`;
-  const status = forbidden ? 'Administrator access' : upgrade ? `Not in your ${plan} plan` : 'Included · connection needed';
+  const plan = user?.plan_name || 'Current plan';
+  const heading = forbidden ? 'A space for administrators.' : upgrade ? ROUTE_HEADINGS[route.name] || feature.heading : `${title} needs a connection.`;
+  const description = forbidden ? 'Members, plans, and workspace controls are managed here. Your account keeps its own private workspace.'
+    : upgrade ? `${feature.description} This module isn’t included in your ${plan} plan.`
+      : 'Your account includes this tool. Personal connections aren’t available yet, so it can’t run in this workspace.';
+  const status = forbidden ? 'Administrator only' : upgrade ? 'Not included in your plan' : 'Included · connection needed';
+  const connectionRequired = upgrade && ['automations', 'resumes', 'learning', 'outreach'].includes(module);
   return h('div', { class: 'page access-state', dataset: { accessState: kind } },
     h('a', { class: 'access-back', href: '#/overview' }, icon('chevron-left', 'icon icon-sm'), 'Back to workspace'),
     h('header', { class: 'page-head' }, h('div', {}, h('p', { class: 'eyebrow', text: 'YOUR WORKSPACE' }), h('h1', { text: title }))),
     h('section', { class: 'access-hero', 'aria-labelledby': 'access-state-title' },
-      h('div', { class: 'access-copy' },
-        h('span', { class: 'access-status' }, icon(forbidden || upgrade ? 'lock' : 'check', 'icon icon-sm'), status),
-        h('h2', { id: 'access-state-title', text: heading }),
-        h('p', { class: 'access-description', text: description }),
-        upgrade ? h('ul', { class: 'access-benefits' }, feature.benefits.map(text => h('li', {}, icon('check', 'icon icon-sm'), text))) : null,
-        h('div', { class: 'access-actions' },
-          h('a', { class: 'btn btn-primary', href: upgrade ? '#/plans?' + new URLSearchParams({ module: module || 'automations' }) : '#/overview' }, upgrade ? 'Compare plans' : 'Go to workspace', icon('chevron-right', 'icon icon-sm')),
-          h('a', { class: 'btn', href: '#/account', text: 'View my access' })),
-        h('p', { class: 'access-fine-print', text: forbidden ? 'Contact your workspace administrator if you need a different role.' : upgrade ? 'Your profile, applications, and files stay with you. Claude or Kiro is a separate subscription.' : 'A different plan won’t enable this connection. Your other included tools remain available.' })),
-      h('div', { class: 'access-visual', 'aria-hidden': 'true' },
-        h('div', { class: 'access-art-orbit' }),
-        avatar(forbidden ? 46 : feature.image, 'access-character'),
-        h('span', { class: 'access-visual-label' }, icon(forbidden ? 'person' : 'grid', 'icon icon-sm'), forbidden ? 'Your account, your space' : feature.name),
-        h('span', { class: 'access-visual-dot' }))),
-    upgrade && ['automations', 'resumes', 'learning', 'outreach'].includes(module)
-      ? h('div', { class: 'access-connection-note' }, icon('info', 'icon icon-sm'), h('p', { text: 'Personal connections for this tool are not available yet, including on paid plans.' })) : null,
+      h('div', { class: 'access-hero-main' },
+        h('div', { class: 'access-copy' },
+          h('span', { class: 'access-status' }, icon(forbidden || upgrade ? 'lock' : 'check', 'icon icon-sm'), status),
+          h('h2', { id: 'access-state-title', text: heading }),
+          h('p', { class: 'access-description', text: description }),
+          h('div', { class: 'access-actions' },
+            h('a', { class: 'btn btn-primary', href: upgrade ? '#/plans?' + new URLSearchParams({ module: module || 'automations' }) : '#/overview' }, upgrade ? 'Compare plans' : 'Go to workspace', icon('arrow-up-right', 'icon icon-sm')),
+            h('a', { class: 'btn access-secondary', href: '#/account', text: 'View my access' }))),
+        accessSummary({ feature, forbidden, upgrade, user, plan })),
+      upgrade ? h('ul', { class: 'access-benefits', 'aria-label': `${feature.name} features` }, feature.benefits.map(text => h('li', {}, icon('check', 'icon icon-sm'), text))) :
+        h('div', { class: 'access-hero-footer' }, icon('info', 'icon icon-sm'), h('p', { text: forbidden ? 'Contact your workspace administrator if you need a different role.' : 'Changing your plan won’t enable this connection. Your other included tools are ready to use.' }))),
+    h('div', { class: 'access-context-note' }, icon(connectionRequired ? 'info' : 'lock', 'icon icon-sm'),
+      h('p', { text: connectionRequired ? 'Personal connections for this tool are not available yet, including on paid plans. Claude or Kiro is a separate subscription.' : upgrade ? 'Your profile, applications, and files stay with you on every plan. Claude or Kiro is a separate subscription.' : 'Your profile, applications, and files remain private to your workspace.' })),
     workspaceEssentials(),
   );
 }

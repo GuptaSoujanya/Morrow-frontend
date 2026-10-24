@@ -25,6 +25,8 @@ const ROUTES = {
   analytics: { module: 'analytics' },
   reports: { module: 'analytics', runtime: true },
   setup: {},
+  onboarding: { account: true },
+  connections: {},
   plans: { account: true },
   account: { account: true },
   admin: { account: true, admin: true },
@@ -32,13 +34,14 @@ const ROUTES = {
 const GROUPS = [
   ['WORKSPACE', ['overview', 'bots', 'pipeline', 'todo', 'records']],
   ['KNOWLEDGE & DATA', ['research', 'data', 'analytics', 'reports', 'study']],
-  ['PERSONAL', ['files', 'setup']],
+  ['PERSONAL', ['files', 'connections', 'onboarding', 'setup']],
   ['ACCOUNT', ['plans', 'account', 'admin']],
 ];
 const BOT_ROUTES = ['naukri', 'boards', 'sites', 'profile', 'linkedin', 'linkedin-profile', 'outreach', 'resume'];
 
 export function routeAccess(route, context = {}) {
   const name = typeof route === 'string' ? route : route.name;
+  if (name === 'not-found') return { kind: 'not-found' };
   if (AUTH_ROUTES.has(name)) return { kind: 'allowed' };
   const rule = ROUTES[name];
   if (!rule) return { kind: 'forbidden' };

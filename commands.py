@@ -73,7 +73,16 @@ def pipeline_command(o, save=False):
     args=['-m','pipeline',command]
     group=str(o.get('group') or '')
     if group not in GROUPS: raise ValueError('Choose a supported pipeline group or stage.')
-    if group: args += ['--only',group]
+    groups=o.get('groups')
+    if groups is not None:
+        if group: raise ValueError('Choose a single group or an exact stage list, not both.')
+        if not isinstance(groups,list) or not groups or any(not isinstance(x,str) or x not in STAGES for x in groups):
+            raise ValueError('Choose a non-empty list of supported pipeline stages.')
+        if len(groups)!=len(set(groups)): raise ValueError('Choose each pipeline stage only once.')
+        if command!='continue' or any(server._on(o,key) for key in ('fresh','redo','done')):
+            raise ValueError('An exact stage list can only continue unfinished work.')
+        for stage in groups: args += ['--only',stage]
+    elif group: args += ['--only',group]
     skipped=o.get('skip') or []
     if isinstance(skipped,str): skipped=[x.strip() for x in skipped.split(',') if x.strip()]
     if not isinstance(skipped,list) or any(x not in GROUPS or not x for x in skipped): raise ValueError('Choose supported stages to skip.')
@@ -96,7 +105,9 @@ def pipeline_command(o, save=False):
     elif bots is not None: args += ['--bots',bots]
     day=server._text(o,'date')
     if day:
-        try: dt.date.fromisoformat(day)
+        try:
+            if not re.fullmatch(r'\d{4}-\d{2}-\d{2}',day): raise ValueError()
+            dt.date.fromisoformat(day)
         except ValueError: raise ValueError('Use a date in YYYY-MM-DD format.') from None
         args += ['--date',day]
     research_labels = {'brief': 'Daily research', 'brief:papers': 'Papers research',

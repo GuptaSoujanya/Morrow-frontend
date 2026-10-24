@@ -24,6 +24,9 @@ const initialState = () => ({
   forms: { naukri:{dry_run:true},external:{dry_run:true},profile:{dry_run:true},boards:{dry_run:true},pipeline:{dry_run:true},linkedin:{mode:'dry-run'},linkedin_profile:{dry_run:true},cold_email:{dry_run:true} },
   previews: {},
   runButtons: {},
+  crewSelection: [],
+  crewBrowserMode: 'background',
+  crewLaunch: {pending: false, error: '', conflicts: [], results: []},
 
   overview: null,
   overviewDays: savedOverviewDays(),
@@ -32,6 +35,7 @@ const initialState = () => ({
 
   drafts: {},
   runNext: 0,
+  runEpoch: '',
 
   consoleSize: "collapsed",
   revealedSecrets: new Set(),

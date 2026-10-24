@@ -19,7 +19,12 @@
   <div class="shell">
     <nav id="nav" class="sidebar" aria-label="Sections"></nav>
 
-    <main id="content" class="content" tabindex="-1"><p>Opening your workspace…</p></main>
+    <main id="content" class="content" tabindex="-1">
+      <div class="state-loading boot-loading" role="status" aria-live="polite">
+        <span class="loading-progress" aria-hidden="true"><span></span></span>
+        <p>Opening your workspace…</p>
+      </div>
+    </main>
   </div>
 
   <aside id="console-dock" aria-label="Run console"></aside>

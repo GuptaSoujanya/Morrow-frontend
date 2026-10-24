@@ -245,6 +245,7 @@ def test_public_shell_assets_load_without_disclosing_api_data(account_dashboard)
         ("GET", "/api/session"),
         ("GET", "/api/file?name=profile"),
         ("GET", "/api/run"),
+        ("GET", "/api/events"),
         ("POST", "/api/run"),
     ):
         assert (
@@ -343,6 +344,9 @@ def test_nonowner_cannot_reach_legacy_files_runners_courses_or_reports(
 ):
     paths = [
         "/api/run",
+        "/api/run/browser?id=private-run",
+        "/api/run/browsers",
+        "/api/events",
         "/api/pipeline",
         "/api/bots",
         "/api/report?day=2026-01-01",
@@ -359,6 +363,7 @@ def test_nonowner_cannot_reach_legacy_files_runners_courses_or_reports(
         assert status in (400, 403, 404), (path, status, body)
     for path in (
         "/api/run",
+        "/api/events",
         "/api/stop",
         "/api/preview",
         "/api/answer",
@@ -620,5 +625,42 @@ def test_account_service_failure_fails_closed_but_leaves_sign_in_shell_available
 
     monkeypatch.setattr(account_dashboard.app.account_bridge, "request", offline)
     assert request(account_dashboard, "/")[0] == 200
-    for path in ("/api/session", "/api/file?name=profile", "/api/run", "/api/v1/me"):
+    for path in ("/api/session", "/api/file?name=profile", "/api/run", "/api/events", "/api/v1/me"):
         assert request(account_dashboard, path, token="alice")[0] == 503
+
+
+def test_browser_preview_is_private_to_the_current_workspace_owner(account_dashboard, monkeypatch):
+    calls = []
+    def preview(*args):
+        calls.append(args)
+        return {'state': 'ready', 'image': 'synthetic-owner-only-frame'}
+    monkeypatch.setattr(account_dashboard.app.runner, 'browser_snapshot', preview)
+    for token in (None, 'alice', 'bob', 'admin'):
+        code, _, body = request(account_dashboard, '/api/run/browser?id=run-one', token=token)
+        assert code in (401, 403)
+        assert 'synthetic-owner-only-frame' not in json.dumps(body)
+    assert calls == []
+    code, headers, body = request(account_dashboard, '/api/run/browser?id=run-one', token='owner')
+    assert code == 200 and body['image'] == 'synthetic-owner-only-frame'
+    assert dict(headers)['Cache-Control'] == 'no-store'
+    assert calls == [('run-one', '', '')]
+
+
+def test_browser_inventory_is_private_to_the_current_workspace_owner(account_dashboard, monkeypatch):
+    calls = []
+    def inventory():
+        calls.append(True)
+        return {'runs': [{'id': 'private-run', 'label': 'Private owner agent', 'running': True,
+                          'browser_state': 'ready', 'browsers': [{'id': 'private-browser',
+                          'label': 'Chrome', 'state': 'ready', 'tabs': [{'id': 'tab',
+                          'title': 'Private owner tab', 'site': 'private.example.test'}]}]}]}
+    monkeypatch.setattr(account_dashboard.app.runner, 'browser_inventory', inventory)
+    for token in (None, 'alice', 'bob', 'admin'):
+        code, _, body = request(account_dashboard, '/api/run/browsers', token=token)
+        assert code in (401, 403)
+        assert not any(value in json.dumps(body) for value in ('Private owner', 'private.example.test', 'private-browser'))
+    assert calls == []
+    code, headers, body = request(account_dashboard, '/api/run/browsers', token='owner')
+    assert code == 200 and body['runs'][0]['browsers'][0]['tabs'][0]['title'] == 'Private owner tab'
+    assert dict(headers)['Cache-Control'] == 'no-store'
+    assert calls == [True]

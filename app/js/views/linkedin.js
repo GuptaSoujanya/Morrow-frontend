@@ -20,7 +20,6 @@ export function renderLinkedin() {
           {},
           field("What to do", selectInput("linkedin", "mode", meta.linkedin_modes, "dry-run")),
           field("Draft file", textInput("linkedin", "draft", { placeholder: "path to a saved draft (optional)" }), "Leave blank to draft a new one."),
-          toggle("linkedin", "headless", "Headless browser"),
           previewBox("linkedin"),
           runButton("linkedin", "Run", { confirm: () => (S.forms.linkedin && S.forms.linkedin.mode === "post" ? liveRunConfirm("This publishes the post on LinkedIn right now.") : null) }),
         ),

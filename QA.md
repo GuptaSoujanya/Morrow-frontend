@@ -2,6 +2,44 @@
 
 Local production dashboard: http://127.0.0.1:8100. This report supersedes the earlier Orbit scores and screen counts.
 
+## Setup checklist and Connections — October 24, 2026
+
+The new onboarding flow and persistent Connections page use the existing dashboard
+shell. The following focused checks supplement the earlier review below:
+
+| Check | Result |
+| --- | --- |
+| `npm run test:onboarding` | 17 passed with every API request intercepted; no real browser profiles, account providers, or workflows invoked |
+| Authentication/navigation unit suite | 36 passed, including account cancellation, Free navigation, and the shared-runtime ownership boundary |
+| Connections HTTP authorization | 13 passed with temporary servers and fake browser sessions; unauthenticated/cross-origin requests denied and non-owner execution remains forbidden |
+| Onboarding API and storage regressions | 31 onboarding tests plus 23 existing API/storage/import tests passed against isolated PostgreSQL databases |
+| Synthetic API integration on `:8102` | Login, private profile/PDF upload, draft save, local runner snapshot, completion, reload, and connection prerequisites passed through the real preview services; workflow execution returned `403` and a second account's artifact download returned `404` |
+| Accessibility and responsive layout | Zero axe WCAG 2 A/AA and 2.1 A/AA violations across all four setup steps and Connections; profile/Connections checked at 1440, 768, and 375px with no horizontal overflow |
+
+Coverage includes saved profile facts and PDF selection, draft retention on conflicts,
+confirmation before changing an account, changed and cleared email persistence, polling
+without losing input focus, late responses after browser-group/route/account changes,
+and runner preparation failures leaving onboarding unfinished. Screenshots are in
+`artifacts/onboarding/`; desktop review and mobile setup/Connections were visually
+inspected. Real Google/job-site sign-ins, OTP/CAPTCHA handling, live AI runs, and
+multiuser execution were not tested. PDF inputs support text extraction and unchanged
+attachments; automatic tailoring still requires a LaTeX source. Saved onboarding does
+not certify that a browser session will remain valid.
+
+The API integration used `artifacts/verify-onboarding-api.py` with synthetic preview
+accounts and a generated PDF. It opened no automation browser and submitted no
+applications. This verifies the isolated preview services; it does not establish
+deployment or readiness of the main account API. Separately, the local main API
+was rebuilt with its unchanged, verified dependency manifests; migration
+`005_onboarding` completed and database readiness returned `ready`. Its OpenAPI
+schema includes onboarding GET/PUT. The dashboard on `:8100` returns `401` for
+anonymous onboarding and Connections requests. No real account setup was changed.
+
+PDF/session/runner checks used synthetic inputs and mocked browser/process calls:
+136 focused tests plus seven existing Google-login regressions passed. A final
+48-test runner setup/HTTP authorization check passed after server cleanup handling
+was hardened. Real provider browser login remains a manual check.
+
 ## Scope
 
 Morrow retains the approved charcoal/lavender direction, dimensional crew and glass shell. The latest Research Studio separates Today, Learning, Resume lab, Library and Progress. Today exposes the selected date’s README, Papers, Tech radar and Company radar, with real heading previews and direct fetch/refresh controls. Learning contains the next unfinished day, saved weekly plans, daily goal and system-design material. Resume lab has its own index and all numbered topics. Readers use the available width and preserve their return URL.
@@ -62,4 +100,10 @@ Fresh route screenshots: `artifacts/{375,768,1280}/`. Research screenshots: `art
 
 The frontend reference pack, formal visual-qa/review-work orchestrators and in-app browser target were unavailable. Existing Playwright with installed Chrome provided browser evidence; no formal dual-oracle pass or other-browser support is claimed. Opaque sandboxed document frames are excluded from axe injection; their surrounding dashboard shell is checked and document rendering is visually reviewed.
 
-This remains a local single-user Python/SQLite workspace, not an authenticated multi-user deployment. Client caching and bounded lists do not prove 100,000 simultaneous users. Live research/bot success still depends on configured agents, sessions and credentials. The hosted course reader retains its existing CDN dependencies. Existing generated research content is displayed as saved, not independently verified by this UI work.
+Authentication and tenant-scoped PostgreSQL storage are integrated; the existing shared
+Python/SQLite workflows remain restricted to their configured owner. Individual tenant
+automation execution is not connected yet. Client caching and bounded lists do not prove
+100,000 simultaneous users. Live research/bot success still depends on configured agents,
+sessions and credentials. The hosted course reader retains its existing CDN dependencies.
+Existing generated research content is displayed as saved, not independently verified by
+this UI work.

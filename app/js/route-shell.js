@@ -27,9 +27,11 @@ const imports={
   naukri:()=>import('./views/naukri.js').then(m=>m.renderNaukri),sites:()=>import('./views/sites.js').then(m=>m.renderSites),
   profile:()=>import('./views/profile.js').then(m=>m.renderProfile),linkedin:()=>import('./views/linkedin.js').then(m=>m.renderLinkedin),
   resume:()=>import('./views/resume.js').then(m=>m.renderResume),todo:()=>import('./views/todo.js').then(m=>m.renderTodo),
-  boards:()=>import('./views/automations.js').then(m=>m.renderBoards),pipeline:()=>import('./views/automations.js').then(m=>m.renderPipeline),
+  boards:()=>import('./views/automations.js').then(m=>m.renderBoards),pipeline:()=>import('./views/flows.js').then(m=>m.renderPipeline),
   outreach:()=>import('./views/outreach.js').then(m=>m.renderOutreach),'linkedin-profile':()=>import('./views/outreach.js').then(m=>m.renderLinkedinProfile),
   'tenant-overview':()=>import('./views/tenant-overview.js').then(m=>m.renderTenantOverview),
+  onboarding:()=>import('./views/onboarding.js').then(m=>m.renderOnboarding),
+  connections:()=>import('./views/onboarding.js').then(m=>m.renderConnections),
 };
 const ready=new Map();
 const makeRoute=name=>lazy(()=>imports[name]().then(render=>{ready.set(name,render);return {default:props=>R(DomView,{...props,render})};}));
@@ -38,7 +40,7 @@ class RouteBoundary extends Component{
   state={error:null};
   static getDerivedStateFromError(error){return {error};}
   componentDidCatch(error){console.error('Route failed',error);}
-  render(){return this.state.error?R(DomView,{render:()=>h('div',{},errorState('This page could not open. Your workspace and saved data are still available.',()=>{
+  render(){return this.state.error?R(DomView,{render:()=>h('div',{class:'route-recovery'},errorState('This page could not open. Your workspace and saved data are still available.',()=>{
     routes[this.props.name]=makeRoute(this.props.name);this.setState({error:null});this.props.retry();
   }),h('button',{class:'btn',type:'button',text:'Reload workspace',onclick:()=>window.location.reload()}))}):this.props.children;}
 }

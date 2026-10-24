@@ -2,7 +2,7 @@ import { h } from "../dom.js";
 
 /** Every destructive or real-world action (a non-dry-run run, force stop, saving a secret)
  * goes through this before it happens. Resolves true/false; never auto-accepts. */
-export function confirmDialog({ title, body, code, ok = "Continue", tone = "primary" }) {
+export function confirmDialog({ title, body, content, code, ok = "Continue", tone = "primary" }) {
   const dialog = document.getElementById("confirm");
   if (dialog.open) return Promise.resolve(false);
   const previous = document.activeElement;
@@ -20,6 +20,7 @@ export function confirmDialog({ title, body, code, ok = "Continue", tone = "prim
         { method: "dialog", class: "confirm-body", onsubmit: (e) => e.preventDefault() },
         h("h2", { class: "confirm-title", id: 'confirm-title', text: title }),
         body ? h("p", { class: "confirm-text", text: body }) : null,
+        content || null,
         code ? h("pre", { class: "confirm-code" }, h("code", { text: code })) : null,
         h(
           "div",

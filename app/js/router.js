@@ -16,6 +16,8 @@ export const SECTIONS = [
   ["study", "Learning path", "book"],
   ["todo", "Action inbox", "check"],
   ["setup", "Preferences", "sliders"],
+  ["onboarding", "Setup checklist", "check"],
+  ["connections", "Connections", "globe"],
   ["files", "My profile & files", "folder"],
   ["records", "Applications", "file"],
   ["research", "Research Studio", "book"],
@@ -35,15 +37,16 @@ export const SECTIONS = [
 
 const NAMES = new Set(SECTIONS.map(([name]) => name));
 const DEFAULT_ROUTE = { name: "overview", arg: "" };
+const missingRoute = path => ({ name: 'not-found', arg: path.slice(0, 160) });
 
 export function parseHash(hash) {
   const raw = String(hash || "").replace(/^#\/?/, "").split('?')[0];
   if (!raw) return { ...DEFAULT_ROUTE };
   let [name, ...rest] = raw.split("/");
   if (name === 'today') name = 'overview';
-  if (!NAMES.has(name)) return { ...DEFAULT_ROUTE };
+  if (!NAMES.has(name)) return missingRoute(raw);
   try { return { name, arg: decodeURIComponent(rest.join("/")) }; }
-  catch { return { ...DEFAULT_ROUTE }; }
+  catch { return missingRoute(raw); }
 }
 
 export function parseRoute(loc = window.location) {

@@ -1,15 +1,19 @@
 import { h } from "./dom.js";
 import { icon } from "./icons.js";
-import { api } from "./api.js";
+import { api, accountRequestSignal } from "./api.js";
 import { toast } from "./components/toast.js";
 import { confirmDialog } from "./components/dialog.js";
 import { setConsoleSize } from "./components/console.js";
-import { S, form, running, hooks } from "./state.js";
+import { S, form, hooks } from "./state.js";
 import { sentence } from "./format.js";
 import { selectControl, dateControl } from './components/controls.js';
+import { BROWSER_ACTIONS, BROWSER_MODES, browserRunOptions } from './browser-mode.js';
 export { form } from "./state.js";
 
 let fieldId = 0;
+// A pending preview/confirmation belongs to one account. Other actions stay
+// available, and a late result cannot block or start work in a new workspace.
+const pendingStarts = new Map();
 export function field(label, control, hint) {
   const id = `field-${++fieldId}`;
   const target = control.controlElement || control;
@@ -97,8 +101,10 @@ export function selectInput(action, key, choices, fallback = "") {
  * before any run button becomes clickable. */
 export function previewBox(action) {
   const box = h("div", { class: "preview", id: `preview-${action}` }, h("span", { class: "muted small", text: "Checking…" }));
+  const mode = BROWSER_ACTIONS.has(action) ? field('Browser mode', selectInput(action, 'browser_mode', BROWSER_MODES, browserRunOptions(action, form(action)).browser_mode),
+    'Background keeps your desktop free; use Watch browser in Activity to see its pages. Choose Visible to watch Chrome or sign in directly; visible tabs may take focus.') : null;
   schedulePreview(action);
-  return h('details', {class:'run-details'}, h('summary', {text:'Run details'}), box);
+  return h('div', {class:'run-preview-controls'}, mode, h('details', {class:'run-details'}, h('summary', {text:'Run details'}), box));
 }
 
 export function schedulePreview(action) {
@@ -115,16 +121,17 @@ async function preview(action) {
   if (!box) return;
   const state = S.previews[action] || (S.previews[action] = {});
   const version = state.version;
+  const scope = accountRequestSignal();
   try {
-    const reply = await api("/api/preview", { action, options: form(action) });
-    if (version !== state.version) return;
+    const reply = await api("/api/preview", { action, options: browserRunOptions(action, form(action)) });
+    if (scope.aborted || S.previews[action] !== state || version !== state.version) return;
     if (reply.needed) throw new Error(sentence(reply.needed));
     state.error = "";
     state.shown = reply.shown;
     box.replaceChildren(h("span", { class: "preview-label", text: "Will run" }), h("code", { text: `$ ${reply.shown}` }));
     box.classList.remove("preview-error");
   } catch (error) {
-    if (version !== state.version) return;
+    if (scope.aborted || error.name === 'AbortError' || S.previews[action] !== state || version !== state.version) return;
     state.error = error.message;
     state.shown = "";
     box.replaceChildren(h("span", { class: "preview-label", text: "Needed" }), h("span", { text: error.message }));
@@ -137,49 +144,92 @@ async function preview(action) {
 /** Every run — dry or real — previews the exact command it is about to start, with the exact
  * options this call uses (not just whatever a mounted form last previewed), then asks for
  * explicit confirmation before anything happens. Returns null if the user does not confirm. */
-async function previewThenConfirm(action, options, confirm) {
+async function previewThenConfirm(action, options, confirm, scope) {
   let shown = "";
   try {
     const reply = await api("/api/preview", { action, options: options || {} });
+    scope.throwIfAborted();
     if (reply.needed) {
       toast(sentence(reply.needed), "warn");
       return false;
     }
     shown = reply.shown;
   } catch (error) {
+    if (scope.aborted || error.name === 'AbortError') return false;
     toast(error.message, "error");
     return false;
   }
   const dialog = confirm
     ? { ok: "Run it", tone: "primary", ...confirm, code: shown }
     : { title: "Run this?", body: "This is the exact command that will run:", code: shown, ok: "Run it" };
-  return confirmDialog(dialog);
+  scope.throwIfAborted();
+  const element = document.getElementById('confirm');
+  if (element?.open) return false;
+  const answer = confirmDialog(dialog);
+  const contents = element?.firstElementChild;
+  const cancel = () => {
+    if (element?.open && element.firstElementChild === contents) {
+      element.dispatchEvent(new Event('cancel', { cancelable: true }));
+    }
+  };
+  scope.addEventListener('abort', cancel, { once: true });
+  try { return await answer && !scope.aborted; }
+  finally { scope.removeEventListener('abort', cancel); }
 }
 
 export function updateRunButtons() {
-  const busy = running();
+  const scope = accountRequestSignal();
   for (const [key, button] of Object.entries(S.runButtons)) {
     if (!button.isConnected) {
       delete S.runButtons[key];
       continue;
     }
     const action = button.dataset.action;
+    const busy = pendingStarts.get(button.dataset.runAction || action)?.scope === scope;
     const blocked = (S.previews[action] || {}).error;
     button.disabled = busy || !!blocked;
-    button.title = busy ? `${S.status.run.label} is running. Stop it or wait for it to finish.` : blocked || "";
+    button.setAttribute('aria-busy', String(busy));
+    button.title = busy ? 'Finish confirming this run before starting it again.' : blocked || "";
   }
 }
 
 async function run(action, options, { confirm } = {}) {
-  if (!(await previewThenConfirm(action, options, confirm))) return;
+  const scope = accountRequestSignal();
+  if (scope.aborted || pendingStarts.get(action)?.scope === scope) return;
+  const trigger = document.activeElement;
+  const pending = { scope };
+  pendingStarts.set(action, pending);
+  const release = () => {
+    if (pendingStarts.get(action) === pending) pendingStarts.delete(action);
+    updateRunButtons();
+  };
+  scope.addEventListener('abort', release, { once: true });
+  updateRunButtons();
   try {
-    const reply = await api("/api/run", { action, options: options || {} });
+    // The command submitted must use exactly the options shown for confirmation,
+    // even if the underlying form changes while the dialog is open.
+    const selected = structuredClone(browserRunOptions(action, options || {}));
+    if (!(await previewThenConfirm(action, selected, confirm, scope))) return;
+    scope.throwIfAborted();
+    const reply = await api("/api/run", { action, options: selected });
+    scope.throwIfAborted();
     if (S.consoleSize === "collapsed") setConsoleSize("normal");
     toast(`Started ${reply.label}.`, "info", 2500);
   } catch (error) {
-    toast(error.message, "error");
+    if (!scope.aborted && error.name !== 'AbortError') toast(error.message, "error");
+  } finally {
+    scope.removeEventListener('abort', release);
+    release();
+    // Disabling a pending trigger can move focus to <body> before the dialog
+    // records it. Restore it only after re-enabling, without stealing new focus.
+    const dialog = document.getElementById('confirm');
+    if (!scope.aborted && trigger?.isConnected && !dialog?.open &&
+        (document.activeElement === document.body || dialog?.contains(document.activeElement))) trigger.focus({preventScroll:true});
   }
-  try { await hooks.refreshStatus(); } catch (error) { toast(error.message, 'error'); }
+  if (!scope.aborted) {
+    try { await hooks.refreshStatus(); }
+    catch (error) { if (!scope.aborted && error.name !== 'AbortError') toast(error.message, 'error'); }
+  }
 }
 
 export function runButton(action, label, { tone = "primary", confirm, options } = {}) {
@@ -197,7 +247,7 @@ export function quickButton(action, label, options = {}, extra = {}) {
   const button = h("button", {
     class: `btn ${extra.tone ? `btn-${extra.tone}` : ""}`,
     type: "button",
-    dataset: { action: `${action}-fixed` },
+    dataset: { action: `${action}-fixed`, runAction: action },
     onclick: () => run(action, options, { confirm: typeof extra.confirm === "function" ? extra.confirm() : extra.confirm }),
   }, label);
   S.runButtons[`${action}-fixed:${label}`] = button;
