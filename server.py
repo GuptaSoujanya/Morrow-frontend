@@ -221,6 +221,9 @@ class DashboardHandler(server.Handler):
         if self.missing_document(url.path):
             return True
         if not bridge:
+            if url.path.startswith('/api/v1/') or url.path == '/api/runner/setup':
+                self.error(404, 'Accounts and billing are disabled in the free beta.')
+                return True
             if url.path == "/api/session":
                 self.json({"mode": "local", "user": None, "legacy_access": True})
                 return True
@@ -233,7 +236,7 @@ class DashboardHandler(server.Handler):
         if self.command in ("GET", "HEAD") and (url.path in ("/", "/index.html") or url.path.startswith(("/assets/", "/js/", "/styles/", "/fonts/"))):
             return False
         try:
-            from auth_bridge import BackendError
+            from auth_bridge import BackendError, Unavailable
             user = bridge.identity(self)
             if not user:
                 self.error(401, "Sign in to your Morrow account first.")
@@ -299,8 +302,17 @@ class DashboardHandler(server.Handler):
         except server.ApiError as exc:
             self.error(exc.status, str(exc))
             return True
-        except (OSError, BackendError, http.client.HTTPException):
+        except Unavailable as exc:
+            print(f"account service unreachable: {exc}", file=sys.stderr, flush=True)
             self.error(503, "The account service is unavailable. Try again shortly.")
+            return True
+        except BackendError as exc:
+            self.error(exc.status, str(exc))
+            return True
+        except OSError as exc:
+            import traceback
+            traceback.print_exc()
+            self.error(500, f"This computer could not finish the request: {exc}")
             return True
 
     def send(self, status, body, kind):
@@ -448,7 +460,7 @@ class DashboardServer(server.ControlServer):
         self.connections = ConnectionService(state.APPLY, self.runner)
         self.runner.start_guard = self.connections.blocks_command
         self.account_bridge = None
-        self.workspace_owner_email = os.getenv("MORROW_WORKSPACE_OWNER_EMAIL", "")
+        self.workspace_owner_email = os.getenv("MORROW_WORKSPACE_OWNER_EMAIL", "") if account_url else ""
         self.runner.environment_provider = lambda command, action: runner_setup.runtime_environment(state.APPLY, self.workspace_owner_email)
         if account_url:
             from auth_bridge import AccountBridge
@@ -470,16 +482,30 @@ def register_actions():
         server.ACTIONS[key + "_disable"] = lambda o, save, key=key: schedule_command(key, "disable")
 
 
-def main():
+def launch_options(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8100)
-    args = parser.parse_args()
+    parser.add_argument("--mode", choices=("beta", "accounts"), default=os.getenv("MORROW_MODE", "beta"),
+                        help="beta opens all local tools without sign-in (default); accounts enables the account service")
+    args = parser.parse_args(argv)
+    if args.mode not in ("beta", "accounts"):
+        parser.error("MORROW_MODE must be beta or accounts")
+    args.account_url = None
+    if args.mode == "accounts":
+        args.account_url = os.getenv("MORROW_API_URL", "http://127.0.0.1:8200").strip()
+        if not args.account_url:
+            parser.error("MORROW_API_URL is required in accounts mode")
+    return args
+
+
+def main():
+    args = launch_options()
     register_actions()
     try:
-        app = DashboardServer(args.port, os.getenv("MORROW_API_URL", "http://127.0.0.1:8200"))
-    except OSError as exc:
-        parser.exit(1, f"Cannot start dashboard on port {args.port}: {exc}\n")
-    print(f"Job hunt dashboard: http://127.0.0.1:{args.port}", flush=True)
+        app = DashboardServer(args.port, args.account_url)
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f"Cannot start dashboard on port {args.port}: {exc}") from exc
+    print(f"Morrow ({'free beta' if args.mode == 'beta' else 'accounts'}): http://127.0.0.1:{args.port}", flush=True)
     try:
         app.serve_forever()
     except KeyboardInterrupt:

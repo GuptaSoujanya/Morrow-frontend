@@ -1,20 +1,46 @@
 # Morrow — your career workspace
 
-The single Morrow frontend for accounts, plans, private career workspaces, and the
-existing job-hunt tools. Login, signup, recovery, billing, and administration use the
-same dark lavender design, navigation, typography, and controls as the dashboard.
-The separate `morrow-api` repository contains the backend; it serves no second UI.
-
-The login flow also supports Firebase Google/email authentication while keeping this
-custom UI. See the [100-user Firebase setup](../morrow-api/FIREBASE_SETUP.md) to create
-the project, enable verification/reset emails, and connect the existing administrator.
-Until configured, local sign-in and private email previews remain available.
+Morrow starts in **free beta** mode. It opens directly into your workspace with all
+tools available, no Morrow login, no plan restrictions, and no billing or access
+administration screens. Each person runs their own copy on their computer.
 
 ## Start
 
-Use Node.js 22.19 or newer, the parent project's Python requirements, and the
-PostgreSQL/API stack described in [morrow-api/README.md](../morrow-api/README.md).
-Start the backend first, from the sibling `morrow-api` folder:
+Use Node.js 22.19 or newer and the parent project's Python requirements. From this folder:
+
+```sh
+npm install
+npm start
+```
+
+Open **http://127.0.0.1:8100/**. From the parent project, `scripts/morrow start`
+starts the same free beta without starting Docker, PostgreSQL, or the account API.
+If an older dashboard is already running, stop it after its work finishes and restart
+to activate the new mode.
+
+`npm start` loads `.env.local`, builds the frontend, and starts the Python server.
+It uses `../venv/bin/python` when available; otherwise `python3`. Override the
+interpreter with `DASHBOARD_PYTHON`, or choose a port with `npm start -- --port 8102`.
+`MORROW_MODE=beta` is the default, even if an old `MORROW_API_URL` is still configured.
+Use `npm start -- --mode beta` to override an accounts-mode environment explicitly.
+
+Old login, signup, recovery, plans, and administration links open the workspace.
+Account and onboarding links open **My profile & files**. The beta does not call
+the account or payment APIs, and `/api/v1/*` is disabled on the dashboard.
+Profile files, browser sessions, and job history stay on this computer; the server
+continues listening only on `127.0.0.1`. This is a local beta distribution, not a
+shared hosted workspace. Connections to job platforms and your own Claude/Kiro
+session are still needed to run the corresponding tools.
+
+## Optional accounts mode
+
+Accounts, plan gates, payments, and administration are retained for a later release.
+Enable them explicitly with `MORROW_MODE=accounts` or `npm start -- --mode accounts`.
+The parent launcher accepts `scripts/morrow start accounts`. Account mode still
+requires authentication and fails closed if its backend is unavailable.
+
+Use the PostgreSQL/API stack described in [morrow-api/README.md](../morrow-api/README.md).
+Start that backend first, from the sibling `morrow-api` folder:
 
 ```sh
 uv sync --locked
@@ -30,6 +56,7 @@ Its generated password, when bootstrapped, is in
 In this frontend folder, create an ignored `.env.local`:
 
 ```dotenv
+MORROW_MODE=accounts
 MORROW_API_URL=http://127.0.0.1:8200
 MORROW_WORKSPACE_OWNER_EMAIL=admin@example.com
 ```
@@ -48,7 +75,7 @@ origin. It uses `../venv/bin/python` when available; otherwise `python3`.
 Override the interpreter with `DASHBOARD_PYTHON`, or choose a dashboard port with
 `npm start -- --port 8102` and update the backend's `PUBLIC_ORIGIN` accordingly.
 
-## Accounts and plans
+## Accounts and plans (accounts mode only)
 
 - Email signup, verification, login, logout, password recovery, and Google sign-in
   are integrated into the existing dashboard.
@@ -262,7 +289,7 @@ these shared workflows. The original workspace includes:
   results remain saved, and a failed stage restarts from its beginning. Missing output files
   are flagged for recovery. Active runs block conflicting retries; a quiet process is labelled
   without assuming it has stopped. Configure a separate run, validate material, or open
-  container browser screens from the same page. Stage errors survive restarts; failures
+  Activity from the same page. Stage errors survive restarts; failures
   before the first checkpoint use the dashboard runner's retained history.
 - **Insights:** conversion funnel, outcomes, match scores, platform/search comparisons,
   recent runs and 7/14/30/all-time CSV exports.
@@ -374,6 +401,7 @@ Notifications and recent changes are held in memory and cleared when the account
 ```sh
 npm run build                  # rebuild app/ into dist/, then reload the page
 npm run test:auth-unit          # account isolation and managed-auth client flows
+npm run test:beta               # free local beta, redirects, desktop/mobile navigation
 npm run test:onboarding         # fully mocked setup/Connections, mobile and accessibility checks
 npm run test:accounts           # integration checks against synthetic preview :8102
 npm test                       # Playwright UI, accessibility and responsive checks

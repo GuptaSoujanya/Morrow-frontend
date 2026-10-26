@@ -44,6 +44,68 @@ def test_dashboard_and_modules_are_served(app):
     assert request(app, 'GET', '/../web/state.py')[0] == 404
 
 
+def test_beta_opens_local_workspace_without_a_session(app):
+    status, session = request(app, 'GET', '/api/session')
+    assert status == 200
+    assert session == {'mode': 'local', 'user': None, 'legacy_access': True}
+    assert request(app, 'GET', '/api/file?name=profile')[1]['text'] == 'name: Before\n'
+    assert app[0].server_address[0] == '127.0.0.1'
+
+
+@pytest.mark.parametrize('method,path', [
+    ('GET', '/api/v1/me'), ('GET', '/api/v1/auth/options'),
+    ('POST', '/api/v1/auth/login'), ('POST', '/api/v1/auth/signup'),
+    ('GET', '/api/v1/plans'), ('POST', '/api/v1/billing/checkout'),
+    ('PUT', '/api/v1/admin/users/example'), ('POST', '/api/runner/setup'),
+])
+def test_beta_detaches_account_and_billing_endpoints(app, method, path):
+    status, body = request(app, method, path)
+    assert status == 404
+    assert 'disabled in the free beta' in body['error']
+
+
+def test_beta_preserves_local_host_and_write_origin_checks(app):
+    assert request(app, 'GET', '/api/session', headers={'Host': 'other.example'})[0] == 403
+    original = request(app, 'GET', '/api/file?name=profile')[1]
+    assert request(app, 'POST', '/api/file', {
+        'name': 'profile', 'revision': original['revision'], 'text': 'changed',
+    }, headers={'Origin': 'https://other.example'})[0] == 403
+    assert app[1].read_text() == 'name: Before\n'
+
+
+def test_beta_is_default_even_with_old_account_configuration(monkeypatch):
+    monkeypatch.delenv('MORROW_MODE', raising=False)
+    monkeypatch.setenv('MORROW_API_URL', 'http://127.0.0.1:1')
+    options = dashboard.launch_options([])
+    assert options.mode == 'beta' and options.account_url is None
+    monkeypatch.setenv('MORROW_MODE', 'accounts')
+    assert dashboard.launch_options([]).account_url == 'http://127.0.0.1:1'
+    assert dashboard.launch_options(['--mode', 'beta']).account_url is None
+
+
+def test_accounts_mode_requires_valid_explicit_configuration(monkeypatch):
+    monkeypatch.delenv('MORROW_API_URL', raising=False)
+    assert dashboard.launch_options(['--mode', 'accounts']).account_url == 'http://127.0.0.1:8200'
+    monkeypatch.setenv('MORROW_MODE', 'typo')
+    with pytest.raises(SystemExit):
+        dashboard.launch_options([])
+    monkeypatch.setenv('MORROW_API_URL', '')
+    with pytest.raises(SystemExit):
+        dashboard.launch_options(['--mode', 'accounts'])
+
+
+def test_beta_does_not_use_account_runner_snapshot(monkeypatch, tmp_path):
+    monkeypatch.setattr(dashboard.state, 'APPLY', tmp_path)
+    monkeypatch.setenv('MORROW_WORKSPACE_OWNER_EMAIL', 'old-owner@example.com')
+    monkeypatch.setattr(dashboard.runner_setup, 'runtime_environment', lambda root, email: {'OWNER': email} if email else {})
+    app = dashboard.DashboardServer(0, dashboard.launch_options(['--mode', 'beta']).account_url)
+    try:
+        assert app.workspace_owner_email == ''
+        assert app.runner.environment_provider(None, None) == {}
+    finally:
+        app.server_close()
+
+
 DOCUMENT_HEADERS = {'Accept': 'text/html', 'Sec-Fetch-Dest': 'document', 'Sec-Fetch-Mode': 'navigate'}
 
 

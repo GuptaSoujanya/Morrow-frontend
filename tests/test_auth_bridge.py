@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from auth_bridge import AccountBridge
+from auth_bridge import AccountBridge, Unavailable
 
 
 class Handler:
@@ -41,7 +41,7 @@ def test_only_named_admin_can_access_legacy_workspace(monkeypatch):
 def test_account_service_failure_fails_closed(monkeypatch):
     bridge = AccountBridge("http://127.0.0.1:8200")
     def unavailable(handler):
-        raise OSError("offline")
+        raise Unavailable("offline")
     monkeypatch.setattr(bridge, "identity", unavailable)
     handler = Handler()
     assert bridge.guard(handler) is True

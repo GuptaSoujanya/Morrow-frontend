@@ -225,7 +225,6 @@ export function renderPipeline(group = '') {
     for (const node of progress.querySelectorAll('details[data-flow-detail]')) if (open.has(node.dataset.flowDetail)) node.open = open.get(node.dataset.flowDetail);
     if (focus) [...progress.querySelectorAll('[data-flow-focus]')].find(node => node.dataset.flowFocus === focus)?.focus({ preventScroll: true });
     savedDates.replaceChildren(...(data.available_dates || []).filter(day => day !== selectedDate).slice(0, 6).map(day => h('button', { class: 'flow-date-link', type: 'button', text: day, onclick: () => changeDate(day) })));
-    drawBrowserScreens();
     updateActions();
   }
 
@@ -242,19 +241,10 @@ export function renderPipeline(group = '') {
       toggle('pipeline', 'fresh', 'Reset this date’s checkpoint', 'Clears this date’s progress before running. Use Resume to keep completed stages.')),
     previewBox('pipeline'), runButton('pipeline', 'Run configured flow', { confirm: () => S.forms.pipeline.dry_run ? null : liveRunConfirm(S.forms.pipeline.fresh ? `Reset saved progress for ${selectedDate} and run again. Completed stages can repeat, including applications and profile updates.` : `Run selected stages for ${selectedDate}, including live applications and profile updates.`) }));
   const diagnosticButtons = h('div', { class: 'flow-diagnostic-buttons' });
-  const browserScreens = h('details', { class: 'flow-browser-screens' });
   const diagnostics = panel('Review & diagnose', { cls: 'flow-diagnostics' }, h('p', { class: 'muted', text: 'Review detailed activity or check generated learning and research files.' }),
-    activityButton(), diagnosticButtons, browserScreens);
+    activityButton(), diagnosticButtons);
   function drawDiagnostics() {
     diagnosticButtons.replaceChildren(quickButton('pipeline', 'Check status', { command: 'status', date: selectedDate }), quickButton('pipeline', 'Validate material', { command: 'check', date: selectedDate }));
-  }
-  function drawBrowserScreens() {
-    const screens = (data?.watch || []).filter(screen => /^https?:\/\//.test(screen.url || ''));
-    browserScreens.hidden = !screens.length;
-    browserScreens.replaceChildren(h('summary', { text: 'Browser screens' }),
-      h('p', { class: 'muted', text: 'For runs using separate containers. A screen connects while its container is running; use it to check for a sign-in or verification prompt.' }),
-      h('ul', { class: 'plain-list' }, screens.map(({ site, url }) => h('li', {},
-        h('a', { href: url, target: '_blank', rel: 'noopener noreferrer', text: `${stageName(`profile:${site}`).replace(/ profile$/, '')} screen` })))));
   }
   drawDiagnostics();
   const page = h('div', { class: 'page flows-page' },

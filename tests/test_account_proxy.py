@@ -625,7 +625,8 @@ def test_account_service_failure_fails_closed_but_leaves_sign_in_shell_available
     account_dashboard, monkeypatch
 ):
     def offline(*args, **kwargs):
-        raise OSError("synthetic offline")
+        from auth_bridge import Unavailable
+        raise Unavailable("synthetic offline")
 
     monkeypatch.setattr(account_dashboard.app.account_bridge, "request", offline)
     assert request(account_dashboard, "/")[0] == 200

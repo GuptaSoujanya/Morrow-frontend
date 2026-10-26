@@ -117,6 +117,30 @@ test('legacy access requires an explicit local server context and does not expos
   assert.equal(routeAccess('bots', { ...local, legacyAccess: false }).kind, 'forbidden');
 });
 
+test('free beta unlocks all workspace routes without an account or module grants', () => {
+  const beta = { accountMode: 'local', legacyAccess: true, user: null };
+  for (const route of [...runtime, 'overview', 'research', 'analytics', 'records', 'files', 'data', 'setup', 'connections']) {
+    assert.equal(routeAccess(route, beta).kind, 'allowed', route);
+    assert.equal(preloadRoute(route, beta), route, route);
+  }
+  for (const route of ['plans', 'account', 'admin', 'onboarding', 'login', 'signup']) {
+    assert.ok(!links(beta).includes(route), route);
+  }
+});
+
+test('free beta redirects old account links without loading account screens', () => {
+  const beta = { accountMode: 'local', legacyAccess: true, user: null };
+  for (const name of ['login', 'signup', 'forgot', 'reset', 'verify', 'resend', 'plans', 'admin', 'account', 'onboarding']) {
+    assert.deepEqual(routeAccess(name, beta), { kind: 'redirect', route: ['account', 'onboarding'].includes(name)
+      ? { name: 'files', arg: 'profile' } : { name: 'overview', arg: '' } });
+    assert.equal(preloadRoute(name, beta), null);
+  }
+  // A stale account in memory cannot introduce a paid gate in beta mode.
+  assert.equal(routeAccess('bots', { ...beta, user: free.user }).kind, 'allowed');
+  assert.equal(routeAccess('login', {}).kind, 'loading');
+  assert.equal(routeAccess('login', { accountMode: 'accounts', user: null }).kind, 'allowed');
+});
+
 test('missing permissions and unknown routes fail closed', () => {
   const incomplete = { ...free, user: { role: 'user' } };
   assert.equal(routeAccess('bots', incomplete).kind, 'upgrade');

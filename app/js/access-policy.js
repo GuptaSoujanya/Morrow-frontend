@@ -42,10 +42,14 @@ const BOT_ROUTES = ['naukri', 'boards', 'sites', 'profile', 'linkedin', 'linkedi
 export function routeAccess(route, context = {}) {
   const name = typeof route === 'string' ? route : route.name;
   if (name === 'not-found') return { kind: 'not-found' };
+  if (!context.accountMode) return { kind: 'loading' };
+  if (context.accountMode === 'local' && context.legacyAccess && (ACCOUNT_ROUTES.has(name) || name === 'onboarding')) {
+    return { kind: 'redirect', route: ['account', 'onboarding'].includes(name)
+      ? { name: 'files', arg: 'profile' } : { name: 'overview', arg: '' } };
+  }
   if (AUTH_ROUTES.has(name)) return { kind: 'allowed' };
   const rule = ROUTES[name];
   if (!rule) return { kind: 'forbidden' };
-  if (!context.accountMode) return { kind: 'loading' };
   if (context.accountMode === 'local') {
     return { kind: context.legacyAccess && !rule.account ? 'allowed' : 'forbidden', module: rule.module };
   }

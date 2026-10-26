@@ -97,6 +97,7 @@ const test = base.extend({
         '/api/course': { today: 1, read: 0, total: 0, lessons: [], modules: [] },
         '/api/run': idle,
         '/api/run/browsers': { runs: [] },
+        '/api/connections': { scope: 'main', scopes: [{ id: 'main', label: 'Main browser' }], connections: [], browser_available: true },
         '/api/v1/auth/options': { provider: 'local', google: false },
       };
       if (Object.hasOwn(replies, path)) return route.fulfill({ json: replies[path] });

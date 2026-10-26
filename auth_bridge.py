@@ -10,6 +10,10 @@ class BackendError(Exception):
         self.status = status
 
 
+class Unavailable(Exception):
+    """The account service could not be reached, as opposed to refusing a request."""
+
+
 class AccountBridge:
     def __init__(self, base):
         self.base = base.rstrip("/")
@@ -34,6 +38,8 @@ class AccountBridge:
             connection.request(method, path, body=body, headers=forwarded)
             response = connection.getresponse()
             return response.status, response.getheaders(), response.read()
+        except (OSError, http.client.HTTPException) as exc:
+            raise Unavailable(f"{self.base}{path}: {exc}") from exc
         finally:
             connection.close()
 
@@ -87,15 +93,18 @@ class AccountBridge:
         body = handler.rfile.read(length) if length else None
         try:
             self.send_backend(handler, self.request(handler, handler.path, handler.command, body))
-        except (OSError, http.client.HTTPException):
+        except Unavailable:
             handler.error(503, "The account service is unavailable. Try again shortly.")
 
     def guard(self, handler):
         """Protect owner-only legacy handlers; account UI uses the shared shell."""
         try:
             user = self.identity(handler)
-        except (OSError, BackendError, http.client.HTTPException):
+        except Unavailable:
             handler.error(503, "The account service is unavailable. Try again shortly.")
+            return True
+        except BackendError as exc:
+            handler.error(exc.status, str(exc))
             return True
         if user is None:
             handler.error(401, "Sign in to your Morrow account first.")

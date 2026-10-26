@@ -3,7 +3,7 @@ import { h } from './dom.js';
 import { api, accountRequestSignal, invalidateAccountRequests } from './api.js';
 import { accountRequest } from './account-client.js';
 import { S, hooks, resetAccountState } from './state.js';
-import { parseRoute, SECTIONS, navigate } from './router.js';
+import { parseRoute, routeHref, SECTIONS, navigate } from './router.js';
 import { renderNav } from './components/nav.js';
 import { initConsole, appendRunLines, clearConsoleLines, updateConsoleStatus, updateConsoleConnection, setConsoleAccess } from './components/console.js';
 import { resetSignInBrowsers } from './components/signin-browsers.js';
@@ -99,8 +99,16 @@ function online(value) {
   if (changed) renderNav();
 }
 
+function resolveCurrentRoute() {
+  const route = parseRoute();
+  const access = routeAccess(route, S);
+  if (access.kind !== 'redirect') return route;
+  history.replaceState(null, '', routeHref(access.route.name, access.route.arg));
+  return access.route;
+}
+
 function render(scroll = false) {
-  S.route=parseRoute();
+  S.route=resolveCurrentRoute();
   if(S.route.name==='not-found'){
     accountChrome();
     shell.state(renderNotFound(S.route,S));
@@ -300,6 +308,7 @@ async function boot(preserveIdentity=false) {
       booting=null;await boot();return;
     }
     S.user=context.user;S.accountMode=context.mode;S.legacyAccess=context.legacy_access;
+    S.route=resolveCurrentRoute();
     if(S.user&&['login','signup'].includes(parseRoute().name)){
       let destination='overview';
       try{
