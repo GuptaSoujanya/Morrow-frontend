@@ -1,19 +1,20 @@
-import { h, svg } from "../dom.js";
+import { h } from "../dom.js";
 import { recordTable } from './records.js';
 import { stageName } from './automations.js';
 import { BOTS, selectBot, botIcon, refreshBots } from './bots.js';
-import { avatar, workspaceAvatar, brandMark, richIcon } from '../components/identity.js';
-import { icon } from '../icons.js';
+import { avatar } from '../components/identity.js';
 import { api } from "../api.js";
 import { S, setOverviewDays } from "../state.js";
 import { panel, empty, dataTable } from "../components/panel.js";
 import { kpiCard } from "../components/kpi.js";
 import { segmented } from "../components/segmented.js";
 import { meter, donutChart, sparkline, columnsChart, scoresChart, scoreKind } from "../components/charts.js";
-import { quickButton, liveRunConfirm } from "../forms.js";
+import { quickButton } from "../forms.js";
 import { num, counted, share, shortDate, longDate, localDay, duration, rangeText, changeFrom } from "../format.js";
 import { routeHref } from "../router.js";
 import { hooks } from "../state.js";
+import { learningProgress } from '../components/learning-progress.js';
+import { DSA_PRACTICE_PATH, availableLearningSections } from '../learning-sections.js';
 
 export const RANGES = [[7, "7 days"], [14, "14 days"], [30, "30 days"], [0, "All time"]];
 const CHANNELS = [
@@ -53,10 +54,6 @@ function setRange(days) {
   setOverviewDays(days);
   loadOverview();
   hooks.requestRender(false);
-}
-
-function applyConfirm() {
-  return liveRunConfirm("This submits real applications on Naukri, not a practice run.");
 }
 
 function kpis(d) {
@@ -304,35 +301,24 @@ function runsPanel(d) {
 
 function dashboardHeader(title, sub, d, analytics = false) {
   return h('header',{class:'page-head'},h('div',{},h('p',{class:'eyebrow',text:analytics ? 'Insights' : S.status.date_long}),h('h1',{text:title}),h('p',{class:'lead',text:sub})),
-    h('div',{class:'head-actions'},h('button',{class:'btn',type:'button',disabled:!d,onclick:()=>exportDaily(d)},icon('download','icon icon-sm'),'Export data'),h('a',{class:'btn btn-primary',href:'#/bots'},icon('bot','icon icon-sm'),'Open bot center')));
-}
-function compactMetrics(d) {
-  const items=[
-    ['Confirmed submissions',num(d.sent.total),'Submission records in this period','#/records/applications/submitted'],
-    ['Jobs discovered',num(d.found.total),'Unique jobs first seen in this period','#/records/jobs'],
-    ['Above match threshold',num(d.found.over),`Latest score of ${d.min_score} or higher`,'#/records/jobs/matched'],
-    ['Naukri daily quota',num(d.quota.used),`of ${num(d.quota.limit)} used · rolling 24 hours`,'#/naukri'],
-  ];
-  return h('div',{class:'kpis compact-kpis'},items.map(([label,value,sub,href],i)=>h('a',{class:'kpi',href},
-    h('div',{class:'metric-top'},h('span',{class:'kpi-label',text:label}),icon('arrow-up-right','icon icon-sm metric-arrow')),
-    h('div',{class:'kpi-value',text:value}),h('p',{class:'kpi-sub',text:sub}),i===3 ? meter(d.quota.limit?d.quota.used/d.quota.limit:0) : null)));
+    h('button',{class:'btn export-button',type:'button',disabled:!d,onclick:()=>exportDaily(d),text:'Export data'}));
 }
 function attentionPanel() {
   const st=S.status;
-  const rows=[['todo','check','Screening questions',st.questions.length,'Add reusable answers'],['todo','person','Missing profile details',st.facts.length,'Complete your saved facts'],['sites','globe','Company follow-ups',st.sites.length,'Review your company worklist']];
+  const rows=[['todo','Screening questions',st.questions.length,'Add reusable answers'],['todo','Missing profile details',st.facts.length,'Complete your saved facts'],['sites','Company follow-ups',st.sites.length,'Review your company worklist']];
   return panel('Needs your attention',{cls:'span-4 attention-panel',sub:'Current worklist · independent of date range'},
-    h('div',{class:'attention-list'},rows.map(([route,name,title,count,sub])=>h('a',{class:'attention-item',href:routeHref(route)},h('span',{class:'attention-icon'},icon(name)),h('span',{class:'attention-copy'},h('strong',{text:title}),h('small',{text:sub})),h('span',{class:'attention-count',text:num(count)}),icon('arrow-up-right','icon icon-sm')))),
-    h('div',{class:'attention-bottom'},icon(st.report.ready?'check':'file','icon icon-sm'),h('span',{text:st.report.ready ? 'Today’s report is ready' : 'Today’s report has not been built'}),h('a',{href:'#/reports',text:st.report.ready?'Read report':'Open reports'})));
+    h('div',{class:'attention-list'},rows.map(([route,title,count,sub])=>h('a',{class:'attention-item',href:routeHref(route)},h('span',{class:'attention-copy'},h('strong',{text:title}),h('small',{text:sub})),h('span',{class:'attention-count',text:num(count)})))),
+    h('div',{class:'attention-bottom'},h('span',{text:st.report.ready ? 'Today’s report is ready' : 'Today’s report has not been built'}),h('a',{href:'#/reports',text:st.report.ready?'Read report':'Open reports'})));
 }
 function periodBar(d) {
-  return h('div',{class:'range-bar'},h('div',{class:'data-freshness'},h('span',{class:'range-text',text:d ? rangeText(d) : 'Loading your activity…'}),d?.source ? h('span',{class:'freshness-time',text:`Updated ${new Date(d.source.updated_at).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}`}) : null,h('button',{class:'icon-btn',type:'button','aria-label':'Refresh overview',onclick:loadOverview},icon('refresh','icon icon-sm'))),segmented('Period',RANGES,S.overviewDays,setRange));
+  return h('div',{class:'range-bar'},h('div',{class:'data-freshness'},h('span',{class:'range-text',text:d ? rangeText(d) : 'Loading your activity…'}),d?.source ? h('span',{class:'freshness-time',text:`Updated ${new Date(d.source.updated_at).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}`}) : null,h('button',{class:'text-link',type:'button','aria-label':'Refresh overview',onclick:loadOverview,text:'Refresh'})),segmented('Period',RANGES,S.overviewDays,setRange));
 }
 function pipelineSummary(d){
   const p=d.workspace?.pipeline;
   return panel('Your daily flow',{cls:'span-4 pipeline-summary',sub:'Saved progress · open Activity for live runs'},
-    d.workspace_error ? h('p',{class:'inline-notice',text:d.workspace_error}) : !p?.total ? empty('No pipeline checkpoint for today.',h('a',{class:'btn',href:'#/pipeline',text:'Configure pipeline'})) : [
+    d.workspace_error ? h('p',{class:'inline-notice',text:d.workspace_error}) : !p?.total ? h('div',{class:'pipeline-empty'},h('p',{class:'muted',text:'No pipeline checkpoint for today.'}),h('div',{class:'panel-foot'},h('a',{class:'btn',href:'#/pipeline',text:'Configure pipeline'}))) : [
       h('div',{class:'pipeline-total'},h('strong',{text:`${p.done} / ${p.total}`}),h('span',{text:'stages complete'})),meter(p.done/p.total),
-      h('ul',{class:'plain-list checkpoint-list'},p.stages.slice(0,5).map(stage=>h('li',{},icon(stage.status==='done'?'check':'activity','icon icon-sm'),h('a',{href:'#/pipeline/'+encodeURIComponent(stage.name),text:stageName(stage.name)}),h('span',{text:({done:'Done',pending:'Queued',running:'Saved as running',failed:'Needs attention'})[stage.status] || stage.status})))),
+      h('ul',{class:'plain-list checkpoint-list'},p.stages.slice(0,5).map(stage=>h('li',{},h('a',{href:'#/pipeline/'+encodeURIComponent(stage.name),text:stageName(stage.name)}),h('span',{text:({done:'Done',pending:'Queued',running:'Saved as running',failed:'Needs attention'})[stage.status] || stage.status})))),
       h('a',{class:'text-link',href:'#/pipeline',text:`View all ${p.total} stages →`})]);
 }
 function platformSummary(d){
@@ -343,24 +329,27 @@ function platformSummary(d){
       h('td',{},h('a',{class:'text-link',href:board.key==='naukri'?'#/naukri':board.key==='external'?'#/sites':'#/boards/'+board.key,'aria-label':'Configure '+board.key,text:'Configure'}))))));
 }
 function orbitHeader(d){
-  const input=h('input',{type:'search',placeholder:'Find an application…','aria-label':'Search applications'});
-  const search=h('form',{class:'launch-search',onsubmit:event=>{event.preventDefault();S.pendingRecordQuery=input.value;window.location.hash='#/records';}},icon('search'),input,h('button',{type:'submit','aria-label':'Search applications',class:'icon-btn'},icon('arrow-up-right','icon icon-sm')));
-  return h('header',{class:'page-head orbit-head'},h('div',{},h('p',{class:'eyebrow',text:'YOUR LAUNCHPAD'}),h('h1',{text:`Hey${S.status.name?', '+S.status.name:''}. Let’s make moves.`}),h('p',{class:'lead',text:'Your applications, your crew, your next chapter.'})),h('div',{class:'orbit-utilities'},search,h('button',{class:'icon-btn export-button',type:'button','aria-label':'Export data',title:'Export daily activity',disabled:!d,onclick:()=>exportDaily(d)},icon('download')),h('a',{href:'#/files/profile','aria-label':'Open your profile'},avatar(workspaceAvatar(),'header-avatar'))));
+  const waiting=(S.status.questions?.length||0)+(S.status.facts?.length||0)+(S.status.sites?.length||0);
+  return h('header',{class:'page-head orbit-head'},h('div',{},h('p',{class:'eyebrow',text:S.status.date_long}),h('h1',{text:'Launchpad'}),
+    h('p',{class:'lead',text:waiting?`${counted(waiting,'item')} ${waiting===1?'needs':'need'} your attention.`:'Your worklist is clear.'})),
+    h('div',{class:'overview-head-actions'},
+      availableLearningSections().some(section=>section.key==='dsa') ? h('a',{class:'btn btn-primary',href:DSA_PRACTICE_PATH,text:'Practice DSA'}) : null,
+      h('button',{class:'btn export-button',type:'button','aria-label':'Export data',title:'Export daily activity',disabled:!d,onclick:()=>exportDaily(d),text:'Export'})));
 }
 function careerCard(d){
-  return h('section',{class:'career-card','aria-label':'Application summary'},h('div',{class:'career-card-copy'},h('div',{class:'career-card-label'},brandMark('career-mark'),h('span',{text:'YOUR CAREER, IN MOTION'})),h('p',{class:'career-number'},h('strong',{text:num(d.sent.total)}),h('span',{text:'applications sent'})),h('p',{class:'career-context',text:`${num(d.sent.naukri)} on Naukri · ${num(d.sent.boards)} on job boards · ${num(d.sent.company)} on company sites`}),h('div',{class:'career-actions'},h('a',{class:'btn btn-primary',href:'#/records/applications/submitted'},'View applications',icon('arrow-up-right','icon icon-sm')),h('a',{class:'btn btn-ghost',href:'#/pipeline'},richIcon('refresh'),'Open Flows'))),h('div',{class:'career-art','aria-hidden':'true'},h('span',{class:'orbital-ring orbital-ring-back'}),avatar(12,'hero-avatar'),h('span',{class:'orbital-ring orbital-ring-front'}),h('span',{class:'orbit-satellite'})));
+  return h('section',{class:'career-card','aria-label':'Application summary'},h('div',{class:'career-card-copy'},h('div',{class:'career-card-label',text:'Applications in this period'}),h('p',{class:'career-number'},h('strong',{text:num(d.sent.total)}),h('span',{text:'applications sent'})),h('p',{class:'career-context',text:`${num(d.sent.naukri)} on Naukri · ${num(d.sent.boards)} on job boards · ${num(d.sent.company)} on company sites`}),h('div',{class:'career-actions'},h('a',{class:'btn btn-primary',href:'#/records/applications/submitted',text:'View applications'}))),h('div',{class:'career-art','aria-hidden':'true'},h('span',{class:'orbital-ring orbital-ring-back'}),avatar(12,'hero-avatar'),h('span',{class:'orbital-ring orbital-ring-front'}),h('span',{class:'orbit-satellite'})));
 }
 function orbitMetrics(d){
   return h('div',{class:'orbit-metrics'},[
-    ['Jobs on your radar',num(d.found.total),'Unique jobs discovered','#/records/jobs','mint','search'],
-    ['Worth a closer look',num(d.found.over),`Match score ≥ ${d.min_score}`,'#/records/jobs/matched','peach','check'],
-    ['Naukri daily quota',`${num(d.quota.used)} / ${num(d.quota.limit)}`,'Used in the last 24 hours','#/naukri','lilac','activity'],
-  ].map(([title,value,sub,href,tone,glyph])=>h('a',{class:`kpi orbit-metric metric-${tone}`,href},h('div',{class:'metric-top'},h('span',{class:'kpi-label',text:title}),icon('arrow-up-right','icon icon-sm')),h('strong',{class:'kpi-value',text:value}),h('p',{class:'kpi-sub',text:sub}))));
+    ['Jobs discovered',num(d.found.total),'Unique jobs found','#/records/jobs','mint'],
+    ['Above match threshold',num(d.found.over),`Match score ≥ ${d.min_score}`,'#/records/jobs/matched','peach'],
+    ['Naukri daily quota',`${num(d.quota.used)} / ${num(d.quota.limit)}`,'Used in the last 24 hours','#/naukri','lilac'],
+  ].map(([title,value,sub,href,tone])=>h('a',{class:`kpi orbit-metric metric-${tone}`,href},h('div',{class:'metric-top'},h('span',{class:'kpi-label',text:title})),h('strong',{class:'kpi-value',text:value}),h('p',{class:'kpi-sub',text:sub}))));
 }
 function crewShortcuts(){
   if(!S.bots || Date.now()-S.bots.at>15000)refreshBots();
   const picks=['naukri','hirist','linkedin','resume'].map(id=>BOTS.find(b=>b.id===id));
-  return panel('Your Bot Crew',{cls:'crew-shortcuts',sub:'Specialists for your next step.',tools:h('span',{class:'crew-count',text:String(BOTS.length)})},h('div',{class:'crew-shortcut-grid'},picks.map(bot=>h('button',{type:'button',class:'crew-shortcut','aria-label':`Configure ${bot.name}`,onclick:()=>selectBot(bot)},botIcon(bot),h('span',{text:bot.id==='linkedin'?'LinkedIn':bot.id==='resume'?'Resume':bot.name})))),h('a',{class:'btn crew-all',href:'#/bots'},'Meet the whole crew',icon('arrow-up-right','icon icon-sm')));
+  return panel('Your Bot Crew',{cls:'crew-shortcuts',sub:'Configure a specialist.',tools:h('span',{class:'crew-count',text:String(BOTS.length)})},h('div',{class:'crew-shortcut-grid'},picks.map(bot=>h('button',{type:'button',class:'crew-shortcut','aria-label':`Configure ${bot.name}`,onclick:()=>selectBot(bot)},botIcon(bot),h('span',{text:bot.id==='linkedin'?'LinkedIn':bot.id==='resume'?'Resume':bot.name})))),h('a',{class:'btn crew-all',href:'#/bots',text:'View all specialists'}));
 }
 export function renderOverview() {
   const ov=S.overview;
@@ -369,13 +358,13 @@ export function renderOverview() {
   return h('div',{class:'page page-wide overview-page orbit-overview'},
     orbitHeader(d),
     periodBar(d),
-    h('div',{class:'workspace-portals'},[[25,'Research Studio','Your .research notes, briefings & ideas','#/research'],[26,'Data hub','Records, saved files & resume downloads','#/data']].map(([art,title,sub,href])=>h('a',{class:'workspace-portal',href},avatar(art,'portal-art'),h('div',{},h('strong',{text:title}),h('span',{text:sub})),icon('arrow-up-right','icon icon-sm')))),
     ov?.error ? h('div',{class:'inline-notice',role:'alert'},d ? 'Could not refresh. Showing the last loaded records. ' : ov.error+' ',h('button',{class:'text-link',type:'button',text:'Try again',onclick:loadOverview})) : null,
     d && d.days!==S.overviewDays ? h('p',{class:'inline-notice',role:'status',text:'Updating the selected period. The records below still show the previous period.'}) : null,
-    h('div',{class:'orbit-dashboard'},h('div',{class:'orbit-main'},d?.first ? [careerCard(d),orbitMetrics(d),sentPanel(d)] : panel(d ? 'Nothing to chart yet' : 'Your activity',{},empty(ov?.error || (d ? 'Start a practice run with your Bot Crew to discover opportunities.' : 'Reading your application history…'),h('a',{class:'btn',href:'#/bots',text:'Meet your crew'}))),
+    h('div',{class:'orbit-dashboard'},h('div',{class:'orbit-main'},d?.first ? [careerCard(d),orbitMetrics(d),sentPanel(d)] : panel(d ? 'Nothing to chart yet' : 'Your activity',{},empty(ov?.error || (d ? 'Your first application results will appear here. Choose a specialist in Your Bot Crew to get started.' : 'Reading your application history…'))),
       d ? panel('Your latest moves',{cls:'recent-panel',sub:'Recent recorded attempts · all outcomes',tools:h('a',{class:'text-link',href:'#/records',text:'All applications →'})},d.recent?.length ? recordTable(d.recent,true) : empty('No application attempts in this period.')) : null,d ? platformSummary(d) : null),
-      h('aside',{class:'orbit-aside','aria-label':'Crew and next steps'},crewShortcuts(),attentionPanel(),d ? pipelineSummary(d) : null,d ? panel('Make room to grow',{cls:'learning-summary',sub:'Your research, ready when you are.'},h('div',{class:'growth-illustration'},avatar(11,'growth-avatar'),h('div',{},h('strong',{text:d.workspace?num(d.workspace.research_count):'—'}),h('span',{text:'saved documents'}))),h('p',{class:'muted',text:d.workspace?`${num(d.workspace.learning_done)} learning days complete. Pick up a briefing, explore a skill, or prepare your next interview.`:'Research summary is unavailable. Open the library to retry.'}),h('div',{class:'panel-foot'},h('a',{class:'btn',href:'#/research',text:'Open Research Studio'}),h('a',{class:'text-link',href:'#/outreach',text:'Prepare recruiter drafts →'}))) : null)),
-    h('div',{class:'overview-footer'},h('span',{},icon('info','icon icon-sm'),'Submission counts are recorded events, not unique roles.'),h('a',{class:'text-link',href:'#/records',text:'Inspect source records →'})));
+      h('aside',{class:'orbit-aside','aria-label':'Crew and next steps'},crewShortcuts(),attentionPanel(),d ? pipelineSummary(d) : null,d ? panel('Saved research',{cls:'learning-summary'},h('div',{class:'growth-illustration'},avatar(11,'growth-avatar'),h('div',{},h('strong',{text:d.workspace?num(d.workspace.research_count):'—'}),h('span',{text:'saved documents'}))),h('p',{class:'muted',text:d.workspace?`${num(d.workspace.learning_done)} learning days complete.`:'Research summary is unavailable. Open the library to retry.'}),h('div',{class:'panel-foot'},h('a',{class:'btn',href:'#/learning/library',text:'Browse documents'}))) : null)),
+    learningProgress(),
+    h('div',{class:'overview-footer'},h('span',{text:'Submission counts are recorded events, not unique roles.'})));
 }
 export function renderAnalytics() {
   const ov=S.overview;

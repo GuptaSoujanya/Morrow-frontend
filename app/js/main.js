@@ -1,5 +1,6 @@
 import './dev-tools.js';
 import { h } from './dom.js';
+import { revealPage } from './components/motion.js';
 import { api, accountRequestSignal, invalidateAccountRequests } from './api.js';
 import { accountRequest } from './account-client.js';
 import { S, hooks, resetAccountState } from './state.js';
@@ -10,6 +11,8 @@ import { resetSignInBrowsers } from './components/signin-browsers.js';
 import { updateRunButtons } from './forms.js';
 import { loadingState, errorState } from './components/panel.js';
 import { createRouteShell } from './route-shell.js';
+import { createScrollMemory, routeScrollKey } from './scroll-position.js';
+import { createFocusRestorer } from './focus-restoration.js';
 import { invalidateReads } from './query-client.js';
 import { normalizeFirebaseActionLink } from './firebase-auth.js';
 import { AUTH_ROUTES as authPages, ACCOUNT_ROUTES as accountPages, routeAccess, preloadRoute, keyboardRoutes, routeLabel } from './access-policy.js';
@@ -21,6 +24,9 @@ normalizeFirebaseActionLink();
 const refreshBots=()=>import('./views/bots.js').then(m=>m.refreshBots());
 const content = document.getElementById('content');
 const shell=createRouteShell(content);
+const scrollMemory=createScrollMemory(content);
+const focusRestorer=createFocusRestorer(content);
+let presentedRoute=null;
 document.querySelector('.skip-link').addEventListener('click', event => { event.preventDefault(); content.focus(); });
 let booting = null;
 let identityRevision = 0;
@@ -47,6 +53,7 @@ function accountChrome(){
   setConsoleAccess(available);
 }
 function clearWorkspace(pending=false){
+  scrollMemory.clear();focusRestorer.clear();presentedRoute=null;
   identityRevision+=1;refreshAfterBoot=false;
   runStream?.close();runStream=null;
   invalidateAccountRequests();
@@ -91,6 +98,10 @@ function expired(){
   clearWorkspace();navigate('login');S.route=parseRoute();render(true);
 }
 window.addEventListener('account-expired',expired);
+window.addEventListener('learning-updated', () => {
+  S.learningRevision = (S.learningRevision || 0) + 1;
+  S.learningActivity = null;
+});
 
 function online(value) {
   const changed = S.online !== value;
@@ -101,6 +112,12 @@ function online(value) {
 
 function resolveCurrentRoute() {
   const route = parseRoute();
+  if (/^#\/?(?:research|study|dsa)(?:[/?]|$)/.test(location.hash) && route.name === 'learning') {
+    const query = new URLSearchParams(location.hash.split('?')[1] || '');
+    if (route.arg.startsWith('read/') && !query.has('from')) query.set('from', query.get('view') === 'resume' ? 'resume' : query.get('view') === 'library' ? 'library' : 'today');
+    query.delete('view');
+    history.replaceState(null, '', routeHref(route.name, route.arg) + (query.size ? '?' + query : ''));
+  }
   const access = routeAccess(route, S);
   if (access.kind !== 'redirect') return route;
   history.replaceState(null, '', routeHref(access.route.name, access.route.arg));
@@ -108,13 +125,22 @@ function resolveCurrentRoute() {
 }
 
 function render(scroll = false) {
+  focusRestorer.clear();
   S.route=resolveCurrentRoute();
+  const commitPosition=()=>{
+    const changed=presentedRoute!==routeScrollKey(S.route);
+    presentedRoute=routeScrollKey(S.route);
+    const restore=scrollMemory.begin(S.route,{reset:scroll});
+    return ()=>{
+      restore();
+      if(changed||scroll)content.focus({preventScroll:true});
+    };
+  };
   if(S.route.name==='not-found'){
     accountChrome();
-    shell.state(renderNotFound(S.route,S));
+    shell.state(renderNotFound(S.route,S),commitPosition());
     document.title='Page not found · Morrow';
     renderNav();
-    if(scroll){window.scrollTo(0,0);content.focus({preventScroll:true});}
     return;
   }
   if(S.accountMode==='accounts'&&!S.user&&!authPages.has(S.route.name)){
@@ -123,17 +149,17 @@ function render(scroll = false) {
   accountChrome();
   const access=routeAccess(S.route,S);
   if(access.kind==='loading'){
-    renderNav();shell.state(loadingState('Opening your workspace…'));return;
+    renderNav();shell.state(loadingState('Opening your workspace…'),commitPosition());return;
   }
   if(['upgrade','runtime','forbidden'].includes(access.kind)){
-    shell.state(renderAccessState({route:S.route,kind:access.kind,user:S.user,module:access.module}));
+    shell.state(renderAccessState({route:S.route,kind:access.kind,user:S.user,module:access.module}),commitPosition());
     document.title=`${routeLabel(S.route.name,S)||SECTIONS.find(([name])=>name===S.route.name)?.[1]||'Workspace'} · Morrow`;
-    renderNav();if(scroll){window.scrollTo(0,0);content.focus({preventScroll:true});}return;
+    renderNav();return;
   }
   if(accountPages.has(S.route.name)){
-    shell.account(S.route,{user:S.user,onAuthenticated:boot,onRefresh:refreshAccount,onLogout:logout});
+    shell.account(S.route,{user:S.user,onAuthenticated:boot,onRefresh:refreshAccount,onLogout:logout},commitPosition());
     document.title=`${SECTIONS.find(([name])=>name===S.route.name)?.[1]||'Account'} · Morrow`;
-    renderNav();if(scroll)window.scrollTo(0,0);return;
+    renderNav();return;
   }
   if (!S.meta || !S.status || !S.course) {
     renderNav();
@@ -145,22 +171,22 @@ function render(scroll = false) {
     deferredRender = setTimeout(() => render(false), 180);
     return;
   }
-  const focusKey = S.pendingFocusKey || (!scroll && document.activeElement?.dataset.focusKey);
+  const changed=presentedRoute!==routeScrollKey(S.route);
+  const focusKey = S.pendingFocusKey || (!changed && !scroll && document.activeElement?.dataset.focusKey);
   S.pendingFocusKey=null;
   const selection = focusKey && typeof document.activeElement.selectionStart === 'number' ? [document.activeElement.selectionStart,document.activeElement.selectionEnd] : null;
   const route={...S.route};
   const viewRoute={...route,name:!S.legacyAccess&&route.name==='setup'?'account':preloadRoute(route,S)};
-  if(viewRoute.name==='account'){shell.account(viewRoute,{user:S.user,onRefresh:refreshAccount,onLogout:logout});renderNav();return;}
+  if(viewRoute.name==='account'){shell.account(viewRoute,{user:S.user,onRefresh:refreshAccount,onLogout:logout},commitPosition());renderNav();return;}
+  const restorePosition=commitPosition();
+  const restoreFocus=focusRestorer.prepare(focusKey,selection);
   shell.route(viewRoute,()=>{
     const page=content.querySelector('.page');
-    if (['naukri','boards','sites','profile','linkedin','resume','outreach','linkedin-profile'].includes(route.name)) {
-      page?.prepend(h('a',{class:'back-link',href:'#/bots',text:'← Bot Crew'}));
-    }
-    if(scroll && !window.matchMedia('(prefers-reduced-motion: reduce)').matches)page?.animate([{opacity:0,transform:'translateY(8px)'},{opacity:1,transform:'translateY(0)'}],{duration:260,easing:'cubic-bezier(.22,.8,.25,1)'});
+    if(changed||scroll) revealPage(page);
     document.title=`${routeLabel(route.name,S)||SECTIONS.find(([name])=>name===route.name)?.[1]||'Workspace'} · Morrow`;
     updateRunButtons();
-    if(focusKey){const target=[...content.querySelectorAll('[data-focus-key]')].find(el=>el.dataset.focusKey===focusKey);target?.focus({preventScroll:true});if(selection&&target?.setSelectionRange)target.setSelectionRange(...selection);}
-    if(scroll){window.scrollTo(0,0);content.focus({preventScroll:true});}
+    restorePosition();
+    restoreFocus();
   },()=>render(false));
   renderNav();
 }
@@ -198,7 +224,7 @@ hooks.refreshStatus = ({refreshRun=true}={}) => {
 hooks.refreshCourse = async () => {
   S.course = await api('/api/course',undefined,{fresh:true});
   S.status.study = { today: S.course.today, read: S.course.read, total: S.course.total };
-  if (S.route.name === 'study') render();
+  if (S.route.name === 'learning') window.dispatchEvent(new Event('learning-refresh'));
 };
 
 function queueRunRefresh(finished){
@@ -217,6 +243,7 @@ function queueRunRefresh(finished){
       if(['overview','bots'].includes(S.route.name)&&routeAccess('bots',S).kind==='allowed')await refreshBots();
       scope.throwIfAborted();
       if(completed&&['overview','analytics','bots','pipeline','reports','research','records','data'].includes(S.route.name))render();
+      if(completed&&S.route.name==='learning')window.dispatchEvent(new Event('learning-refresh'));
     }catch(error){if(error.name!=='AbortError')online(false);}
   },180);
 }
@@ -383,7 +410,7 @@ async function boot(preserveIdentity=false) {
   }
 }
 
-window.addEventListener('hashchange', () => { S.route = parseRoute();render(true); });
+window.addEventListener('hashchange', () => { S.route = parseRoute();render(); });
 window.addEventListener('beforeunload', event => {
   if (Object.values(S.loadedFiles).some(file => file.draft !== file.text)) { event.preventDefault(); event.returnValue = ''; }
 });

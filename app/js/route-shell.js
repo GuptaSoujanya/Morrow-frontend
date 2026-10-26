@@ -18,11 +18,16 @@ function DomView({render,arg,revision,onCommit}){
   if(error)throw error;
   return R('div',{ref:host,className:'route-host'});
 }
+function CommittedView({children,onCommit}){
+  useLayoutEffect(()=>{onCommit?.();},[onCommit]);
+  return children;
+}
 const imports={
   overview:()=>import('./views/overview.js').then(m=>m.renderOverview),analytics:()=>import('./views/overview.js').then(m=>m.renderAnalytics),
   bots:()=>import('./views/bots.js').then(m=>m.renderBots),records:()=>import('./views/records.js').then(m=>m.renderRecords),
   research:()=>import('./views/research.js').then(m=>m.renderResearch),data:()=>import('./views/data.js').then(m=>m.renderData),
   reports:()=>import('./views/reports.js').then(m=>m.renderReports),study:()=>import('./views/study.js').then(m=>m.renderStudy),
+  learning:()=>import('./views/daily-learning.js').then(m=>m.renderDailyLearning),
   files:()=>import('./views/files.js').then(m=>m.renderFiles),setup:()=>import('./views/setup.js').then(m=>m.renderSetup),
   naukri:()=>import('./views/naukri.js').then(m=>m.renderNaukri),sites:()=>import('./views/sites.js').then(m=>m.renderSites),
   profile:()=>import('./views/profile.js').then(m=>m.renderProfile),linkedin:()=>import('./views/linkedin.js').then(m=>m.renderLinkedin),
@@ -40,7 +45,7 @@ class RouteBoundary extends Component{
   state={error:null};
   static getDerivedStateFromError(error){return {error};}
   componentDidCatch(error){console.error('Route failed',error);}
-  render(){return this.state.error?R(DomView,{render:()=>h('div',{class:'route-recovery'},errorState('This page could not open. Your workspace and saved data are still available.',()=>{
+  render(){return this.state.error?R(DomView,{onCommit:this.props.onCommit,render:()=>h('div',{class:'route-recovery'},errorState('This page could not open. Your workspace and saved data are still available.',()=>{
     routes[this.props.name]=makeRoute(this.props.name);this.setState({error:null});this.props.retry();
   }),h('button',{class:'btn',type:'button',text:'Reload workspace',onclick:()=>window.location.reload()}))}):this.props.children;}
 }
@@ -48,11 +53,11 @@ export function createRouteShell(content){
   const root=createRoot(content);let revision=0;
   return {
     preload:name=>imports[name]?imports[name]().then(render=>{ready.set(name,render);}):Promise.resolve(),
-    state:node=>root.render(R(DomView,{render:()=>node,revision:++revision})),
-    account:(page,props)=>root.render(R(QueryClientProvider,{client:queryClient},R(RouteBoundary,{key:page.name,name:page.name,retry:()=>window.location.reload()},R(Suspense,{fallback:R(DomView,{render:()=>loadingState('Opening your account…')})},R(AccountRoute,{key:page.name,page,...props}))))),
+    state:(node,onCommit)=>root.render(R(DomView,{render:()=>node,revision:++revision,onCommit})),
+    account:(page,props,onCommit)=>root.render(R(QueryClientProvider,{client:queryClient},R(RouteBoundary,{key:page.name,name:page.name,retry:()=>window.location.reload(),onCommit},R(Suspense,{fallback:R(DomView,{onCommit,render:()=>loadingState('Opening your account…')})},R(CommittedView,{onCommit},R(AccountRoute,{key:page.name,page,...props})))))),
     route:(route,onCommit,retry)=>root.render(R(QueryClientProvider,{client:queryClient},
-      R(RouteBoundary,{key:route.name,name:route.name,retry},
-        R(Suspense,{fallback:R(DomView,{render:()=>loadingState('Opening your workspace…')})},
+      R(RouteBoundary,{key:route.name,name:route.name,retry,onCommit},
+        R(Suspense,{fallback:R(DomView,{onCommit,render:()=>loadingState('Opening your workspace…')})},
           ready.has(route.name)?R(DomView,{key:route.name,render:ready.get(route.name),arg:route.arg,revision:++revision,onCommit}):R(routes[route.name],{key:route.name,arg:route.arg,revision:++revision,onCommit}))))),
   };
 }

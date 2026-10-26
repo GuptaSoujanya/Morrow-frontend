@@ -5,8 +5,7 @@ import { panel, loadingState, errorState } from '../components/panel.js';
 import { confirmDialog } from '../components/dialog.js';
 import { toast } from '../components/toast.js';
 import { field } from '../forms.js';
-import { journeyBanner } from '../components/journey.js';
-import { richIcon, workspaceAvatar } from '../components/identity.js';
+import { avatar, workspaceAvatar } from '../components/identity.js';
 import { avatarPickerButton } from '../components/avatar-picker.js';
 import {profileForm} from '../components/profile-form.js';
 import { icon } from '../icons.js';
@@ -159,8 +158,12 @@ function answerReview(file) {
 export function renderFiles(arg) {
   const visibleFiles = Object.fromEntries(Object.entries(FILES).filter(([key]) => !['env','automation_answers'].includes(key)||S.legacyAccess));
   const name = Object.hasOwn(visibleFiles, arg) ? arg : 'profile';
-  return h('div', { class: 'page profile-page' }, h('header', { class: 'page-head' }, h('div', {}, h('p', { class: 'eyebrow', text: 'Your source of truth' }), h('h1', { text: 'My profile & files' }), h('p', { class: 'lead', text: 'Manage the facts, answers and settings your automations use.' }))),
-    journeyBanner({image:workspaceAvatar(),eyebrow:'YOUR PERSONAL WORKSPACE',title:S.status.name||'Your profile, your story.',body:'Your saved facts power your crew.',action:avatarPickerButton()}),
-    h('nav', { class: 'file-tabs profile-tiles', 'aria-label': 'Workspace files' }, Object.entries(visibleFiles).map(([key, title]) => h('a', { class: `file-tile ${name === key ? 'is-current' : ''}`, href: `#/files/${key}`, 'aria-current': name === key ? 'page' : null },richIcon(({profile:'person',answers:'check',automation_answers:'check',company_sites:'folder',env:'sliders'})[key]),h('strong',{text:title}),h('span',{text:({profile:'Facts & experience',answers:'Reusable responses',automation_answers:'Live answers from your agents',company_sites:'Next steps',env:'Local configuration'})[key]})))),
+  const changeAvatar = avatarPickerButton();
+  changeAvatar.replaceChildren('Change avatar');
+  return h('div', { class: 'page profile-page' }, h('header', { class: 'page-head profile-heading' },
+    avatar(workspaceAvatar(),'profile-heading-avatar'),
+    h('div', {}, h('h1', { text: 'My profile & files' }), h('p', { class: 'lead', text: `${S.status.name ? S.status.name+' · ' : ''}Saved facts, answers and workspace files.` })),
+    changeAvatar),
+    h('nav', { class: 'file-tabs profile-tiles', 'aria-label': 'Workspace files' }, Object.entries(visibleFiles).map(([key, title]) => h('a', { class: `file-tile ${name === key ? 'is-current' : ''}`, href: `#/files/${key}`, 'aria-current': name === key ? 'page' : null },avatar(key==='profile'?workspaceAvatar():({answers:43,automation_answers:46,company_sites:44,env:31})[key],'file-tile-art'),h('strong',{text:title}),h('span',{text:({profile:'Facts & experience',answers:'Reusable responses',automation_answers:'Live answers from your agents',company_sites:'Next steps',env:'Local configuration'})[key]})))),
     panel(FILES[name], {sub:name==='profile'?'The facts your crew uses. Edit a field or open the source file for advanced changes.':name==='automation_answers'?(S.accountMode==='accounts'?'The answer sheet used by agents on this computer. It is separate from your private account files.':'The answer sheet your agents read and update on this computer.'):name==='env'?'Advanced editing · configuration format is preserved':'Your saved workspace file'}, fileEditor(name)));
 }

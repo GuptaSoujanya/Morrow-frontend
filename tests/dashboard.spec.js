@@ -577,7 +577,7 @@ test('workspace avatar picker persists choice without changing platform profiles
   await page.goto('/#/files/profile');
   await page.getByRole('button',{name:'Change avatar',exact:true}).click();
   const dialog=page.getByRole('dialog',{name:'Find your Morrow alter ego'});
-  await expect(dialog.locator('.avatar-choice')).toHaveCount(32);
+  await expect(dialog.locator('.avatar-choice')).toHaveCount(48);
   await dialog.getByRole('button',{name:'Lilac cat',exact:true}).click();
   for(const width of [375,768,1280]){
     await page.setViewportSize({width,height:900});
@@ -593,6 +593,17 @@ test('workspace avatar picker persists choice without changing platform profiles
   await page.getByRole('dialog').getByRole('button',{name:'Mint sprout',exact:true}).click();
   await page.keyboard.press('Escape');
   await expect(page.locator('.journey-banner [data-avatar="21"]')).toBeVisible();
+  await page.getByRole('button',{name:'Change avatar',exact:true}).click();
+  await dialog.getByRole('button',{name:'New friends · 16',exact:true}).click();
+  await expect(dialog.locator('.avatar-choice:visible')).toHaveCount(16);
+  await dialog.getByRole('button',{name:'Peach fox',exact:true}).click();
+  await expect(dialog.locator('.avatar-selection-name')).toHaveText('Peach fox');
+  await dialog.getByRole('button',{name:'Use this avatar',exact:true}).click();
+  await page.reload();
+  await expect(page.locator('.journey-banner [data-avatar="48"]')).toBeVisible();
+  await page.getByRole('button',{name:'Change avatar',exact:true}).click();
+  await expect(dialog.getByRole('button',{name:'Peach fox',exact:true})).toHaveAttribute('aria-pressed','true');
+  await page.keyboard.press('Escape');
 });
 
 test('Activity is compact, keyboard accessible and explains idle and failed runs',async({page})=>{
@@ -784,7 +795,7 @@ test('loading indicator is centered and respects reduced motion',async({page})=>
   let release;const held=new Promise(resolve=>{release=resolve;});await page.route('**/assets/chunks/data-*.js',async route=>{await held;return route.continue();});
   await page.locator('.nav-group a[href="#/data"]').click();const state=page.locator('main .state-loading');await expect(state).toBeVisible();
   const box=await state.boundingBox(),track=await state.locator('.loading-progress').boundingBox();expect(Math.abs(track.x+track.width/2-box.x-box.width/2)).toBeLessThan(2);expect(track.y).toBeGreaterThan(200);
-  expect(await state.locator('.loading-progress > span').evaluate(el=>getComputedStyle(el).animationName)).toBe('none');await page.screenshot({path:'artifacts/centered-loading-laptop.png',animations:'disabled'});release();await expect(page.locator('main h1')).toHaveText('Data hub');
+  expect(await state.locator('.loading-progress > span').evaluateAll(items=>items.every(el=>getComputedStyle(el).animationName==='none'))).toBe(true);await page.screenshot({path:'artifacts/centered-loading-laptop.png',animations:'disabled'});release();await expect(page.locator('main h1')).toHaveText('Data hub');
 });
 
 test('legacy course URL opens the real lesson and provides a safe progress control',async({page})=>{

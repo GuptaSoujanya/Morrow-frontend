@@ -18,10 +18,10 @@ function studioTabs(view){
 }
 function documentHref(id,query){return routeHref('research',id)+(query.toString()?'?'+query:'');}
 function historyRow(item){
-  const href=item.kind==='course'?'/course/#/'+item.id.replace(/README\.md$/,'').replace(/\.md$/,''):documentHref(item.id,new URLSearchParams({view:'progress'}));
+  const href=item.kind==='dsa'?'#/learning/dsa':item.kind==='course'?'/course/#/'+item.id.replace(/README\.md$/,'').replace(/\.md$/,''):documentHref(item.id,new URLSearchParams({view:'progress'}));
   const date=item.at||item.completed_at;
   return h('li',{class:'history-row'},h('span',{class:'history-dot','data-state':item.action||'completed','aria-hidden':'true'}),
-    h('div',{},h('a',{href,text:item.title||item.id}),h('span',{class:'small muted',text:`${item.kind==='course'?'Course lesson':'Research'} · ${item.action==='reopened'?'Reopened':'Completed'}`})),
+    h('div',{},h('a',{href,text:item.title||item.id}),h('span',{class:'small muted',text:`${item.kind==='dsa'?'Daily DSA':item.kind==='course'?'Course lesson':'Research'} · ${item.action==='reopened'?'Reopened':'Completed'}`})),
     date?h('time',{dateTime:date,text:new Date(date).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}):h('span',{class:'small muted',text:'Imported · date unavailable'}));
 }
 function dailyView(view){

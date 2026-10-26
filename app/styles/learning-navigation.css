@@ -1,0 +1,58 @@
+/* Keep learning destinations beside the workspace navigation on wide screens. */
+.learning-context-nav {
+  display: grid;
+  gap: 2px;
+  margin: 2px 0 8px 16px;
+  padding-left: 9px;
+  border-left: 1px solid var(--border);
+}
+.learning-nav-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 10px 8px;
+  border-radius: 7px;
+  color: var(--text-600);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-decoration: none;
+}
+.learning-nav-link .icon { flex: none; width: 16px; height: 16px; }
+.learning-nav-link:hover { background: var(--hover); color: var(--text-900); text-decoration: none; }
+.learning-nav-link[aria-current="page"] { background: var(--emerald-100); color: var(--emerald-700); font-weight: 650; }
+.learning-nav-link[aria-current="page"]::before {
+  position: absolute;
+  content: '';
+  left: -10px;
+  top: 12px;
+  bottom: 12px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--emerald-700);
+}
+.learning-nav-link:focus-visible, .learning-section-select:focus-visible { outline: 2px solid var(--emerald-700); outline-offset: 3px; }
+.learning-switcher { display: none; }
+@media (min-width: 1101px) {
+  .sidebar-scroll .nav-item.learning-area.active { background: transparent; border-color: transparent; color: var(--text-900); }
+  .sidebar-scroll .nav-item.learning-area.active::before { display: none; }
+}
+@media (max-width: 1100px) {
+  .learning-context-nav { display: none; }
+  .learning-switcher { display: grid; gap: 7px; margin-bottom: 24px; color: var(--text-600); font-size: 12px; font-weight: 500; }
+  .learning-section-select {
+    width: 100%;
+    min-height: 46px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--canvas-raised);
+    color: var(--text-900);
+    font: inherit;
+    font-size: 16px;
+    cursor: pointer;
+    color-scheme: dark;
+  }
+}
