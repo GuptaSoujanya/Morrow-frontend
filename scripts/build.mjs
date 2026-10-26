@@ -7,11 +7,11 @@ const result = await build({ absWorkingDir: root,
   bundle: true, splitting:true, chunkNames:'chunks/[name]-[hash]', define:{'process.env.NODE_ENV':JSON.stringify(process.argv.includes('--dev')?'development':'production')}, minify: true, format: 'esm', target: ['es2022'], outdir: 'dist/assets',
   loader: { '.woff2': 'file', '.webp':'file', '.avif':'file', '.svg':'file', '.png':'file' }, assetNames: '[name]-[hash]', publicPath:'/assets', metafile: true });
 let html = await readFile(root + 'app/index.html', 'utf8');
-const mascotAsset = Object.keys(result.metafile.outputs).find(path => /\/morrow-mascot-[^/]+\.webp$/.test(path));
-if (!mascotAsset) throw new Error('The shared Morrow mascot was not included in the build.');
-const mascotUrl = '/' + mascotAsset.replace('dist/', '');
-// Startup and client-rendered branding share a URL, so the image downloads once.
-html = html.replaceAll('/assets/morrow-mascot.webp', mascotUrl);
+const markAsset = Object.keys(result.metafile.outputs).find(path => /\/morrow-mark-[^/]+\.svg$/.test(path));
+if (!markAsset) throw new Error('The shared Morrow mark was not included in the build.');
+const markUrl = '/' + markAsset.replace('dist/', '');
+// Startup, favicon and client-rendered branding share a URL, so the mark downloads once.
+html = html.replaceAll('/assets/morrow-mark.svg', markUrl);
 html = html.replace(/  <link rel="stylesheet"[^>]+\/>\n/g, '');
 // Inline the compressed application shell. Graphics and fonts stay external.
 const css=await readFile(root+'dist/assets/workspace.css','utf8');
@@ -40,7 +40,7 @@ await rm(root + 'dist/browser.html', {force: true});
 await rm(root + 'dist/assets/browser-page.js', {force: true});
 // A real HTTP 404 can recover without JavaScript, auth or API availability.
 let notFound = await readFile(root + 'app/404.html', 'utf8');
-notFound = notFound.replaceAll('/assets/morrow-mascot.webp', mascotUrl);
+notFound = notFound.replaceAll('/assets/morrow-mark.svg', markUrl);
 notFound = notFound.replace(/  <link rel="stylesheet"[^>]+\/>\n/g, '');
 notFound = notFound.replace('</head>', `  <style>${css}</style>\n</head>`);
 await writeFile(root + 'dist/404.html', notFound);

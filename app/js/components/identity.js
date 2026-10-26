@@ -1,4 +1,4 @@
-import markUrl from '../../assets/morrow-mascot.webp';
+import markUrl from '../../assets/morrow-mark.svg';
 import {h,svg} from '../dom.js';
 import {S} from '../state.js';
 let serial=0;

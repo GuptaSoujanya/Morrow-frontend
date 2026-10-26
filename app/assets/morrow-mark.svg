@@ -1,14 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
   <defs>
-    <linearGradient id="morrow-clay" x1="12" y1="21" x2="51" y2="53" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#d77a48"/><stop offset=".5" stop-color="#bc572b"/><stop offset="1" stop-color="#9e4221"/>
+    <linearGradient id="mw-coin" x1="32" y1="3" x2="32" y2="62" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f6ad70"/><stop offset=".5" stop-color="#df7a44"/><stop offset="1" stop-color="#b54c24"/>
     </linearGradient>
-    <linearGradient id="morrow-dawn" x1="27" y1="5" x2="36" y2="15" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#f4bf87"/><stop offset="1" stop-color="#da8346"/>
+    <radialGradient id="mw-depth" cx="32" cy="60" r="38" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7d3414" stop-opacity=".4"/><stop offset="1" stop-color="#7d3414" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mw-gloss" x1="32" y1="5" x2="32" y2="28" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff3e0" stop-opacity=".55"/><stop offset="1" stop-color="#fff3e0" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="mw-sun" x1="32" y1="22" x2="32" y2="36" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffe29a"/><stop offset="1" stop-color="#ffbe4a"/>
+    </linearGradient>
+    <linearGradient id="mw-ivory" x1="32" y1="19" x2="32" y2="49" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fffbf3"/><stop offset="1" stop-color="#ffe9cc"/>
     </linearGradient>
   </defs>
-  <circle cx="32" cy="10" r="5.5" fill="url(#morrow-dawn)"/>
-  <path d="M12 50V34c0-7.7 4.5-12 10-12s10 4.3 10 12v16m0-16c0-7.7 4.5-12 10-12s10 4.3 10 12v16" stroke="#77391f" stroke-opacity=".13" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 1.5)"/>
-  <path d="M12 50V34c0-7.7 4.5-12 10-12s10 4.3 10 12v16m0-16c0-7.7 4.5-12 10-12s10 4.3 10 12v16" stroke="url(#morrow-clay)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M10 32c.6-6.6 5.3-11.5 11.5-11.5M34 31.5c1-6.4 5.1-11 10.2-11" stroke="#ffe3bd" stroke-opacity=".3" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="32" cy="34" r="29.5" fill="#6b2d12" fill-opacity=".22"/>
+  <circle cx="32" cy="32.5" r="29.5" fill="url(#mw-coin)"/>
+  <circle cx="32" cy="32.5" r="29.5" fill="url(#mw-depth)"/>
+  <ellipse cx="32" cy="15" rx="21" ry="10.5" fill="url(#mw-gloss)"/>
+  <circle cx="32" cy="32.5" r="29" stroke="#9c4119" stroke-opacity=".5"/>
+  <circle cx="32" cy="30.8" r="6.8" fill="#8a3b19" fill-opacity=".3"/>
+  <circle cx="32" cy="29.5" r="6.8" fill="url(#mw-sun)"/>
+  <path d="M17.5 46.4V24.4l14.5 15.5L46.5 24.4v22" stroke="#8a3b19" stroke-opacity=".32" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M17.5 45V23l14.5 15.5L46.5 23v22" stroke="url(#mw-ivory)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

@@ -509,3 +509,9 @@ verified code scores while retaining self-review for written answers.
 - Captures: `artifacts/action-layout/overview-{1440,768,375}.png`, matching Insights captures, `reports-320.png`; `artifacts/brand-refresh/brand-detail.png`; `artifacts/brand-loading/`. Detailed audit: `artifacts/action-layout/audit.json`.
 - The mascot uses a 43.7kB transparent WebP plus a 7kB PNG favicon. Alpha and small-size legibility were verified. The 1.27MB original is retained as source and is not used by production markup.
 - QA blocked persistent API writes or used synthetic responses. No account, application, bot run or learning completion was changed. The full browser suite was not rerun.
+
+## Morrow sunrise coin — October 26, 2026
+
+- Replaced the rejected MRW tile with the single-letter sunrise coin (`app/assets/morrow-mark.svg`) everywhere the brand is referenced (sidebar, sign-in, 404, loaders, favicon). `scripts/build-monogram.py` was removed with the font-outline approach. Production build passes and both HTML entry points resolve the same hashed SVG URL.
+- The Learning sidebar disclosure uses a CSS-drawn chevron so the shell stays icon-free. `tests/studio-shell.spec.js` + `tests/breadcrumbs.spec.js` rerun against the rebuilt dist: 12 passed (375/768/1280/1440 fit with axe).
+- `scripts/render-brand.mjs` rasterized the 64px favicon; sampling confirmed transparent corners, the coin gradient (peach top, terracotta bottom), gold pixels at the sun and ivory pixels along the stems and valley. The live sidebar renders the hashed SVG at 48×48 with the wordmark 10px to its right. Captures: `artifacts/brand/morrow-mark-sizes.png`, `sidebar-desktop.png`, `sidebar-nav.png`, `not-found.png`, `login-phone.png`. No persistent API writes were made.
