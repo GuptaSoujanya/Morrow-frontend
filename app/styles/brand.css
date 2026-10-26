@@ -1,0 +1,29 @@
+/* A warm ceramic mascot and a clear, compact wordmark share one identity. */
+.sidebar-brand .brand-wordmark,
+.account-auth-brand > a > span,
+.not-found-brand > span {
+  font-family: 'Manrope', 'Inter', sans-serif;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -1.3px;
+  color: #493024;
+  text-transform: none;
+}
+.sidebar-brand { gap: 10px; }
+.sidebar-brand .sidebar-brand-mark { width: 48px; height: 48px; flex: none; object-fit: contain; filter: none; }
+.sidebar-brand:hover { text-decoration: none; }
+.sidebar-brand:hover .brand-wordmark { color: #a44822; }
+.account-auth-brand > a { gap: 10px; align-items: center; }
+.account-auth-brand > a > img { width: 56px; height: 56px; object-fit: contain; }
+.account-auth-brand > a > span { font-size: 34px; }
+.not-found-brand { align-items: center; gap: 8px; }
+.not-found-brand .brand-mark { width: 48px; height: 48px; }
+.not-found-brand > span { font-size: 30px; }
+@media (min-width: 768px) and (max-width: 1100px) {
+  .sidebar-brand .sidebar-brand-mark { width: 44px; height: 44px; }
+}
+@media (max-width: 767px) {
+  .account-auth-brand > a > img { width: 48px; height: 48px; }
+  .account-auth-brand > a > span { font-size: 30px; }
+}

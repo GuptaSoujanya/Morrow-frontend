@@ -17,7 +17,7 @@ const explanation={papers:'Research worth understanding, with the original paper
 const dateLabel=value=>new Date(value+'T12:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});
 const href=(id,query)=>routeHref('research',id)+(query.toString()?'?'+query:'');
 function viewLink(view,day){return withQuery('research',{view,date:day});}
-function fetchButton(label,group,day,refresh,{existing=false}={}){
+export function fetchButton(label,group,day,refresh,{existing=false}={}){
   const feedback=h('p',{class:'field-error',role:'alert',hidden:true});
   const button=h('button',{class:'btn',type:'button',dataset:{action:'pipeline-fixed'},text:label,onclick:async()=>{
     button.disabled=true;feedback.hidden=true;

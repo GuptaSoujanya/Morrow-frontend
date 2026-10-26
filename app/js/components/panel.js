@@ -1,5 +1,6 @@
 import { h } from "../dom.js";
 import {icon} from '../icons.js';
+import {brandMark} from './identity.js';
 
 export function panel(title, { sub, tools, cls = "" } = {}, ...body) {
   return h(
@@ -26,7 +27,9 @@ export function empty(text, extra) {
 
 export function loadingState(text = "Loading…", { compact = false } = {}) {
   return h("div", { class: `state-loading${compact ? ' is-compact' : ''}`, role:'status','aria-live':'polite' },
-    h('span', { class: 'loading-progress', 'aria-hidden': 'true' }, h('span')),
+    h('span', { class: 'loading-visual', 'aria-hidden': 'true' },
+      brandMark('brand-mark loading-mark'),
+      h('span', { class: 'loading-progress' }, h('span'), h('span'), h('span'))),
     h("p", { text }));
 }
 

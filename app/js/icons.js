@@ -3,6 +3,10 @@
 import { svg } from "./dom.js";
 
 const PATHS = {
+  bell: ["M18 8a6 6 0 00-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9", "M10 21h4"],
+  code: ["M8 5l-6 7 6 7M16 5l6 7-6 7M14 3l-4 18"],
+  flame: ["M13 2c1 6-4 7-4 11-2-1-2-3-2-4-3 3-4 7-2 10 3 5 11 4 13 0 3-6-1-10-5-17z", "M12 13c-3 3-3 6 0 7 3-1 3-4 0-7z"],
+  award: ["M12 3a6 6 0 100 12 6 6 0 000-12z", "M8 14l-2 8 6-3 6 3-2-8", "M12 6v6M9 9h6"],
   bot: ["M5 7h14v13H5z", "M12 3v4", "M9 12h.01M15 12h.01", "M9 16h6", "M2 11v5M22 11v5"],
   activity: ["M3 12h4l3-8 4 16 3-8h4"],
   workflow: ["M4 4h6v6H4z", "M14 14h6v6h-6z", "M10 7h7v7", "M7 10v7h7"],
@@ -16,7 +20,7 @@ const PATHS = {
   file: ["M7 3h7l4 4v14H7z", "M14 3v4h4"],
   chart: ["M4 20V10", "M11 20V4", "M18 20v-7"],
   book: ["M4 5a2 2 0 012-2h8v18H6a2 2 0 01-2-2z", "M14 3h4a2 2 0 012 2v16h-6"],
-  check: ["M4 12l5 5 11-11"],
+  check: ["M4.75 12.25l4.5 4.5 10-10"],
   lock: ["M5 10h14v11H5z", "M8 10V7a4 4 0 018 0v3", "M12 14v3"],
   sliders: ["M4 6h10M17 6h3", "M4 12h3M10 12h10", "M4 18h10M17 18h3", "M14 4v4", "M7 10v4", "M17 16v4"],
   folder: ["M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"],
@@ -43,5 +47,5 @@ const PATHS = {
 
 export function icon(name, className = "icon") {
   const d = PATHS[name] || PATHS.info;
-  return svg("svg", { class: className, viewBox: "0 0 24 24", "aria-hidden": "true" }, d.map((p) => svg("path", { d: p })));
+  return svg("svg", { class: name === 'check' ? `${className} icon-check` : className, viewBox: "0 0 24 24", "aria-hidden": "true" }, d.map((p) => svg("path", { d: p })));
 }

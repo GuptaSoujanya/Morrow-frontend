@@ -171,7 +171,7 @@ Verify login, plans, account and access states on desktop, short laptops, tablet
 
 ## 17. Loading, empty states and missing pages
 
-Loading is deliberately quiet: a 160px, 2px flat lavender indeterminate line and one real operation label in the dashboard body type. Use the same indicator during startup, lazy page loading and account requests, with a shorter container inside account panels. No floating logo tile, orbit, glow, slogan or decorative dots. Animate only the line’s horizontal translation; reduced motion fixes it in place. Never invent a percentage or delay a completed request. Initial HTML includes the same loader so startup does not flash unstyled text. Keep initial loaders fully opaque; only existing results dim while being refreshed.
+Loading uses the shared warm sunrise monogram above three small staggered orange/sand beads and one real operation label in the dashboard body type. Use the same indicator during startup, lazy page loading and account requests, with a 48px mark inside compact account panels and a 64px mark in full-page loaders. The mark rises gently while the beads pulse through transform and opacity; reduced motion leaves both fully static. A faint warm halo keeps the artwork grounded on the cream surface. Never invent a percentage or delay a completed request. Initial HTML includes the same loader so startup does not flash unstyled text. Keep initial loaders fully opaque; only existing results dim while being refreshed.
 
 Empty collections use a small layered document illustration and the existing contextual explanation/action. Recoverable errors use a peach emblem, readable message and a 44px retry control. Preserve real failure messages, keyboard operation, existing content during refresh and polite loading/alert semantics. Shared feedback rules live in `feedback.css`; earlier competing state rules have been removed.
 
@@ -186,3 +186,53 @@ Flows leads with the selected workflow date, saved progress counts and Resume wo
 Resume preserves the selected date, saved CLI/concurrency settings and completed stages. Retry restarts one unfinished stage from its beginning. Both preview and confirm the exact command, then recheck progress before starting. Neither action inherits reset/rerun switches from the new-run form. New partial workflows record only selected stages. Keep last errors during a retry and mark them resolved after success. A saved running label alone is not live evidence; distinguish confirmed active work from interrupted checkpoints, and describe missing recent checkpoints without declaring an active process stuck.
 
 Poll every five seconds while visible, preserving configuration inputs, focus, expanded stage guidance and the last successful view after refresh failure. Keep launch errors visible across successful background refreshes. Account changes and route departure cancel pending confirmations and ignore late results. Browser verification uses synthetic API fixtures only, with exact-date/stage assertions, confirmation races, refresh failures and desktop/tablet/mobile accessibility checks.
+
+## 24. Daylight palette and shared controls — October 26, 2026
+
+The latest user direction replaces the dark charcoal/lavender treatment with **light orange and beige throughout**. Use warm beige `#f7f3ed` for the workspace, porcelain `#fffdf9` for cards, sand `#f0e9df` for inset surfaces, brown `#342a23` for primary text, and burnt orange `#a1411d` for accessible accent text and selected controls. Muted text is `#716257`; orange/cream contrast is checked in settled states. Existing avatar artwork keeps its original baked backgrounds inside bounded portrait frames.
+
+`tokens.css` is the palette source. `warm.css` applies shared typography, surfaces, interaction and responsive treatment; `warm-surfaces.css` reconciles fixed colors in older feature styles. `refined-controls.css` owns the common dropdown, calendar and pagination design. These overrides intentionally load after the existing feature CSS. Document iframe content and browser-native form color schemes use light mode too.
+
+Keep locally hosted Space Grotesk headings, Source Sans 3 body copy and JetBrains Mono code. Navigation entrances use a finite stagger only on route changes; live polling does not restart them. Hover/press feedback respects reduced-motion preferences. The Launchpad career summary and crew now precede the larger learning-history widget.
+
+Calendars show selected date context, month/year navigation, visible saved-day markers, and keyboard navigation. Optional bounds reject unavailable dates through both typing and keyboard movement. Learning date, learning section, and course track use the same custom controls. Pagination keeps bounded page numbers, range/total, page context, and page-size selection with existing URL/history behavior. Avatar choices expand from 32 to 48 without renumbering existing saved selections; details and generation prompt are recorded in ASSETS.md.
+
+
+## 25. Avatar navigation and complete clickable paths — October 26, 2026
+
+The user's latest correction overrides generic icon navigation and repeated shortcuts. The primary navigation, Learning sections, workspace search, library rows and profile-file choices use the existing transparent character/3D artwork. Keep one stable semantic mapping in `navigation-art.js`: related illustrations identify destinations; specialist controls retain their established bot identities. Do not add another glyph or colored icon tile around the artwork. Inter/Manrope typography and the light orange/cream/beige palette remain.
+
+The sidebar has one destination per row, visible section grouping, a warm active state, one identity footer and one connection status. The mobile More sheet contains destinations absent from the primary bar. A bot detail activates Bot Crew only. The header has two jobs: show the full clickable route and offer workspace search. Remove duplicate inbox counts, profile links, date/status widgets and sidebar promotional cards.
+
+Breadcrumbs are semantic ordered lists of real anchors. Every segment, including the current page, has a valid internal URL. Show Home and every applicable parent at desktop and phone widths; wrap long trails instead of hiding ancestors. Cover Learning sections and readers, practice papers, DSA sheets/problems, course tracks, Bot Crew/provider/profile controls, profile-file tabs, record filters, reports and Data categories. Reader parents preserve allowlisted source filters/date; never treat a query value as an arbitrary return URL. The header updates when filters change history or asynchronous document titles arrive, without rebuilding a focused filter input. Shared `breadcrumbs.js` is independently testable.
+
+Cmd/Ctrl+K opens native workspace search with matching artwork, permitted destinations only, keyboard selection and focus restoration. Escape closes it even when its search field contains text. Do not nest search over another modal; close it on sign-out.
+
+The overview removes repeated Crew/Flows links, duplicate Learning/Data portal tiles and repeated records shortcuts while keeping actual metrics, chart data, specialist shortcuts, the worklist and learning progress. Learning removes its local duplicate breadcrumb/date and static Keep building links. Profile identity, description and Change avatar appear in one compact header.
+
+Charts retain shaded top/side faces with truthful numeric front faces, beveled scores and layered donuts. Finite animations start when visible, preserve the selected mode/filter/date, avoid replay on unchanged polling, and respect reduced motion. Calendars retain selected-date context, month/year grids and bounded keyboard navigation. Dropdowns and pagination retain clear selection, focus and warm surfaces.
+
+
+### Artwork palette correction
+
+The user's latest direction requires the artwork to match the interface palette. All four active atlases use warm material editions: ivory and porcelain faces, sand/peach shells, terracotta/caramel accents and cocoa details. No purple, blue or mint material accents remain in the production avatar set. Preserve distinct shapes and varied material placement within that limited palette; do not apply a flat tint filter. Keep transparent backgrounds, semantic destination assignments and all saved numeric avatar indices. The original/cool files remain available but are no longer the active avatar backgrounds. Asset prompts/provenance are documented in ASSETS.md.
+
+## 26. Warm brand and loading refresh — October 26, 2026
+
+The user's logo/title correction replaces the folded-M/raster brand treatment with an original open-arch lowercase m and a peach sunrise dot. Rounded terracotta geometry, a restrained material gradient and a soft edge highlight connect the logo to the warm avatar family while remaining legible as a favicon. Use the same SVG in the sidebar, account pages, missing-page views and loaders. Destination navigation continues to use related avatar artwork.
+
+The lowercase “morrow” wordmark uses a locally hosted Fraunces 700 subset, optical size 32 with softened forms. This typeface is limited to the brand; Inter body text, Manrope page headings and meaningful route titles remain. Desktop sidebar lockup: 42px mark, 33px wordmark and 8px gap. Sign-in adapts to a 38px mark/30px wordmark on phones. Brand rules live in `brand.css`; loading behavior is documented in §17 and implemented in `feedback.css`.
+
+## 27. Stable reading position and selection details — October 26, 2026
+
+Changing a filter, report date, page size or selection must preserve the current viewport. Shared `scroll-position.js` remembers positions for up to 48 logical pages within the current workspace session. New destinations begin at the top; returning destinations restore their saved position. Query changes and report dates stay within the current logical page. Account changes clear the memory. Temporary height during an asynchronous replacement prevents loading screens from clamping scroll to zero; completed shorter content clamps naturally without a permanent spacer. User scrolling takes precedence over restoration. Explicit reading anchors and “jump to section” actions still move to their requested target.
+
+Pagination no longer scrolls to the top of the result list. Dropdown and calendar keyboard navigation scrolls only their popup; the learning activity grid scrolls only its horizontal container. Dialog dismissal and restored controls use `preventScroll`. `focus-restoration.js` waits for an asynchronously replaced control before returning keyboard focus, and cancels when the user takes another action.
+
+Native checkbox/radio semantics remain, with consistent 20px warm surfaces, optically centered ticks, indeterminate and disabled states, and a visible keyboard focus ring. Dropdowns show one trailing terracotta selected badge; completed work retains its success meaning. Reduced motion removes decorative transitions, and forced-colors mode restores native checkbox/radio rendering. Related avatars remain the navigation artwork.
+
+## 28. Mascot identity and readable action groups — October 26, 2026
+
+The user rejected the monogram and explicitly selected a warm 3D mascot matching the avatar family. The active logo is now a compact sunrise robot head: ivory face, peach ceramic shell, broad integrated rays and cocoa eyes. Use the same transparent image in the sidebar, sign-in, missing pages, favicon and loader, with a simple Manrope 800 lowercase wordmark. Sidebar: 48px mascot/30px wordmark, tablet rail: 44px mascot, account pages: 56px/34px, phone account pages: 48px/30px. Source and exact generation prompt are in ASSETS.md. Existing avatar navigation stays intact.
+
+Text actions must size to their labels rather than inheriting icon-button dimensions. Export and Export data use intrinsic width and a minimum 44px height. Header action groups and panel tool rows wrap within the available width; individual buttons can grow vertically for long labels. Keep Practice DSA and Export together when they fit, and wrap below the heading on narrow screens. The Reports date selector wraps its full selected date instead of clipping it. Test text bounds inside controls as well as overall page overflow; a page can have zero horizontal overflow while its button labels are still clipped.

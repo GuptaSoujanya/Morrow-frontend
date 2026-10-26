@@ -5,7 +5,7 @@ import { loadingState } from '../components/panel.js';
 import { accountRequestSignal } from '../api.js';
 import { prepareFirebase, runFirebaseAuth } from '../firebase-auth.js';
 import { openRazorpayCheckout, stripeDestination, waitForBilling } from '../billing-checkout.js';
-import markUrl from '../../assets/morrow-mark.svg';
+import markUrl from '../../assets/morrow-mascot.webp';
 import googleMarkUrl from '../../assets/google-g.png';
 
 // Account screens belong to the existing dashboard. Shared styling stays in

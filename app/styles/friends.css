@@ -1,0 +1,72 @@
+/* The fourth atlas extends existing identities without shifting saved indices. */
+.crew-avatar.morrow-friends {
+  background-image: image-set(url('../assets/morrow-friends.avif') type('image/avif'), url('../assets/morrow-friends.webp') type('image/webp'));
+  background-color: #101a23;
+  background-size: 430% 430%;
+}
+
+.avatar-dialog { width: min(620px, calc(100vw - 32px)); }
+.avatar-picker-heading { margin-bottom: 18px; }
+.avatar-picker-heading .avatar-selection-name {
+  color: var(--emerald-700);
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 7px;
+}
+.avatar-collections { display: flex; gap: 8px; margin-bottom: 14px; }
+.avatar-collection {
+  flex: 1;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-600);
+  font: 600 13px var(--font-body);
+  cursor: pointer;
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.avatar-collection:hover { background: var(--hover); color: var(--text-900); }
+.avatar-collection[aria-pressed=true] {
+  color: var(--emerald-700);
+  background: var(--emerald-100);
+  border-color: var(--emerald-500);
+}
+.avatar-dialog .avatar-grid {
+  max-height: min(390px, 43dvh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-gutter: stable;
+  padding: 4px;
+}
+.avatar-choice { position: relative; background: var(--canvas); }
+.avatar-choice[hidden] { display: none; }
+.avatar-choice[aria-pressed=true] { border-color: var(--emerald-700); background: var(--emerald-100); }
+.avatar-choice[aria-pressed=true]::after {
+  content: '✓';
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border: 2px solid var(--canvas);
+  border-radius: 50%;
+  background: var(--emerald-700);
+  color: var(--on-accent);
+  font: 700 12px var(--font-body);
+}
+.avatar-picker-note { margin-top: 16px; line-height: 1.5; }
+.avatar-dialog .avatar-picker-actions { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+@media (max-width: 767px) {
+  .avatar-dialog .avatar-grid { max-height: 38dvh; }
+  .avatar-picker-heading h2 { font-size: 20px; }
+  .avatar-collection { padding-inline: 7px; font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .avatar-collection { transition: none; }
+}

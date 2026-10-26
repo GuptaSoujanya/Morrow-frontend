@@ -1,0 +1,41 @@
+/* Warm-material transparent editions. Saved indices and CSS crop geometry stay stable. */
+.crew-avatar {
+  background-image: image-set(url('../assets/orbit-crew-warm.avif') type('image/avif'), url('../assets/orbit-crew-warm.webp') type('image/webp'));
+  background-color: var(--canvas-raised, #fffdf9);
+}
+.crew-avatar.orbit-world {
+  background-image: image-set(url('../assets/orbit-world-warm.avif') type('image/avif'), url('../assets/orbit-world-warm.webp') type('image/webp'));
+  background-color: var(--canvas-raised, #fffdf9);
+}
+.crew-avatar.morrow-world {
+  background-image: image-set(url('../assets/morrow-crew-warm.avif') type('image/avif'), url('../assets/morrow-crew-warm.webp') type('image/webp'));
+  background-color: var(--canvas-raised, #fffdf9);
+}
+.crew-avatar.morrow-friends {
+  background-image: image-set(url('../assets/morrow-friends-warm.avif') type('image/avif'), url('../assets/morrow-friends-warm.webp') type('image/webp'));
+  background-color: var(--canvas-raised, #fffdf9);
+}
+.avatar-choice { background: var(--canvas-raised, #fffdf9); }
+.avatar-choice[aria-pressed=true] { background: var(--emerald-100); }
+.crew-avatar:is(.hero-avatar, .journey-avatar, .source-section-art, .research-intro-art, .data-hero-art, .portal-art, .navigation-art, .sidebar-brand-art, .learning-library-row-art, .file-tile-art, .profile-heading-avatar) {
+  background-color: transparent;
+}
+
+/* Optical framing of utility symbols: retain the atlas and show complete edges.
+   Position longhands override the shared portrait crop assigned inline. */
+.crew-avatar[data-avatar="24"] { background-size: 420.805%; background-position: 1.569% 66.632% !important; }
+.crew-avatar[data-avatar="25"] { background-size: 425.085%; background-position: 34.515% 65.745% !important; }
+.crew-avatar[data-avatar="26"] { background-size: 497.619%; background-position: 65.818% 63.673% !important; }
+.crew-avatar[data-avatar="27"] { background-size: 444.681%; background-position: 97.942% 65.381% !important; }
+.crew-avatar[data-avatar="28"] { background-size: 457.664%; background-position: 3.265% 94.439% !important; }
+.crew-avatar[data-avatar="29"] { background-size: 449.462%; background-position: 33.949% 94.359% !important; }
+.crew-avatar[data-avatar="30"] { background-size: 433.91%; background-position: 65.803% 95.285% !important; }
+.crew-avatar[data-avatar="31"] { background-size: 457.664%; background-position: 97.806% 94.286% !important; }
+.crew-avatar[data-avatar="40"] { background-size: 446.263%; background-position: 3.392% 68.499% !important; }
+.crew-avatar[data-avatar="41"] { background-size: 499.602%; background-position: 36.042% 66.999% !important; }
+.crew-avatar[data-avatar="42"] { background-size: 469.663%; background-position: 66.261% 67.325% !important; }
+.crew-avatar[data-avatar="43"] { background-size: 509.756%; background-position: 96.528% 67.063% !important; }
+.crew-avatar[data-avatar="44"] { background-size: 475%; background-position: 5.556% 94.899% !important; }
+.crew-avatar[data-avatar="45"] { background-size: 522.5%; background-position: 35.503% 93.195% !important; }
+.crew-avatar[data-avatar="46"] { background-size: 486.047%; background-position: 65.914% 94.076% !important; }
+.crew-avatar[data-avatar="47"] { background-size: 495.652%; background-position: 97.353% 94.106% !important; }

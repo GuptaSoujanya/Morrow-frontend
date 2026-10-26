@@ -83,7 +83,7 @@ export function renderOnboarding() {
     busy = true; feedback.replaceChildren(); disable(true);
     try { await work(); }
     catch (cause) { if (current() && cause.name !== 'AbortError' && !handleError?.(cause)) error(cause.message + (cause.status === 409 && /changed|version/i.test(cause.message) ? ' Open setup again in a new tab to review the newer version. Your edits remain here.' : '')); }
-    finally { if (current()) { busy = false; disable(false); updateOverview(); focusAfterTask?.focus(); focusAfterTask = null; } }
+    finally { if (current()) { busy = false; disable(false); updateOverview(); focusAfterTask?.focus({ preventScroll: true }); focusAfterTask = null; } }
   }
   function disable(value) { content.querySelectorAll('[data-save], input, textarea, select').forEach(node => { if (!node.closest('.connection-manager')) node.disabled = value; }); rail.querySelectorAll('button').forEach(node => { node.disabled = value; }); }
   function setStep(index) {

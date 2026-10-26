@@ -1,1 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><defs><linearGradient id="m" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e6dcff"/><stop offset="1" stop-color="#a58aef"/></linearGradient></defs><rect x="1" y="1" width="46" height="46" rx="15" fill="#302940" stroke="#c8b6ff" stroke-opacity=".22"/><path d="M9 33V16a4 4 0 0 1 7-2.6L24 23l8-9.6a4 4 0 0 1 7 2.6v17h-7V23l-8 9-8-9v10Z" fill="url(#m)"/><path d="m16 13 8 10-4.5 5L9.7 17a4 4 0 0 1 6.3-4" fill="#f1eaff" opacity=".4"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="morrow-clay" x1="12" y1="21" x2="51" y2="53" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#d77a48"/><stop offset=".5" stop-color="#bc572b"/><stop offset="1" stop-color="#9e4221"/>
+    </linearGradient>
+    <linearGradient id="morrow-dawn" x1="27" y1="5" x2="36" y2="15" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f4bf87"/><stop offset="1" stop-color="#da8346"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="10" r="5.5" fill="url(#morrow-dawn)"/>
+  <path d="M12 50V34c0-7.7 4.5-12 10-12s10 4.3 10 12v16m0-16c0-7.7 4.5-12 10-12s10 4.3 10 12v16" stroke="#77391f" stroke-opacity=".13" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 1.5)"/>
+  <path d="M12 50V34c0-7.7 4.5-12 10-12s10 4.3 10 12v16m0-16c0-7.7 4.5-12 10-12s10 4.3 10 12v16" stroke="url(#morrow-clay)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M10 32c.6-6.6 5.3-11.5 11.5-11.5M34 31.5c1-6.4 5.1-11 10.2-11" stroke="#ffe3bd" stroke-opacity=".3" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

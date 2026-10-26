@@ -10,7 +10,7 @@ export function confirmDialog({ title, body, content, code, ok = "Continue", ton
   return new Promise((resolve) => {
     const finish = (answer) => {
       dialog.close();
-      previous?.focus();
+      previous?.focus({preventScroll:true});
       resolve(answer);
     };
     const yes = h("button", { class: `btn btn-${tone}`, type: "button", text: ok, onclick: () => finish(true) });

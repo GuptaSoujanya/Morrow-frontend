@@ -1,15 +1,21 @@
-import markUrl from '../../assets/morrow-mark.svg';
+import markUrl from '../../assets/morrow-mascot.webp';
 import {h,svg} from '../dom.js';
 import {S} from '../state.js';
 let serial=0;
 export function avatar(index=15,className=''){
   const cell=index%16;
   const position=n=>index>=32?((n+.5)*117.5-50)/3.7:index>=16?((n+.5)*112.5-50)/3.5:n*100/3;
-  return h('span',{class:`crew-avatar ${index>=32?'morrow-world':index>=16?'orbit-world':''} ${className}`,'aria-hidden':'true',dataset:{avatar:index},style:{backgroundPosition:`${position(cell%4)}% ${position(Math.floor(cell/4))}%`}});
+  // The new atlas has slightly taller ears in its last row. A small inset and
+  // optical row centers keep neighboring portraits outside the visible tile.
+  const friendPosition=n=>(n*4.3-50)/3.3;
+  const backgroundPosition=index>=48
+    ? `${friendPosition((cell%4+.5)*25)}% ${friendPosition(cell===14?85.33:[12.5,37.5,61.72,86.36][Math.floor(cell/4)])}%`
+    : `${position(cell%4)}% ${position(Math.floor(cell/4))}%`;
+  return h('span',{class:`crew-avatar ${index>=48?'morrow-friends':index>=32?'morrow-world':index>=16?'orbit-world':''} ${className}`,'aria-hidden':'true',dataset:{avatar:index},style:{backgroundPosition}});
 }
 export function avatarStorageKey(){return S.user?.id ? 'orbit-avatar:'+S.user.id : 'orbit-avatar';}
 export function workspaceAvatar(){
-  try {const raw=localStorage.getItem(avatarStorageKey());const value=Number(raw);return raw!==null&&Number.isInteger(value)&&((value>=0&&value<24)||(value>=32&&value<40))?value:15;}catch{return 15;}
+  try {const raw=localStorage.getItem(avatarStorageKey());const value=Number(raw);return raw!==null&&Number.isInteger(value)&&((value>=0&&value<24)||(value>=32&&value<40)||(value>=48&&value<64))?value:15;}catch{return 15;}
 }
 export function orbitMark(className='orbit-mark'){
   const id='orbit-'+(++serial);
@@ -27,6 +33,7 @@ const glyphs={
   chart:['M3 13h5v8H3zM10 3h5v18h-5zM17 8h5v13h-5z','M3 13h5v3H3zM10 3h5v4h-5zM17 8h5v3h-5z'],
   check:['M4 4a3 3 0 013-3h10a3 3 0 013 3v16H4z','M7 10l3 3 7-7 1.5 1.5L10 16 5.5 11.5z'],
   book:['M3 4c4-2 7-1 9 1 3-2 6-3 9-1v16c-4-2-7-1-9 1-3-2-6-3-9-1z','M11 5h2v15h-2z'],
+  code:['M4 3h16a2 2 0 012 2v14a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2z','M9 7l1.4 1.4L6.8 12l3.6 3.6L9 17l-5-5zm6 0 5 5-5 5-1.4-1.4 3.6-3.6-3.6-3.6z'],
   folder:['M3 7V5a2 2 0 012-2h5l3 3h6a2 2 0 012 2v2H3z','M3 9h19l-2 12H2z'],
   sliders:['M4 3h4v18H4zM10 3h4v18h-4zM16 3h4v18h-4z','M2 7h8v4H2zM8 14h8v4H8zM14 5h8v4h-8z'],
   person:['M12 2a5 5 0 110 10 5 5 0 010-10','M3 22v-3a7 7 0 017-6h4a7 7 0 017 6v3z'],

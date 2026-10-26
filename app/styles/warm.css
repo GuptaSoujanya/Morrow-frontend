@@ -1,0 +1,253 @@
+/* Morrow Daylight. One warm, light visual language across the workspace. Layout and data stay in
+   their feature styles; this layer owns surfaces, hierarchy and interaction. */
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('../fonts/jetbrains-mono-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+::selection { background: var(--accent); color: var(--on-accent); }
+html { scrollbar-color: var(--border-strong) var(--canvas); }
+body { background: var(--canvas); }
+.content { background: var(--canvas); }
+.page-head h1 { font-size: clamp(27px, 2.35vw, 34px); font-weight: 600; letter-spacing: -.045em; line-height: 1.22; }
+.page-head .lead { color: var(--text-400); font-size: 15px; line-height: 1.6; margin-top: 8px; }
+.eyebrow { font-size: 10px; font-weight: 600; letter-spacing: .14em; color: var(--text-400); }
+.panel-title, .journey-copy h2, .research-intro h2 { font-weight: 500; letter-spacing: -.035em; }
+.panel-title { font-size: 19px; line-height: 1.3; }
+.kpi-value, .orbit-metric .kpi-value, .career-number strong, .data-source-count,
+.source-tile strong, .learning-scoreboard strong { font-family: var(--font-display); font-weight: 500; font-variant-numeric: tabular-nums; }
+code, pre, .confirm-code { font-family: var(--font-mono); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+
+/* A quieter shell gives the content and small dimensional portraits room. */
+.sidebar { background: var(--glass-nav); border-right-color: var(--border); box-shadow: none; }
+.sidebar-brand { margin-bottom: 24px; }
+.sidebar-brand strong { font-size: 28px; letter-spacing: -1.3px; font-weight: 600; }
+.sidebar-brand small { color: var(--text-400); font-size: 9px; letter-spacing: .16em; }
+.workspace-profile { gap: 12px; }
+.workspace-profile strong { font-size: 14px; }
+.workspace-profile .profile-avatar { border-radius: 50%; border: 1px solid var(--border-strong); }
+.nav-group-label { font-size: 10px; letter-spacing: .12em; color: var(--text-400); }
+.nav-item { border-radius: 11px; font-size: 14px; transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease), border-color var(--fast) var(--ease); }
+.nav-item.active { background: #b94f2612; border-color: #b94f2623; color: var(--accent); }
+.nav-item.active::before { background: var(--accent); width: 2px; left: -8px; top: 14px; bottom: 14px; }
+.nav-item:hover { background: #b94f2609; color: var(--text-900); }
+.nav-item.active:hover { background: #b94f261b; color: var(--accent); }
+.nav-item .badge { background: var(--accent-soft); color: var(--accent); }
+.nav-item .rich-icon { opacity: .9; }
+.nav-item .nav-art { border-radius: 7px; }
+.sidebar-foot { border-color: var(--border); }
+.mobile-menu { background: var(--canvas-raised); border-color: var(--border); }
+.mobile-primary .nav-item.active { background: var(--accent-soft); color: var(--accent); }
+
+/* Shared surfaces and controls. */
+.panel, .bot-card, .kpi, .source-tile, .report-toolbar, .learning-tab,
+.profile-tiles.file-tabs, .research-intro, .collection-card, .flow-overview,
+.flow-step, .flow-preset, .data-source { background: var(--canvas-raised); border-color: var(--border); box-shadow: var(--shadow-card); }
+.panel, .bot-card { border-radius: 20px; }
+.panel { animation: none; }
+.panel-sub { color: var(--text-400); font-size: 13px; line-height: 1.5; margin-top: 5px; }
+.btn { min-height: 44px; font-size: 14px; border-color: var(--border); background: #fffaf3; box-shadow: inset 0 1px 0 #ffffff05; transition: transform var(--fast) var(--ease), background-color var(--fast) var(--ease), border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease); }
+.btn:hover { border-color: var(--border-strong); background: var(--hover); }
+.btn-primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); box-shadow: 0 2px 6px #0002, inset 0 1px 0 #ffffff40; }
+.btn-primary:hover { background: var(--accent-hover); color: var(--on-accent); border-color: var(--accent-hover); box-shadow: 0 4px 18px #b94f2618; }
+.btn-ghost { background: transparent; border-color: transparent; box-shadow: none; }
+.btn-ghost:hover { background: #b94f260a; border-color: transparent; }
+.btn-danger { background: var(--red-100); border-color: #aa393c38; color: var(--red-600); }
+.btn-danger:hover { background: #f5d6d1; border-color: var(--red-600); }
+.btn:active:not(:disabled), .icon-btn:active:not(:disabled) { transform: translateY(1px) scale(.98); }
+.btn:disabled { transform: none; box-shadow: none; }
+.btn-sm { min-height: 36px; font-size: 12px; }
+.icon-btn { border-radius: 10px; transition: color var(--fast), background-color var(--fast), transform var(--fast) var(--ease); }
+.icon-btn:hover { background: var(--hover); border-color: var(--border); color: var(--accent); }
+.input, .textarea, .search-control, .research-search, .launch-search { background: var(--canvas-raised); border-color: var(--border); color: var(--text-900); }
+.input, .textarea { border-radius: 11px; min-height: 44px; transition: border-color var(--fast), box-shadow var(--fast); }
+.input:hover, .textarea:hover { border-color: var(--border-strong); }
+.input:focus, .textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #b94f260f; }
+.input::placeholder, .textarea::placeholder { color: var(--text-400); }
+.segmented { background: var(--canvas-sunken); border-color: var(--border); border-radius: 12px; padding: 4px; }
+.segmented button { border-radius: 8px; min-height: 34px; color: var(--text-400); transition: background-color var(--fast), color var(--fast); }
+.segmented button[aria-pressed=true] { color: var(--accent); background: #b94f2615; box-shadow: inset 0 0 0 1px #b94f2618; }
+.segmented button:hover { color: var(--text-900); }
+.filter-chip[aria-pressed=true], .collection-tab[aria-pressed=true], .learning-library-filter[aria-pressed=true],
+.workspace-tabs a[aria-current=page], .learning-tab[aria-current=page], .profile-tiles .file-tile.is-current,
+.chart-mode[aria-pressed=true], .file-tab[aria-selected=true] { color: var(--accent); background: var(--accent-soft); border-color: #b94f2640; }
+.filter-chip, .collection-tab { transition: background-color var(--fast), border-color var(--fast), color var(--fast); }
+.table thead th { color: var(--text-400); background: var(--canvas-sunken); font-size: 11px; letter-spacing: .055em; }
+.table tbody tr:hover { background: #b94f2604; }
+.result-sent, .bot-status.is-live { background: #b94f2612; color: var(--accent); }
+.confirm-dialog, .resume-dialog { background: var(--canvas-raised); border-color: var(--border-strong); box-shadow: 0 24px 80px #6c4b2b26, inset 0 1px 0 #ffffff08; }
+.confirm-dialog::backdrop, .resume-dialog::backdrop { background: #49362460; backdrop-filter: blur(7px); }
+.editor-savebar { background: #fffdf9f5; border-color: var(--border); }
+.document-reader, .resume-preview-frame { background: var(--canvas-sunken); }
+
+/* The launchpad has one unmistakable focal point. */
+.orbit-head { margin-bottom: 24px; }
+.orbit-head .eyebrow { color: var(--accent); margin-bottom: 8px; }
+.orbit-overview .range-bar { margin-bottom: 22px; }
+.workspace-portals { gap: 16px; margin-bottom: 24px; }
+.workspace-portal { border-color: var(--border); border-radius: 16px; padding: 16px 18px; background: var(--canvas-raised); transition: transform var(--motion) var(--ease), border-color var(--fast), background-color var(--fast); }
+.workspace-portal strong { font-family: var(--font-display); font-size: 15px; font-weight: 500; letter-spacing: -.02em; }
+.workspace-portal:hover { border-color: #b94f2655; background: #fcf5eb; }
+.workspace-portal:hover > .icon { color: var(--accent); transform: translate(2px,-2px); }
+.workspace-portal > .icon { transition: transform var(--motion) var(--ease), color var(--fast); }
+.portal-art { width: 50px; height: 50px; border-radius: 14px; }
+.career-card { padding: 28px 30px; min-height: 252px; background: linear-gradient(115deg, #f9e5cf, #f2d5b6); border: 1px solid #ead0b1; color: #633b22; box-shadow: inset 0 1px 0 #ffffff66, 0 10px 30px #9b633b0a; }
+.career-card::before { content: ''; position: absolute; width: 380px; height: 380px; right: -65px; top: -65px; border: 1px solid #b7794315; border-radius: 50%; pointer-events: none; }
+.career-card::after { content: ''; position: absolute; width: 270px; height: 270px; right: -12px; top: -12px; border: 1px solid #b7794315; border-radius: 50%; pointer-events: none; }
+.career-card-label { color: #805535; font-size: 10px; letter-spacing: .13em; }
+.career-mark { width: 22px; height: 22px; }
+.career-number { margin-top: 16px; gap: 14px; }
+.career-number strong { color: #633b22; font-size: 56px; letter-spacing: -.06em; line-height: 1.1; }
+.career-number > span { color: #805535; font-size: 16px; }
+.career-context { color: #805535; margin-top: 10px; margin-bottom: 24px; font-size: 13px; }
+.career-actions .btn { font-size: 13px; min-height: 42px; }
+.career-actions .btn-primary { background: #b94f26; border-color: #b94f26; color: #ffffff; box-shadow: 0 3px 8px #ab63331a; }
+.career-actions .btn-primary:hover { background: #9d3e1c; border-color: #9d3e1c; color: #fff; }
+.career-actions .btn-ghost { color: #7f4528; }
+.career-actions .btn-ghost:hover { background: #b7794310; }
+.career-art { right: 14px; width: 190px; height: 190px; }
+.hero-avatar { border: 5px solid #fff8ed; box-shadow: 0 8px 20px #77502d18; mask-image: none; -webkit-mask-image: none; }
+.orbital-ring { border-color: #a16c4244; }
+.orbital-ring-back { border-color: #a16c4222; }
+.orbital-ring-front { box-shadow: 0 2px 0 #fff9ef26, inset 0 1px 0 #ffffff55; }
+.orbit-satellite { background: radial-gradient(circle at 30% 25%, #fff4e3, #eab995 65%, #b47a60); }
+.orbit-metric { border-radius: 16px; padding: 20px; min-height: 150px; }
+.metric-mint { background: #f3ecde; border-color: #e4d7c0; color: #5d503b; }
+.metric-peach { background: #f9e9dd; border-color: #eed2bc; color: #7f4c30; }
+.metric-lilac { background: #eeeae1; border-color: #ded6c8; color: #5f5648; }
+.orbit-metric .kpi-value { font-size: 32px; letter-spacing: -.04em; margin-top: 3px; }
+.orbit-metric .kpi-label { font-size: 13px; font-weight: 500; }
+.orbit-metric .kpi-sub { font-size: 12px; opacity: 1; }
+.orbit-metric:hover { filter: none; border-color: currentColor; }
+.crew-count { border-color: #b94f2630; color: var(--accent); background: #b94f260c; border-radius: 7px; }
+.crew-shortcut .bot-icon { width: 56px; height: 56px; border-radius: 17px; }
+.crew-shortcut { color: var(--text-600); }
+.crew-all { background: transparent; border-color: var(--border); }
+.growth-illustration strong { font-family: var(--font-display); color: var(--accent); }
+.orbit-overview > .learning-widget { margin-top: 28px; }
+.chart-x-label, .chart-y-label { fill: var(--text-400); }
+.chart-grid { stroke: var(--border); }
+.chart-col.s-boards { fill: var(--blue-600); }
+.chart-col.s-company { fill: var(--peach); }
+.score-selection { fill: #b94f2608; stroke: #b94f2666; }
+
+/* Feature pages share the palette without losing their individual artwork. */
+.journey-banner, .research-intro, .data-intro { background: linear-gradient(115deg, #faebda, var(--canvas-raised) 80%); border-color: #e8d5bf; }
+.journey-copy .eyebrow { color: var(--accent); }
+.journey-copy p, .journey-copy p:not(.eyebrow) { color: var(--text-600); }
+.source-tile:first-child, .data-source:first-child { background: linear-gradient(125deg, #fae6d6, var(--canvas-raised)); }
+.source-tile:hover, .data-source:hover, .learning-tab:hover { background: var(--hover); border-color: #b94f2655; }
+.bot-card { transition: transform var(--motion) var(--ease), border-color var(--fast), box-shadow var(--motion) var(--ease); }
+.bot-card:hover { border-color: #c4a17e; box-shadow: 0 10px 30px #6c4b2b26; }
+.bot-card h3 { font-family: var(--font-display); font-weight: 500; font-size: 20px; letter-spacing: -.035em; }
+.bot-card .bot-icon { width: 82px; height: 82px; border-radius: 22px; box-shadow: 0 6px 14px #6c4b2b2e; transition: transform var(--motion) var(--ease); }
+.bot-card:hover .bot-icon { transform: translateY(-3px) rotate(-3deg); }
+.bot-actions > .btn { min-height: 44px; background: #b94f2608; }
+.bot-actions > .btn:hover { background: #b94f2618; }
+.bot-status { color: var(--text-400); }
+.avatar-choice[aria-pressed=true] { border-color: var(--accent); background: var(--accent-soft); }
+.daily-agenda-summary, .learning-library-continue { background: #b94f2606; border-color: #b94f2638; }
+.daily-task, .daily-workspace, .daily-momentum { border-color: var(--border); }
+.daily-task-number { color: var(--accent); }
+.daily-agenda-number { background: var(--canvas-sunken); border-color: var(--border); }
+.learning-momentum .intensity-0 { background: #eae2d7; }
+.learning-momentum .intensity-1 { background: #efccaa; }
+.learning-momentum .intensity-2 { background: #e1a875; }
+.learning-momentum .intensity-3 { background: #cd7844; }
+.learning-momentum .intensity-4 { background: #ad4f27; }
+.learning-library-reading-footer { background: var(--canvas-sunken); }
+.learning-library-track[aria-current], .learning-library-track[aria-pressed=true] { color: var(--accent); border-color: #b94f2650; background: var(--accent-soft); }
+
+/* Activity has scoped tokens, kept in step with the rest of the workspace. */
+.console.activity-console {
+  --text-900: #342a23; --text-600: #706257; --text-400: #716257;
+  --activity-rule: #e1d7cb; --activity-accent: #a1411d;
+  --activity-surface: #fffdf9; --activity-raised: #efe6da;
+  --activity-green: #37694c; --activity-amber: #8d5c1c;
+  font-family: var(--font-body);
+}
+.activity-sheet { border-color: var(--border-strong); }
+.activity-console .activity-launch { background: var(--accent); border-color: #d78051; color: var(--on-accent); box-shadow: 0 8px 30px #0004, inset 0 1px 0 #ffffff80; }
+.activity-console .activity-launch:hover { background: var(--accent-hover); box-shadow: 0 10px 32px #0005, 0 0 0 5px #b94f2612; }
+.activity-launch-ring { border-color: #ffffff30; }
+.activity-console[data-launch-state=live] .activity-launch-ring { border-top-color: #ffffff; border-right-color: #ffffff; }
+.activity-launch-badge { background: #773817; border-color: var(--canvas); color: #ffffff; }
+.activity-launch::after { background: var(--canvas-raised); color: var(--text-900); border-color: var(--border); }
+.activity-tab-count { background: var(--accent-soft); color: var(--accent); }
+.activity-window-control:hover { background: var(--hover); }
+.activity-run-detail { scrollbar-color: var(--border-strong) var(--canvas-raised); }
+.activity-console .btn { background: var(--hover); border-color: var(--border-strong); color: var(--text-900); }
+.activity-console .btn:hover { background: #f1dfca; border-color: var(--accent); }
+.activity-console .activity-recovery, .activity-console .activity-recovery:hover { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.activity-run-picker option { background: var(--canvas-raised); color: var(--text-900); }
+
+/* Motion is finite and purposeful. Live progress retains its existing behavior. */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .workspace-portal:hover .portal-art { transform: rotate(-4deg) translateY(-2px); }
+  .portal-art { transition: transform 360ms var(--ease); }
+  .career-card:hover .hero-avatar { transform: translateY(-4px) rotate(-4deg); }
+  .hero-avatar { transition: transform 450ms var(--ease); }
+  .career-card:hover .orbit-satellite { transform: translate(3px, -5px); }
+  .orbit-satellite { transition: transform 450ms var(--ease); }
+  .btn-primary:hover > .icon:last-child { transform: translate(2px,-1px); }
+  .btn > .icon { transition: transform var(--motion) var(--ease); }
+}
+@media (min-width: 1101px) {
+  :root { --sidebar-w: 224px; }
+  .sidebar { padding-inline: 18px; }
+  .content { padding: 30px 32px 112px; }
+}
+@media (min-width: 768px) and (max-height: 800px) {
+  .sidebar { padding-top: 18px; }
+  .sidebar-brand { margin-bottom: 18px; }
+  .content { padding-top: 24px; }
+}
+@media (max-width: 1200px) {
+  .career-card { padding: 24px; }
+  .career-number strong { font-size: 48px; }
+  .career-art { right: 0; width: 155px; }
+  .orbit-metric { padding: 16px; }
+  .orbit-metric .kpi-value { font-size: 28px; }
+}
+@media (max-width: 767px) {
+  .content { padding: 24px 16px 150px; }
+  .page-head h1 { font-size: 29px; }
+  .page-head .lead { font-size: 15px; }
+  .sidebar { background: var(--glass-nav); }
+  .workspace-portals { gap: 10px; }
+  .workspace-portal { padding: 14px; }
+  .workspace-portal strong { font-size: 14px; }
+  .portal-art { width: 42px; height: 42px; }
+  .orbit-head { margin-bottom: 20px; }
+  .career-card { padding: 22px; min-height: 250px; }
+  .career-card-copy { max-width: 100%; }
+  .career-number strong { font-size: 48px; }
+  .career-number > span { font-size: 15px; }
+  .career-context { max-width: 25ch; font-size: 12px; }
+  .career-art { width: 116px; height: 130px; top: 96px; right: 4px; opacity: .75; }
+  .career-actions { gap: 4px; }
+  .career-actions .btn { min-height: 44px; font-size: 12px; padding: 8px 10px; }
+  .orbit-metric { padding: 13px 11px; min-height: 148px; border-radius: 14px; }
+  .orbit-metric .kpi-label { font-size: 12px; }
+  .orbit-metric .kpi-value { font-size: 25px; }
+  .orbit-metric .kpi-sub { font-size: 11px; }
+  .input, .textarea { font-size: 16px; }
+  .segmented button { min-height: 36px; }
+  .crew-shortcut .bot-icon { width: 60px; height: 60px; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root { --glass-nav: #f2ebe1; --glass-dialog: #fffdf9; --glass-blur: none; }
+  .sidebar, .editor-savebar { backdrop-filter: none; }
+  .confirm-dialog::backdrop, .resume-dialog::backdrop { backdrop-filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bot-card:hover .bot-icon, .workspace-portal:hover, .orbit-metric:hover,
+  .btn:active:not(:disabled), .icon-btn:active:not(:disabled) { transform: none; }
+}
+
+/* Primary crew actions must retain their filled treatment inside card footers. */
+.bot-actions > .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.bot-actions > .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
