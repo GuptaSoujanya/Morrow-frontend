@@ -293,12 +293,14 @@ these shared workflows. The original workspace includes:
   before the first checkpoint use the dashboard runner's retained history.
 - **Insights:** conversion funnel, outcomes, match scores, platform/search comparisons,
   recent runs and 7/14/30/all-time CSV exports.
-- **Research Studio:** search and read generated briefings, study plans, resume research and
-  saved recruiter drafts. Today presents the selected date’s daily README, Papers, Tech radar and Company radar, with direct fetch/refresh controls. Learning and Resume lab have separate material and progress. Library contains the searchable `.research` collection; Progress records completion history.
+- **Learning:** follow daily DSA, learning, papers, topics, news and company research, then
+  continue resume learning or the full course curriculum. Saved library searches the
+  `.research` collection, including dated briefings and recruiter drafts. Progress shows
+  shared activity, badges and completion history. Missing material has direct fetch controls.
 - **Automation controls:** Naukri and four other job boards, company sites, Naukri/LinkedIn
   profiles plus dedicated Hirist/Instahyre/Cutshort/Wellfound profile agents, LinkedIn posts, recruiter email drafts and resume tailoring.
-- **Action inbox, Learning path and Reports:** answer questions, complete facts, read course
-  modules in expandable tracks and review or generate reports from the date archive.
+- **Action inbox and Reports:** answer questions, complete facts and review or generate
+  reports from the date archive.
 - **My profile & files / Preferences:** configuration editing, masked credentials, revision
   checks, unsaved drafts, private backups, preferences grouped by purpose and a 32-character workspace avatar picker.
 - **Activity:** click the floating circle at the bottom right to open the panel. Its moving ring shows live work; the badge shows the running-agent count or an attention marker. Incoming updates keep a closed panel closed. The animated circle remains visible and is the only open/close control: click it again or press Escape to close Activity. **Expand** and **Restore** sit in the header; expansion adds reading space on desktop and phones while keeping the current tab and run selected. **Progress** opens first. The normal view is a compact dark panel. Click the selected agent's heading to switch runs; every run remains available, including completed ones. Expanded desktop adds a full run list beside the selected run's status, recovery action, and five newest progress updates. Both desktop and phones use a single scrolling detail view. Earlier updates and **Technical details** (including Copy) open on demand, while run controls and **Back to latest** stay reachable below the output. A notice surfaces other failed runs without changing the selected task. **Agents** lists running agents with their status and elapsed time; **View activity** returns to that run's progress. **Browsers** shows agent browser counts and separate sign-in controls. Accounts without runner access open directly to browser controls. Normal runs open actual Chrome windows; **Run in background** hides windows for newly started runs. Copy and Stop apply to the selected run; other agents keep working. Arrow keys, Home, and End switch Activity tabs; Escape collapses the panel.
@@ -430,17 +432,162 @@ Only Firebase app/auth modules are dynamically bundled into the sign-in flow; no
 Firebase database replaces PostgreSQL. The npm gRPC override pins a patched range
 for an unused Firestore transitive dependency pulled in by the umbrella SDK.
 
-## Owner-workspace learning and navigation
+## Learning workspace and daily progress
 
-For the original workspace owner, course lessons, research notes and 90-day learning completions save to **`.memory/learning.json`** in the project root. The server imports prior `data/reports/studied.json` and `.research/learning/progress.json` once, preserving the originals. Writes use a process lock, fsync and atomic replacement. Invalid storage is reported rather than silently reset. Back up `.memory/` with the rest of your workspace. Other accounts use their own stored reading progress and cannot read or change this shared progress file.
+Open **Learning** (`#/learning`) for one workspace with **Today**, **DSA practice**, **Practice & exams**,
+**Resume topics**, **Courses**, **Saved library**, and **Progress**. Desktop navigation
+groups these destinations under Learning; smaller screens use one section selector.
+Today comes first: DSA practice,
+your saved learning-plan day, research papers, daily goals, system-design topics,
+tech news, and companies to explore. Each available task has its own reading or
+practice view and explicit completion state. The daily count includes available
+tasks; missing material is listed separately with an action to prepare it. Company
+research completion records learning, while job applications remain in Applications.
 
-- Research Studio → **Today**: choose a date, open its daily README, and read Papers, Tech radar and Company radar. Missing dates remain explicitly empty, with a link to the latest saved date. Fetch a whole briefing or one section directly, after reviewing its exact command.
-- **Learning**: your first unfinished learning day, 90-day progress, daily goal, system-design brief and saved weekly plans. **Resume lab**: a separate topic library based on your resume, with its own overview and completion count.
+The learning-plan reading uses the existing saved week files and completion history.
+Completing it keeps today's reading visible; the next local date selects your next
+unfinished day. Daily research only uses material saved for the selected local date;
+older briefings remain in the dated Saved library. No readings or progress are invented.
+Resume learning is the next priority, followed by the full course library. Those
+views reuse the same saved content and progress as the daily workspace.
+
+The DSA practice provides one topic per local calendar day: a concept explanation,
+a worked Python example, and practice questions with revealable solutions. The path
+contains 22 topics, from hash maps and arrays through graphs, dynamic programming,
+bits, and tries. Read the explanation, practice each question, then choose
+**Complete DSA topic**. Each question and worked example has an in-app code editor;
+run examples while learning, then submit the full test suite for a verified score.
+Reading and practice checklists remain personal check-ins. Checklist progress and
+code drafts save on this computer and survive restarts.
+
+The next topic opens the next day. Missing a day keeps your unfinished topic waiting;
+after all 22 topics, the path revisits completed topics for revision. An open page
+refreshes across midnight and when returning from another tab. **Refresh**
+can also reload the saved state.
+
+**DSA practice** separates Learn, Worked example, and Practice into individual steps,
+and Continue resumes at the first unfinished practice question after reading. The
+DSA roadmap is collapsed until requested. **Progress** contains the full
+calendar and rewards; the dashboard uses a compact calendar with collapsible badges.
+Existing `#/dsa`, `#/research`, and `#/study` links open the corresponding view inside
+Learning. Reader return links and library filters survive browser Back and reload.
+
+The dashboard and Learning workspace show a GitHub-style activity calendar,
+current and longest streaks, XP levels, and six milestone badges. Completing any
+course chapter, research reading, or daily DSA topic keeps the learning streak going.
+Course chapters earn 20 XP, research readings 10 XP, daily DSA 50 XP, and fully passing
+code solutions 10 XP. Each item
+earns credit once per day; reopening does not erase historical activity or create
+extra credit that day. A streak ending yesterday remains current while today is
+still available. Dates follow the computer's local calendar, including the original
+local date recorded for each completion. Older imported progress without dates
+does not create invented streaks or calendar entries.
+
+Learning activity uses the local `.memory/learning.json` store described below;
+code drafts and verified scores use `.memory/code-practice.json`. No Morrow
+account is required in the free beta. To verify the feature without changing your
+own progress, run `npm run test:learning`; its server uses temporary synthetic data
+and blocks all non-learning actions.
+
+### DSA sheet and AI practice
+
+**DSA → Practice sheet** (`#/learning/dsa/sheet`) adds a topic-by-topic path with
+72 problems across 11 chapters from the bundled course. Search by topic or question,
+filter by progress, and save an approach, code, or notes alongside **Not started**,
+**Attempted**, or **Solved**. Foundation / Practice / Challenge describe each problem's
+place in its chapter. The sheet follows the idea of an A2Z practice path; it is not
+a copy of the complete Striver question bank. The original sheet is linked for reference.
+Daily lesson checklists share problem attempts, while topic completion remains explicit.
+Unfinished daily lessons keep their reading and practice progress on the next day.
+
+**Practice & exams** (`#/learning/practice`) creates three separate AI papers:
+DSA, daily learning, and research review. Daily papers contain three questions;
+weekly exam papers contain five questions per available category. Generation uses
+the configured Claude or Kiro CLI and saved source text, with tool use disabled.
+The CLI must be installed and signed in on this computer. Missing source material,
+invalid AI output, and connection failures are shown with recovery actions; no
+placeholder questions are presented as generated work.
+
+Choose **Start AI practice** to prepare the first papers and enable automatic daily
+preparation. The setting can be paused at any time. While Morrow is running, it checks
+for missing daily papers every minute and catches up when restarted. Unfinished
+papers and their answers carry forward; new questions adapt to the next unfinished
+material, read state, prior attempts, and previous questions. Reading a source and
+submitting a practice paper are separate actions. Research practice uses the oldest
+unread saved paper briefing, including an earlier day's unfinished reading.
+
+Weekly exams are prepared on request, once per calendar week, from material completed
+in the preceding seven days including the preparation date. Each exam's review window
+stays fixed after its first paper is generated. Categories without eligible material
+explain what is needed. Weekly reference answers and review criteria unlock only after
+every question has an answer and the paper is explicitly submitted. Written answers
+support self-review. DSA questions also have local code tests with a separate,
+server-verified score; no AI grade is assigned to written answers.
+
+Answers save as you type. Submission saves an immutable completed paper and records
+10 XP in the shared activity calendar; retries cannot earn duplicate credit. Papers,
+answers, settings, and generation state live in **`.memory/practice.json`**, with locked,
+atomic writes. Back up this file alongside `.memory/learning.json`. Stopped or failed
+generation keeps any completed papers and requires an explicit retry.
+
+### Local compiler and coding progress
+
+Every one of the 72 sheet problems, daily practice questions, and worked examples
+has a CodeMirror editor with Python, JavaScript, and C++ support. Drafts save per
+problem and language. **Run examples** checks the visible sample; **Try your own
+input** accepts JSON; **Submit solution** checks all four cases and records the
+result. Input/output contracts and comparison rules appear beside the editor.
+Tests verify returned values, not algorithmic complexity or object identity.
+
+DSA has a direct sidebar shortcut and a **Practice DSA** button on Launchpad.
+Both open `#/learning/dsa?step=practice` at today's first unfinished practice
+question with its editor ready. Today's **Practice now** action opens the same view.
+Learn and Worked example remain available as tabs; the selected tab survives reload.
+The practice sheet also offers **Start coding** / **Continue coding** above the topic
+list, so finding a table row is optional. Editor input details open on demand.
+
+New AI DSA papers select a problem from their saved topic's test catalog, keeping
+the generated question and executable contract aligned. Older papers show a clearly
+labeled related coding exercise. The same problem shares drafts and daily best
+scores across the sheet, daily lesson, and AI paper. Written paper submission and
+code submission remain separate actions.
+
+Code executes on the computer running Morrow. Python and JavaScript implement
+`solve(input)`; C++ starters include a bundled JSON parser and a standard-input/output
+wrapper. Existing standalone C++ programs can also read JSON from stdin and output
+one JSON value. No cloud compiler or paid execution service is used.
+
+The server detects installed Python 3, Node.js, and a C++17 compiler. macOS uses
+`sandbox-exec`; Linux requires `bubblewrap` with working namespaces and seccomp.
+Unsupported or unavailable isolation disables execution and shows a setup message;
+there is no unsandboxed fallback. Programs have no access to workspace files or the
+network. Each run has a 3-second wall limit, bounded memory and output, and a fresh
+process per case. Compilation allows 15 seconds; a submission has a 30-second total
+budget. At most two executions run at once. macOS execution is tested; the Linux
+backend still needs runtime verification on Linux.
+
+**Progress** shows today's score ring, a selectable 14-day score chart, pass rate,
+submission streak, recent results, and five coding badges alongside the existing
+learning heatmap and XP rewards. A problem earns up to 100 daily points based on
+tests passed; only its best result that day contributes. Repeats cannot inflate the
+score or daily XP. A full pass marks the problem solved and earns 10 learning XP
+once per problem per local day. Manual checklist changes earn no verified code score.
+Back up `.memory/code-practice.json` alongside the other learning stores.
+
+`npm run test:learning` checks the editor, real local execution, scoring, and responsive
+screens using a temporary workspace; it does not change personal learning progress.
+
+## Local-workspace learning and navigation
+
+In the free local beta (and for the original workspace owner in accounts mode), course lessons, research notes, daily DSA and 90-day learning completions save to **`.memory/learning.json`** in the project root. The server imports prior `data/reports/studied.json` and `.research/learning/progress.json` once, preserving the originals. Writes use a process lock, fsync and atomic replacement. Invalid storage is reported rather than silently reset. Back up `.memory/` with the rest of your workspace. Other accounts use their own stored reading progress and cannot read or change this shared progress file.
+
+- **Learning → Today**: follow the daily checklist. Fetch a whole briefing or one missing section after reviewing its exact command. **Saved library** provides dated archives, category filters and search.
+- **Resume learning**: continue the next unfinished resume topic, with its own overview and completion count. **Courses**: explore the full curriculum and mark chapters complete. Both sit below daily work in the same workspace.
 - Fetch actions use your configured AI agents and persist their output in `.research/`; they are not simulated feeds. The Activity panel follows each run, and its output views refresh when that agent finishes, even while another agent is still working. Independent research stages can run in parallel.
 - Open a read → **Mark complete**. **Reopen reading** reverses it. Opening alone never completes an item.
 - **Progress**: dated course/research completions and reopens, plus imported work whose original dates were not recorded.
-- Learning path and the hosted course reader share the same progress. `/course/01-system-design/` redirects to `/course/#/01-system-design/`. The course reader still uses its existing CDN scripts.
-- Applications, Data hub and the Research library keep page/filter/search state in the URL. Browser Back, Forward and reload restore it.
+- Courses and the hosted course reader share the same progress. `/course/01-system-design/` redirects to `/course/#/01-system-design/`. The course reader still uses its existing CDN scripts.
+- Applications, Data hub and the Saved library keep page/filter/search state in the URL. Browser Back, Forward and reload restore it.
 
 TanStack Query keeps ordinary GETs fresh for 30 seconds and evicts unused entries after five minutes. Status/run/editable files bypass the cache. Mutations do not retry and invalidate cached reads after success. No credential or personal-data cache is persisted to browser storage. React Suspense and a route error boundary keep navigation available while pages load or fail. The initial route loads alongside its data to avoid an extra waterfall.
 

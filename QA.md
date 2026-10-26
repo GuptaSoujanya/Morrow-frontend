@@ -311,3 +311,201 @@ Normal Chrome is the default for new agent runs. The Run in background toggle ap
 Verification for this change: 20 mocked crew launch browser cases; 29 browser-mode, Activity formatting and stream unit cases; 74 focused Naukri authentication/profile cases; 68 account-proxy, browser configuration and lifecycle cases. Backend mode/count/parallel tests were also run independently. The visible Naukri sign-in tests verify the same window is retained, only positive authentication resumes work, closing the window ends the wait, timeout occurs once, and background runs cannot wait invisibly on the removed viewer. Lifecycle tests use isolated child processes, including a child ignoring TERM, while another run remains active.
 
 Crew toggle screenshots at 1280 and 375 pixels were visually inspected, and the crew page passed axe checks. Agent browser count screenshots show two simultaneous agents owning three actual browser instances. Tests used synthetic accounts and pages; no live applications, profile updates or provider sign-in were performed. Platform access or successful real job submissions are not established by these tests.
+
+## Daily Learning — October 26, 2026
+
+Daily Learning combines the saved 90-day learning plan and daily DSA. Today shows two
+task cards and a shared streak summary. Reading, DSA practice, and activity have
+separate views. DSA uses Learn / Worked example / Practice steps, resumes at the
+first unfinished question after reading, and keeps the roadmap collapsed. The
+dashboard calendar has month labels and collapsible badges. Phone navigation shows
+all four learning views in a two-column control.
+
+Verification: production build, 175 backend tests covering server/learning/account
+isolation, 38 client policy/router tests, and 11 isolated browser cases passed.
+Browser cases cover real temporary plan and DSA completions, exactly 60 combined XP,
+reload persistence, same-day plan retention, failed saves and retries, missing
+material, legacy DSA links, stale reads, and full/partial midnight refreshes. The
+final phone-layout adjustment was checked again with the responsive/accessibility
+case. All five views passed axe WCAG 2.1 AA checks and fit at 375, 768 and 1024 pixels.
+
+Desktop and phone screenshots live in `artifacts/learning/` with `learning-home`,
+`learning-plan`, `learning-dsa`, `learning-progress`, and `dashboard-learning` names.
+The home and DSA screenshots were visually reviewed. The in-app browser was
+unavailable; installed Chrome supplied this evidence. Synthetic learning data stayed
+in a temporary test workspace. The running beta's real saved plan was also verified
+through a read request, without completing a user task. Practice remains a personal
+check-in and does not execute or grade code.
+
+## Unified Learning workspace — October 26, 2026
+
+This update replaces the separate Research Studio, Learning path, and Daily Learning
+navigation described above. One Learning workspace contains Today, Resume learning,
+Courses, Saved library, and Progress. Today orders DSA, the saved learning day,
+papers, daily goals, system design, news, and companies into one checklist. Missing
+material stays explicit and does not inflate the available-task count. Finished
+90-day plans offer review instead of another generation request. Learning is also a
+primary phone-navigation destination.
+
+Old research/study/DSA links retain their destination and filters. Native document
+readers return to Today, Resume learning, Saved library, or the selected Progress
+page. Course and reading completions retain the existing shared memory, history,
+streak, badges, and same-day XP deduplication. Opening a company reading does not
+create an application. Fetch controls still preview the configured command before
+execution; tests cancel that preview without running real agents.
+
+Verification: production build, 166 focused backend tests and 40 client tests passed.
+The browser suite now contains 20 cases. The initial full 18-case run passed; eight
+impacted cases were rerun after refinements, and the final four-case run passed with
+the completed-plan check, responsive/accessibility coverage, and two new refresh/save
+race regressions. Those regressions caught stale in-flight reads replacing saved
+progress. Caller-owned abortable reads now keep those old results out of the reader
+and course views.
+
+All six workspace views were checked at desktop and phone widths with axe WCAG 2.1 AA.
+Fresh screenshots are `artifacts/learning/learning-{today,resume,courses,library,reader,progress}-{desktop,mobile}.png`.
+Today phone and Courses desktop were visually inspected, along with the test agent's
+Resume phone and Today desktop review. Browser verification uses installed Chrome
+and temporary data; the in-app browser was unavailable. The idle local beta was
+restarted on port 8116. A read-only request confirmed the real saved plan remains on
+day 4 and today's unsaved research sections remain unavailable. No real learning
+completions, generated briefings, or applications were created during verification.
+
+## Daylight visual refresh — October 26, 2026
+
+- Production `npm run build`: passed. JavaScript syntax and `git diff --check`: passed.
+- Layout review: 11 routes at 375×900,768×1000,1280×720,1440×1000 (44 route/viewport checks), no page errors or document horizontal overflow. Screenshots in `artifacts/daylight/`.
+- Final settled-color axe WCAG A/AA review: 20/20 passed. Overview, Bot Crew, Applications, Learning, saved library, Data hub, calendar, dropdown, avatar picker and open Activity at 1440 and 375px. No visible unintended large dark surfaces. Reports in `artifacts/warm-a11y/`.
+- Shared controls: keyboard dropdown/typeahead/dismissal, invalid typed dates, calendar navigation and month-end clamping passed in checks adapted to current controls. Original 100,000-row pagination/history/page-size regression passed.
+- Avatar persistence: existing index 21 remains stable; new index 48 saves and survives reload. All 48 choices and the 16-choice New friends filter passed; picker fits 375/768/1280px.
+- Learning section/course dropdown navigation passed on desktop, tablet and phone. Calendar lower/upper bounds, keyboard movement, selected-day synchronization, responsive layout, and learning accessibility passed against isolated test data.
+- Known existing test drift: older dashboard/beta cases still expect Research/Study navigation, an immediately visible AI CLI control, and the old Pipeline date label. Current equivalents (Learning navigation, Advanced settings disclosure, Workflow date) passed adapted checks. No real bot launch or personal-data mutation was used for visual verification.
+
+## DSA sheet and adaptive AI practice — October 26, 2026
+
+Learning now uses a contextual desktop sidebar and one section selector on smaller
+screens. Today groups practice, reading, and career research. Practice & exams is
+the second Learning destination, followed by Resume topics, Courses, Saved library,
+and Progress.
+
+- Production build, JavaScript syntax, and diff checks passed.
+- 252 Python checks passed across server/account boundaries, saved learning, daily
+  planning, DSA, AI generation/storage, and practice HTTP/scheduling integration.
+- 40 client checks passed for account request isolation, access policy, and routing.
+- 29 browser cases passed in the combined learning suite. These cover the 72-problem
+  DSA sheet, notes/status persistence, filters through reader Back/reload, unsaved
+  drafts through navigation and delayed refreshes, three daily and weekly papers,
+  answer save/retry/reload/submission, reference-answer gating, and unavailable AI or
+  source material. Shared search labels, inline links, and accidental null text were
+  corrected and verified.
+- Axe/accessibility and overflow checks passed for the five new surfaces at 375 and
+  1440px, and the six existing learning surfaces at 375/768/1100/1440px. Final desktop
+  and phone captures were visually reviewed. Artifacts:
+  `artifacts/learning/dsa-{sheet,problem}-{375,1440}.png` and
+  `artifacts/learning/ai-{practice,daily-paper,weekly-paper}-{375,1440}.png`.
+- Generation tests use deterministic injected responses through production JSON
+  validation and durable storage. Real Claude/Kiro requests were not made. The UI
+  fixture disables background scheduling and rejects any real CLI/runner start;
+  user papers, answers, and completions were not populated by these tests.
+- Local preview on port 8116 exposes the new endpoints. Its practice API reports an
+  available CLI and automatic preparation disabled until enabled by the user.
+
+Automatic preparation is opt-in, checks once per minute while Morrow runs, and
+catches up after restart. Unfinished daily papers and answers carry forward. Failed
+or stopped generation preserves partial results and pauses retries until requested.
+Weekly papers use completed saved sources in a fixed seven-day review window.
+At that stage practice was self-reviewed. The local compiler follow-up below adds
+verified code scores while retaining self-review for written answers.
+
+
+## Avatar navigation and clickable route cleanup — October 26, 2026
+
+- Production build, changed-module syntax checks, and `git diff --check` passed.
+- 27 unit checks passed: nine breadcrumb hierarchy cases plus the existing access-policy and router checks. Parent paths cover readers with safe source filters, bot/provider/profile controls, profile-file tabs, record filters, DSA/course/paper routes, reports and Data categories.
+- Eight shell browser cases passed: keyboard workspace search, same-page record search, modal guard, artwork presence, no SVG navigation/header glyphs, four screen widths with axe checks, More-menu deduplication, and one active mobile destination on bot detail pages.
+- Four focused breadcrumb browser cases passed, including actual parent clicks, live query-filter updates, keyboard search/focus and filtered reader return. The reader case was rerun after the duplicate local back link was removed; its stable fixture uses a supported Learning category and page two of a 60-item library.
+- Overview checks at 1440/375 and profile checks at 1280/375 passed for duplicates, retained useful data, overflow, axe and avatar open/close/focus. Profile artwork visibility is asserted after fixing an inherited rule that hid all tab spans.
+- Eleven routes passed layout/runtime checks at 375, 768, 1280 and 1440 pixels (44 route/size combinations). The final compact profile adjustment was checked again on phone and desktop.
+- Visual inspection: `artifacts/daylight/overview-1440.png`, Learning/library desktop and phone; `artifacts/overview-cleanup/profile-{375,1280}.png`; actual saved reader `artifacts/avatar-nav/reader-{375,1440}.png`. Every breadcrumb segment remains visible and clickable when its trail wraps on phone.
+- Browser checks block persistent API mutations. No real bot run, reading completion, profile edit or application was created. Existing broader tests with old duplicate back-link or navigation selectors may need their expectations updated; the focused cases above verify the replacement navigation.
+
+
+## Local compiler, verified progress, and direct DSA access — October 26, 2026
+
+- All 862 Python tests passed, including 28 real local-runner checks. Python,
+  JavaScript, and C++ execute under macOS isolation; checks cover compilation,
+  strict JSON judging, time/memory/output limits, unavailable runtimes, blocked
+  workspace/network access, concurrent requests, and child-process cleanup.
+- The 72-problem catalog contains 288 checked cases. Integration and HTTP checks
+  cover server-owned results, question/source binding, canonical sheet/paper
+  identity, drafts, daily best-score deduplication, badges, daily XP, concurrent
+  submissions, and preservation of solved status after a later failed attempt.
+- Forty account/routing/request-isolation client tests and nine breadcrumb unit
+  tests passed. Production build and diff checks passed. CodeMirror dependencies
+  and pinned nlohmann/json 3.12.0 are bundled locally; the latter retains its MIT
+  license and upstream checksum in `vendor/nlohmann/`.
+- DSA has a sidebar shortcut, Launchpad button, and Today action that open the
+  Practice step and editor directly. The question sheet offers a direct next-question
+  action above the topic list. The editor uses the card width, with input details
+  collapsed initially; selecting a lesson step persists it in the URL.
+- Eleven compiler browser cases passed across the main and focused verification
+  runs: real execution in all three languages, per-language drafts, retry/reload,
+  missing-runtime recovery, runtime/compile/timeout diagnostics, idempotent scores
+  and XP, badge unlock, and direct DSA navigation with Back/reload at 375/1440px.
+  Full WCAG 2.1 A/AA and overflow checks passed for editor/results/progress and
+  direct-practice/sheet surfaces. Screenshots in `artifacts/compiler/` were reviewed,
+  including `direct-practice-{375,1440}.png`, `sheet-start-{375,1440}.png`, and
+  `progress-populated-{375,1440}.png`.
+- All 29 existing learning browser regressions also passed, including the seven
+  navigation destinations, AI/sheet shared drafts, stale-read protection, completion
+  and XP deduplication, and reader return/filter restoration through breadcrumbs.
+  Together with the compiler cases, 40 browser cases passed across the final runs.
+- Progress includes a score ring, keyboard-selectable chart with a data table,
+  submission history, and coding milestones. The selected chart day stays visible
+  on resize. Diagnostics scroll with keyboard access and syntax colors meet the
+  warm theme's contrast requirements.
+- The preview on port 8116 was restarted only after confirming no active jobs.
+  Read-only checks confirm all three runtimes available and no personal code
+  submissions inserted. Execution and scoring tests use temporary workspaces.
+- Linux bubblewrap support is implemented but not runtime-verified on this Mac.
+  Resource limits include per-file size limits and a polled memory watchdog, not
+  an aggregate filesystem quota. Written paper answers remain self-reviewed;
+  verified code points reflect the submitted exercise's four test cases.
+
+## Warm artwork integration — October 26, 2026
+
+- All four built-in imagegen edits are stored as project-local warm AVIF/WebP siblings. Verified1254×1254 RGBA and alpha0–255; original source atlases retained. AVIF75/WebP90 variants total approximately1.1MB/1.8MB respectively across all four atlases. Browser selects one format per image.
+- Production build, avatar-picker syntax and diff checks passed.
+- Read-only Chrome review covered overview, Bot Crew, Learning library and profile at1440/375. All rendered avatar backgrounds resolved to warm variants, with no horizontal overflow or runtime errors.
+- Picker still has48 portraits and16 New friends; selecting index48 saves and survives reload in the isolated test browser. Numeric identities and their order remain unchanged. Labels no longer describe the discarded cool colors.
+- All64 CSS crops inspected at112px, with the full contact sheet unobscured. Desktop and phone overview reviewed in context. No material clipping, remaining cool-color artwork or inconsistent backgrounds observed.
+- Captures: `artifacts/warm-artwork/overview-{1440,375}.png`, `picker-{1440,375}.png`, `all-64-crops.png`, plus Bot Crew/library/profile views. Exact generation metadata is in `artifacts/warm-assets/`; prompts are recorded in ASSETS.md.
+
+## Brand and loading refresh — October 26, 2026
+
+- Production build and `git diff --check` passed.
+- Seven focused browser cases passed: startup/sign-in at 375 and 1280px, delayed route loading at both widths, compact account loading at both widths, and static reduced motion with private navigation hidden while identity resolves. Each loader clears when its operation completes. No horizontal overflow observed. Two existing feedback regressions also passed.
+- The compact fixture initially lacked the billing-status GET response; after adding that synthetic response, both compact cases passed. No production defect was found.
+- Visually reviewed the shared logo/wordmark in the desktop sidebar, phone sign-in and startup loader, plus logo sizes 16/24/32/48/96px. Local wordmark font resolves correctly. Actual animation frames and reduced-motion captures were checked.
+- Captures: `artifacts/brand-refresh/brand-detail.png`, `overview-{1440,768}.png`; `artifacts/brand-loading/startup-1280.png`, `auth-{375,1280}.png`, `route-{375,1280}.png`, `compact-{375,1280}.png`, `reduced-motion-375.png`.
+- QA used synthetic API fixtures or blocked persistent API writes. No real account, application, bot run or learning progress was modified. The full browser suite was not rerun for this visual change.
+
+## Scroll preservation and selection polish — October 26, 2026
+
+- Reproduced the original defects with synthetic data: changing Course track on a phone jumped 269px to the top; Applications Next moved 891px toward the table heading.
+- All 21 unique scroll/focus scenarios passed at 375, 768 and 1440px: query-only track changes, keyboard focus after asynchronous replacement, background overview refresh, pagination and rows-per-page selection, return via browser Back, user wheel input while loading, and natural clamping of shorter results without a lasting spacer. Coverage is in `tests/scroll-position.spec.js`.
+- One tablet wheel test stalled during the interrupted turn; its isolated rerun passed in 1.2 seconds. After the delayed focus restoration fix, all nine affected query/focus/wheel cases passed again.
+- Eight shared control checks passed: six component cases across all three widths, plus two existing integrated dropdown/calendar regressions. Covered long-list keyboard visibility, popup-only scrolling, month/day selection, native checkbox/radio/switch behavior, accessibility, reduced motion, forced colors and no horizontal overflow.
+- Visually inspected warm selected, mixed, disabled and radio states, dropdown selected badge, and calendar. Captures are in `artifacts/selection-controls/{choices,dropdown,calendar}-{375,768,1440}.png`.
+- Rechecked the seven brand/loading cases after scroll integration. Six passed during the initial run; the desktop route case stalled during interrupted browser teardown and passed on its isolated rerun. Production build and `git diff --check` passed.
+- These checks used isolated synthetic API responses; no user account settings, bot actions, completions or application records were changed. The full browser suite was not rerun.
+
+## Mascot and clipped-action repair — October 26, 2026
+
+- Reproduced the supplied screenshot: legacy Export styling constrained text buttons to 42/44px. The previous direct-child override stopped matching after Practice DSA and Export were grouped. Both Launchpad and Insights were affected at every audited width, even with zero document overflow.
+- Removed the fixed sizing at its source and added responsive action-group wrapping. Fixed the other audit finding: the full Reports date label clipped at 320px and now wraps.
+- Post-fix audit passed all 91 combinations: 13 routes at 320, 375, 640, 768, 1024, 1280 and 1440px. Checked visible control text bounds, button padding and document overflow. Nine durable regressions in `tests/action-layout.spec.js` passed, including preserved Practice DSA navigation and an actual Export CSV download.
+- Seven startup/account/route loading cases and one brand-size preview case passed with the new mascot. Visually reviewed the wordmark and mascot from 16–96px, desktop/tablet sidebar, phone sign-in, startup and compact loading. Production build and `git diff --check` passed. Startup/client/static missing pages share the hashed mascot URL to avoid duplicate image downloads.
+- Captures: `artifacts/action-layout/overview-{1440,768,375}.png`, matching Insights captures, `reports-320.png`; `artifacts/brand-refresh/brand-detail.png`; `artifacts/brand-loading/`. Detailed audit: `artifacts/action-layout/audit.json`.
+- The mascot uses a 43.7kB transparent WebP plus a 7kB PNG favicon. Alpha and small-size legibility were verified. The 1.27MB original is retained as source and is not used by production markup.
+- QA blocked persistent API writes or used synthetic responses. No account, application, bot run or learning completion was changed. The full browser suite was not rerun.
