@@ -216,8 +216,17 @@ def artifacts(params=None):
     research_count = sum(item['id'].startswith('research/') for item in items)
     query = str(params.get('q', '')).strip().casefold()
     category = params.get('category', '')
+    selected_date = str(params.get('date') or '')
+    if selected_date:
+        try:
+            if dt.date.fromisoformat(selected_date).isoformat() != selected_date:
+                raise ValueError
+        except ValueError:
+            raise ValueError('Choose a research date in YYYY-MM-DD format.') from None
     items = [item for item in items if (not category or item['category'] == category)
-             and (not query or query in (item['title']+' '+item['path']).casefold())]
+             and (not query or query in (item['title']+' '+item['path']).casefold())
+             and (not selected_date or (item['id'].startswith('research/') and
+                  (item['path'].startswith(f'daily/{selected_date}/') or item['path'] == f'daily/{selected_date}.md')))]
     size = integer(params.get('size'),12,1,100)
     total = len(items)
     pages = max(1,(total+size-1)//size)

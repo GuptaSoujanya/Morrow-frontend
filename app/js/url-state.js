@@ -9,8 +9,8 @@ export function withQuery(route,values){
 // Change URL without rebuilding a focused search field. Browser back/forward
 // emits hashchange, and the route renderer reads the URL again from scratch.
 export function writeQuery(route,values,{replace=false}={}){
-  const current=window.location.hash.replace(/^#\/?/,'').split(/[/?]/)[0];
-  if(current!==route)return;
+  const current=window.location.hash.replace(/^#\/?/,'').split('?')[0];
+  if(route.includes('/')?current!==route:current.split('/')[0]!==route)return;
   const href=withQuery(route,values);
   if(window.location.hash!==href)history[replace?'replaceState':'pushState'](null,'',href);
 }

@@ -46,7 +46,7 @@ test('Free navigation stays identical on first load, account pages and reloads',
 });
 
 test('Free route guards and preload decisions agree for every paid module and Action inbox', () => {
-  for (const route of [...runtime, 'research', 'analytics']) {
+  for (const route of [...runtime, 'learning', 'research', 'analytics']) {
     assert.equal(routeAccess(route, free).kind, 'upgrade', route);
     assert.equal(preloadRoute(route, free), null, route);
   }
@@ -119,7 +119,7 @@ test('legacy access requires an explicit local server context and does not expos
 
 test('free beta unlocks all workspace routes without an account or module grants', () => {
   const beta = { accountMode: 'local', legacyAccess: true, user: null };
-  for (const route of [...runtime, 'overview', 'research', 'analytics', 'records', 'files', 'data', 'setup', 'connections']) {
+  for (const route of [...runtime, 'learning', 'overview', 'research', 'analytics', 'records', 'files', 'data', 'setup', 'connections']) {
     assert.equal(routeAccess(route, beta).kind, 'allowed', route);
     assert.equal(preloadRoute(route, beta), route, route);
   }
@@ -148,4 +148,28 @@ test('missing permissions and unknown routes fail closed', () => {
   assert.equal(routeAccess('unregistered-route', paid).kind, 'forbidden');
   assert.equal(preloadRoute('unregistered-route', admin), null);
   assert.equal(routeAccess({ name: 'files', arg: 'resume' }, { ...free, user: { role: 'user', modules: ['profile'] } }).kind, 'upgrade');
+});
+
+test('one Learning entry preserves private research access and protects shared runtime lessons', () => {
+  const beta = { accountMode: 'local', legacyAccess: true, user: null };
+  assert.deepEqual(mobileRoutes(beta), ['overview', 'learning', 'bots', 'todo']);
+  for (const context of [beta, paid, admin]) {
+    assert.equal(links(context).filter(name => name === 'learning').length, 1);
+    assert.ok(!links(context).includes('research'));
+    assert.ok(!links(context).includes('study'));
+  }
+  for (const context of [paid, admin]) {
+    assert.deepEqual(routeAccess('learning', context), { kind: 'redirect', route: { name: 'learning', arg: 'library' } });
+    for (const arg of ['library', 'read/daily/example.md', 'resume']) {
+      assert.equal(routeAccess({ name: 'learning', arg }, context).kind, 'allowed');
+    }
+    for (const arg of ['plan', 'dsa', 'courses', 'progress']) {
+      assert.equal(routeAccess({ name: 'learning', arg }, context).kind, 'runtime');
+      assert.equal(preloadRoute({ name: 'learning', arg }, context), null);
+    }
+  }
+  for (const arg of ['', 'library', 'read/daily/example.md', 'resume', 'plan', 'dsa', 'courses', 'progress']) {
+    assert.equal(routeAccess({ name: 'learning', arg }, beta).kind, 'allowed');
+    assert.equal(routeAccess({ name: 'learning', arg }, free).kind, 'upgrade');
+  }
 });

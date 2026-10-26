@@ -13,6 +13,7 @@
     "test:activity-unit": "node --test tests/run-stream.test.mjs tests/activity-format.test.mjs",
     "test:auth-unit": "node --test tests/account-request-scope.test.mjs tests/firebase-auth.test.mjs tests/access-policy.test.mjs tests/router.test.mjs",
     "test:beta": "playwright test --config playwright.beta.config.js",
+    "test:learning": "playwright test --config playwright.learning.config.js",
     "test:feedback": "playwright test --config playwright.feedback.config.js",
     "test:flows": "playwright test --config playwright.flows.config.js",
     "test:onboarding": "playwright test --config playwright.onboarding.config.js",

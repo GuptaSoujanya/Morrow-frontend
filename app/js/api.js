@@ -36,7 +36,7 @@ function assertCurrent(scope) {
 async function request(path, body, { onOnline, signal, scope = accountRequestSignal() } = {}) {
   assertCurrent(scope);
   const options = {
-    signal: AbortSignal.any([scope, signal, AbortSignal.timeout(20_000)].filter(Boolean)),
+    signal: AbortSignal.any([scope, signal, AbortSignal.timeout(path === '/api/learning/code/execute' ? 60_000 : 20_000)].filter(Boolean)),
   };
   if (body !== undefined) Object.assign(options, {
     method: 'POST',
@@ -79,6 +79,9 @@ export async function api(path, body, { onOnline, fresh = false, signal } = {}) 
     assertCurrent(scope);
     if (!['/api/preview', '/api/run/batch/preview'].includes(new URL(path, window.location.origin).pathname)) await invalidateReads();
     assertCurrent(scope);
+    if (['/api/course/read', '/api/research/read', '/api/learning/dsa', '/api/learning/dsa/problem', '/api/learning/practice/answer', '/api/learning/code/execute'].includes(new URL(path, window.location.origin).pathname)) {
+      window.dispatchEvent(new Event('learning-updated'));
+    }
     return data;
   }
   const url = new URL(path, window.location.origin);

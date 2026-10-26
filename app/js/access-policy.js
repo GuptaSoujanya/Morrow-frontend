@@ -22,6 +22,7 @@ const ROUTES = {
   resume: { module: 'resumes', runtime: true },
   research: { module: 'research' },
   study: { module: 'learning', runtime: true },
+  learning: { module: 'learning', runtime: true },
   analytics: { module: 'analytics' },
   reports: { module: 'analytics', runtime: true },
   setup: {},
@@ -33,7 +34,7 @@ const ROUTES = {
 };
 const GROUPS = [
   ['WORKSPACE', ['overview', 'bots', 'pipeline', 'todo', 'records']],
-  ['KNOWLEDGE & DATA', ['research', 'data', 'analytics', 'reports', 'study']],
+  ['KNOWLEDGE & DATA', ['learning', 'data', 'analytics', 'reports']],
   ['PERSONAL', ['files', 'connections', 'onboarding', 'setup']],
   ['ACCOUNT', ['plans', 'account', 'admin']],
 ];
@@ -48,12 +49,17 @@ export function routeAccess(route, context = {}) {
       ? { name: 'files', arg: 'profile' } : { name: 'overview', arg: '' } };
   }
   if (AUTH_ROUTES.has(name)) return { kind: 'allowed' };
-  const rule = ROUTES[name];
+  const part = typeof route === 'object' ? route.arg?.split('/')[0] : '';
+  const rule = name === 'learning' && ['library', 'read', 'resume'].includes(part)
+    ? { module: 'research' } : ROUTES[name];
   if (!rule) return { kind: 'forbidden' };
   if (context.accountMode === 'local') {
     return { kind: context.legacyAccess && !rule.account ? 'allowed' : 'forbidden', module: rule.module };
   }
   if (context.accountMode !== 'accounts' || !context.user) return { kind: 'login' };
+  if (name === 'learning' && !part && !context.legacyAccess && (context.user.role === 'admin' || context.user.modules?.includes('research'))) {
+    return { kind: 'redirect', route: { name: 'learning', arg: 'library' } };
+  }
   if (rule.admin && context.user.role !== 'admin') return { kind: 'forbidden' };
   // The combined editor's profile tab and private file tabs use distinct core modules.
   const module = name === 'files' && typeof route === 'object' && route.arg && route.arg !== 'profile'
@@ -67,7 +73,8 @@ export function routeAccess(route, context = {}) {
 
 function visibleRoute(name, context) {
   if (name === 'setup' && !context.legacyAccess) return false;
-  return ['allowed', 'runtime'].includes(routeAccess(name, context).kind);
+  const { kind } = routeAccess(name, context);
+  return ['allowed', 'runtime'].includes(kind) || (name === 'learning' && kind === 'redirect');
 }
 
 export function navigationGroups(context = {}, { includeBotControls = false } = {}) {
@@ -78,7 +85,7 @@ export function navigationGroups(context = {}, { includeBotControls = false } = 
 
 export function mobileRoutes(context = {}) {
   const preferred = context.legacyAccess
-    ? ['overview', 'bots', 'todo', 'analytics', 'records', 'data', 'files']
+    ? ['overview', 'learning', 'bots', 'todo', 'analytics', 'records', 'data', 'files']
     : ['overview', 'records', 'data', 'files', 'bots', 'analytics'];
   return preferred.filter(name => visibleRoute(name, context)).slice(0, 4);
 }

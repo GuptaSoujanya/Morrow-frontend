@@ -193,3 +193,13 @@ def test_library_pagination_preserves_counts_and_search(library):
     assert filtered['total']==1 and filtered['page']==1 and filtered['items'][0]['title']=='Next lesson'
     assert data.artifacts({'category':'Email drafts','size':12})['items']==[]
     with pytest.raises(ValueError): data.artifacts({'page':0})
+
+
+def test_profile_jobs_open_a_visible_browser_unless_headless_was_asked_for():
+    """Naukri blocks headless Chrome; a dashboard profile run under BACKGROUND=true in .env never signed in."""
+    from web import state
+    visible=commands.profile_command({'review':True})
+    assert dict(visible.env)=={'BACKGROUND':'false','HEADLESS':'false'} and '--review' in visible.argv
+    assert visible.shown.startswith("BACKGROUND=false HEADLESS=false ")
+    assert commands.profile_command({'headless':True}).env==()
+    assert state.profile_command(if_due=True).env==state.VISIBLE_BROWSER

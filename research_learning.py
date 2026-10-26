@@ -78,7 +78,15 @@ def brief_document(item, data):
 
 def daily_research(items, data, selected):
     by_path = {item['path']: item for item in items}
-    dated = sorted({item['path'].split('/')[1] for item in items if re.match(r'daily/\d{4}-\d{2}-\d{2}/', item['path'])}, reverse=True)
+    dates = set()
+    for item in items:
+        match = re.match(r'daily/(\d{4}-\d{2}-\d{2})(?:/|\.md$)', item['path'])
+        if match:
+            try:
+                dates.add(dt.date.fromisoformat(match[1]).isoformat())
+            except ValueError:
+                continue
+    dated = sorted(dates, reverse=True)
     folder = f'daily/{selected}/'
     definitions = [('digest', 'Daily digest', 'README.md', 'brief'), ('papers', 'Papers', '03-papers.md', 'brief:papers'),
                    ('tech', 'Tech radar', '04-tech-news.md', 'brief:tech-news'), ('companies', 'Company radar', '05-companies.md', 'brief:companies'),
@@ -131,6 +139,15 @@ def summary(params=None):
                 completed_today.append({"id": identifier, "kind": kind, **value})
             if value.get("done") and (value.get("completed_at") or "")[:10] == selected:
                 completed_selected.append({"id": identifier, "kind": kind, **value})
+    for date, value in data.get('dsa', {}).get('days', {}).items():
+        if value.get('completed_at'):
+            from daily_dsa import CATALOG
+            item = {'id': value['topic'], 'kind': 'dsa', 'completed_at': value['completed_at'],
+                    'title': CATALOG.get(value['topic'], (None, value['topic']))[1]}
+            if date == today:
+                completed_today.append(item)
+            if date == selected:
+                completed_selected.append(item)
     history = sorted(data["history"], key=lambda e: e["at"], reverse=True)
     size = 15
     pages = max(1, (len(history) + size - 1) // size)
