@@ -16,7 +16,7 @@ import daily_learning
 import dashboard_data
 import research_learning
 
-DAY = dt.date(2026, 10, 26)
+DAY = dt.date.today()   # completions are stamped with the local date, so the suite moves with it
 
 
 @pytest.fixture
