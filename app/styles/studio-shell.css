@@ -57,7 +57,7 @@ kbd { font: 10px var(--font-body); border: 1px solid #e3d8ca; border-bottom-widt
 .sidebar-scroll .nav-group-label { margin: 19px 10px 7px; }
 .sidebar-scroll .nav-group:first-child .nav-group-label { margin-top: 4px; }
 .learning-context-nav { margin-left: 29px; padding-left: 12px; margin-bottom: 10px; border-left-color: #dec9af; }
-.learning-nav-link { min-height: 44px; font-size: 12px; padding: 5px 8px; gap: 9px; }
+.learning-nav-link { min-height: 40px; font-size: 12px; padding: 4px 8px; gap: 9px; }
 .learning-nav-art { width: 28px; height: 28px; }
 .learning-library-row-art { width: 36px; height: 36px; flex: none; }
 .learning-library-search-art { width: 30px; height: 30px; flex: none; }
@@ -70,6 +70,10 @@ kbd { font: 10px var(--font-body); border: 1px solid #e3d8ca; border-bottom-widt
 .daily-head .daily-refresh { width: auto; min-width: 78px; min-height: 44px; padding: 8px 12px; }
 .learning-nav-link[aria-current=page] { background: #f8e7d4; color: #8e391b; }
 .learning-nav-link[aria-current=page]::before { left: -14px; background: #b45125; }
+.learning-nav-toggle { color: #977453; }
+.learning-nav-toggle:hover { background: #f3dcc3; color: #563b25; }
+.learning-nav-row .nav-item.active + .learning-nav-toggle { color: #963e1e; }
+.nav-subtitle { color: #8a7461; }
 .workspace-profile { flex: none; padding: 14px 3px 10px; margin: 0; border-top: 1px solid #e0d0bb; border-bottom: 0; gap: 10px; }
 .workspace-profile .profile-avatar { width: 38px; height: 38px; border-radius: 50%; border: 1px solid #dfcbb2; background-color: #f7e7d4; }
 .workspace-profile:hover .profile-avatar { transform: none; }
@@ -158,6 +162,8 @@ kbd { font: 10px var(--font-body); border: 1px solid #e3d8ca; border-bottom-widt
   .sidebar-brand { padding-bottom: 12px; margin-bottom: 8px; }
   .sidebar-scroll .nav-item { min-height: 44px; }
   .sidebar-scroll .nav-item .nav-art { width: 32px; height: 32px; }
+  .learning-nav-link { min-height: 36px; }
+  .learning-nav-art { width: 24px; height: 24px; }
   .content { padding-top: 26px; }
 }
 @media (max-width: 1320px) { .orbit-head { flex-wrap: wrap; } .orbit-utilities { margin-left: auto; } }

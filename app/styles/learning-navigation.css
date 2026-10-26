@@ -34,13 +34,53 @@
   background: var(--emerald-700);
 }
 .learning-nav-link:focus-visible, .learning-section-select:focus-visible { outline: 2px solid var(--emerald-700); outline-offset: 3px; }
+.learning-context-nav[hidden] { display: none; }
+/* The Learning link and its fold toggle share one row; the toggle never sits inside the link. */
+.learning-nav-row { position: relative; }
+.learning-nav-row .nav-item { padding-right: 44px; }
+.learning-nav-row .nav-copy { flex-direction: column; justify-content: center; }
+.nav-subtitle { display: block; font-size: 11px; line-height: 1.3; color: var(--text-400); font-weight: 500; }
+.learning-nav-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-600);
+  cursor: pointer;
+}
+/* The disclosure chevron is drawn with borders so the navigation stays free of icon graphics. */
+.learning-nav-chevron {
+  display: block;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  border-radius: 1px;
+  transform: rotate(45deg);
+  transition: transform 180ms var(--ease);
+}
+.learning-nav-toggle[aria-expanded="false"] .learning-nav-chevron { margin-top: 0; margin-left: -4px; transform: rotate(-45deg); }
+.learning-nav-toggle:hover { background: var(--hover); color: var(--text-900); }
+.learning-nav-toggle:focus-visible { outline: 2px solid var(--emerald-700); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .learning-nav-chevron { transition: none; } }
 .learning-switcher { display: none; }
 @media (min-width: 1101px) {
   .sidebar-scroll .nav-item.learning-area.active { background: transparent; border-color: transparent; color: var(--text-900); }
   .sidebar-scroll .nav-item.learning-area.active::before { display: none; }
 }
 @media (max-width: 1100px) {
-  .learning-context-nav { display: none; }
+  .learning-context-nav, .learning-nav-toggle, .nav-subtitle { display: none; }
+  .learning-nav-row .nav-item { padding-right: var(--space-3); }
   .learning-switcher { display: grid; gap: 7px; margin-bottom: 24px; color: var(--text-600); font-size: 12px; font-weight: 500; }
   .learning-section-select {
     width: 100%;

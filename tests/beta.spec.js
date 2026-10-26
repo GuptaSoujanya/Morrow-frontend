@@ -71,3 +71,43 @@ test('mobile beta navigation omits subscriptions and access administration', asy
   }
   await expect(menu.locator('a[href="#/plans"], a[href="#/account"], a[href="#/admin"], a[href="#/login"]')).toHaveCount(0);
 });
+
+test('the Learning group lists every section on any page, folds on request and unfolds when entering Learning', async ({ page }) => {
+  await page.goto('/#/overview');
+  await expect(page.locator('main h1')).toBeVisible();
+  const sidebar = page.locator('#nav .sidebar-scroll');
+  const toggle = sidebar.getByRole('button', { name: 'Hide learning sections', exact: true });
+  const sections = sidebar.getByRole('navigation', { name: 'Learning workspace', exact: true });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(sections).toBeVisible();
+  await expect(sections.getByRole('link')).toHaveText(['Today', 'DSA practice', 'Practice & exams', 'Resume topics', 'Courses', 'Saved library', 'Progress']);
+  await expect(sections.getByRole('link', { name: 'DSA practice', exact: true })).toHaveAttribute('href', '#/learning/dsa?step=practice');
+  await expect(sections.locator('[aria-current="page"]')).toHaveCount(0);
+  await toggle.click();
+  const closed = sidebar.getByRole('button', { name: 'Show learning sections', exact: true });
+  await expect(closed).toHaveAttribute('aria-expanded', 'false');
+  await expect(closed).toBeFocused();
+  await expect(sections).toBeHidden();
+  await page.reload();
+  await expect(page.locator('main h1')).toBeVisible();
+  await expect(sidebar.getByRole('button', { name: 'Show learning sections', exact: true })).toHaveAttribute('aria-expanded', 'false');
+  await expect(sections).toBeHidden();
+  await sidebar.getByRole('link', { name: 'Learning', exact: true }).click();
+  await expect(page).toHaveURL(/#\/learning$/);
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(sections.getByRole('link', { name: 'Today', exact: true })).toHaveAttribute('aria-current', 'page');
+  await sections.getByRole('link', { name: 'DSA practice', exact: true }).click();
+  await expect(sections.getByRole('link', { name: 'DSA practice', exact: true })).toHaveAttribute('aria-current', 'page');
+  await toggle.click();
+  await expect(sections).toBeHidden();
+  await expect(sidebar.locator('.learning-nav-row .nav-subtitle')).toHaveText('DSA practice');
+  await sidebar.getByRole('link', { name: 'Launchpad', exact: true }).click();
+  await expect(page).toHaveURL(/#\/overview$/);
+  await expect(sections).toBeHidden();
+  await expect(sidebar.locator('.learning-nav-row .nav-subtitle')).toHaveCount(0);
+  await sidebar.getByRole('button', { name: 'Show learning sections', exact: true }).click();
+  await expect(sections).toBeVisible();
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await expect(sections).toBeHidden();
+  await expect(sidebar.locator('.learning-nav-toggle')).toBeHidden();
+});
