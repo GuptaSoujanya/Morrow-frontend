@@ -24,6 +24,13 @@ from web import server, state
 import commands
 import dashboard_data
 import research_learning
+import daily_dsa
+import daily_learning
+import learning_practice
+import coding_practice
+import local_code_runner
+import learning_scores
+from common import learning_activity, learning_memory
 import pipeline_status as flow_status
 from connections import ConnectionService, ConnectionError
 import runner_setup
@@ -157,6 +164,62 @@ def bots_status(runner):
 
 
 class DashboardHandler(server.Handler):
+    def coding_request(self, path):
+        if not self.host_ok() or not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
+            return self.error(403, 'Only this dashboard can run code on this computer.')
+        try:
+            body = self.body()
+            if path == '/api/learning/code/draft':
+                return self.json(coding_practice.save_draft(state.APPLY, body))
+            if path != '/api/learning/code/execute':
+                return self.error(404, 'Coding endpoint not found.')
+            if not self.server.code_slots.acquire(blocking=False):
+                return self.error(409, 'Two code runs are already active. Wait for a result before trying again.')
+            try:
+                return self.json(coding_practice.execute(state.APPLY, state.COURSE, body, studied=state.STUDIED))
+            finally:
+                self.server.code_slots.release()
+        except (ValueError, server.ApiError) as exc:
+            return self.error(400, str(exc))
+        except OSError:
+            return self.error(503, 'The local code workspace could not be opened or saved. Your editor draft is still available.')
+
+    def practice_status(self):
+        return self.server.practice_status()
+
+    def practice_request(self, path):
+        if not self.host_ok() or not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
+            return self.error(403, 'Only this dashboard can update AI practice.')
+        try:
+            body = self.body()
+            if not isinstance(body, dict):
+                raise ValueError('Send a practice request as an object.')
+            if path == '/api/learning/practice/settings':
+                return self.json(learning_practice.settings(state.APPLY, body))
+            if path == '/api/learning/practice/answer':
+                learning_practice.update(state.APPLY, state.COURSE, body)
+                paper = learning_practice.paper(state.APPLY, body.get('paper_id', ''))
+                if paper.get('completed_at'):
+                    learning_memory.set_document(state.APPLY, 'practice/' + paper['id'], paper['title'], True)
+                return self.json(paper)
+            if path != '/api/learning/practice/generate':
+                return self.error(404, 'Practice endpoint not found.')
+            mode = body.get('mode', 'daily')
+            if mode not in ('daily', 'weekly') or type(body.get('automatic', False)) is not bool:
+                raise ValueError('Choose daily practice or the weekly exam.')
+            result = self.server.start_practice(mode, automatic=body.get('automatic', False))
+            return self.json(result, HTTPStatus.ACCEPTED if result['started'] else HTTPStatus.OK)
+        except learning_practice.Conflict as exc:
+            return self.error(409, str(exc))
+        except LookupError as exc:
+            return self.error(503, str(exc))
+        except (ValueError, server.ApiError) as exc:
+            return self.error(400, str(exc))
+        except RuntimeError as exc:
+            return self.error(409, str(exc))
+        except OSError:
+            return self.error(503, 'Your practice could not be saved. Please retry.')
+
     def connection_request(self, user=None, owner=False):
         url = urlsplit(self.path)
         if url.path != '/api/connections' and not url.path.startswith('/api/connections/'):
@@ -340,6 +403,26 @@ class DashboardHandler(server.Handler):
         url = urlsplit(self.path)
         try:
             query = {key: values[-1] for key, values in parse_qs(url.query).items()}
+            if url.path == '/api/learning/activity':
+                return self.json(learning_activity.summary(learning_memory.transact(state.APPLY, studied=state.STUDIED)))
+            if url.path == '/api/learning/code/capabilities':
+                return self.json(local_code_runner.capabilities())
+            if url.path == '/api/learning/code/problem':
+                return self.json(coding_practice.descriptor(state.APPLY, query.get('key', ''), query.get('language', 'python')))
+            if url.path == '/api/learning/code/progress':
+                return self.json(learning_scores.summary(state.APPLY))
+            if url.path == '/api/learning/dsa':
+                return self.json(daily_dsa.daily(state.APPLY, state.COURSE, studied=state.STUDIED))
+            if url.path == '/api/learning/dsa/sheet':
+                return self.json(daily_dsa.sheet(state.APPLY, state.COURSE, query.get('q'), studied=state.STUDIED))
+            if url.path == '/api/learning/dsa/problem':
+                return self.json(daily_dsa.problem(state.APPLY, state.COURSE, query.get('id', ''), studied=state.STUDIED))
+            if url.path == '/api/learning/practice':
+                return self.json(self.practice_status())
+            if url.path == '/api/learning/practice/paper':
+                return self.json(learning_practice.paper(state.APPLY, query.get('id', '')))
+            if url.path == '/api/learning/daily':
+                return self.json(daily_learning.daily())
             if url.path == "/api/overview":
                 data = server.overview_json(query.get('days', '14'))
                 data['recent'] = dashboard_data.records({'days': data['days'], 'size': 6})['rows']
@@ -411,6 +494,31 @@ class DashboardHandler(server.Handler):
     def do_POST(self):
         if self.account_request():
             return
+        path = urlsplit(self.path).path
+        if path.startswith('/api/learning/code/'):
+            return self.coding_request(path)
+        if path.startswith('/api/learning/practice/'):
+            return self.practice_request(path)
+        if path == '/api/learning/dsa/problem':
+            if not self.host_ok() or not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
+                return self.error(403, 'Only this dashboard can update practice progress.')
+            try:
+                return self.json(daily_dsa.update_problem(state.APPLY, state.COURSE, self.body(), studied=state.STUDIED))
+            except (ValueError, server.ApiError) as exc:
+                return self.error(400, str(exc))
+            except OSError:
+                return self.error(503, 'Practice progress could not be saved. Please retry.')
+        if urlsplit(self.path).path == '/api/learning/dsa':
+            if not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
+                return self.error(403, 'Only this dashboard can update your learning progress.')
+            try:
+                return self.json(daily_dsa.update(state.APPLY, state.COURSE, self.body(), studied=state.STUDIED))
+            except daily_dsa.Conflict as exc:
+                return self.error(409, str(exc))
+            except (ValueError, server.ApiError) as exc:
+                return self.error(400, str(exc))
+            except OSError:
+                return self.error(503, 'Your learning progress could not be saved. Please retry.')
         if urlsplit(self.path).path == "/api/research/read":
             return self.save_research_progress()
         if urlsplit(self.path).path != "/api/file":
@@ -457,6 +565,10 @@ class DashboardServer(server.ControlServer):
         super().__init__(port)
         self.RequestHandlerClass = DashboardHandler
         self.file_lock = threading.Lock()
+        self.practice_lock = threading.Lock()
+        self.code_slots = threading.BoundedSemaphore(2)
+        self.practice_root, self.practice_course = state.APPLY, state.COURSE
+        self.practice_stop = threading.Event()
         self.connections = ConnectionService(state.APPLY, self.runner)
         self.runner.start_guard = self.connections.blocks_command
         self.account_bridge = None
@@ -465,8 +577,59 @@ class DashboardServer(server.ControlServer):
         if account_url:
             from auth_bridge import AccountBridge
             self.account_bridge = AccountBridge(account_url)
+        self.practice_thread = threading.Thread(target=self._prepare_daily_practice, name='daily-practice', daemon=True)
+        self.practice_thread.start()
+
+    def practice_status(self):
+        snapshot = self.runner.snapshot()
+        learning_practice.reconcile_jobs(self.practice_root, snapshot)
+        result = learning_practice.status(self.practice_root, self.practice_course)
+        runs = snapshot.get('runs', [])
+        for mode in ('daily', 'weekly'):
+            active = next((run for run in runs if run.get('action') == 'learning-practice' and run.get('running')
+                           and f'--generate {mode}' in run.get('shown', '')), None)
+            if active:
+                result[mode]['job'] = {**(result[mode].get('job') or {}), 'status': 'running', 'run_id': active.get('id')}
+        return result
+
+    def start_practice(self, mode, automatic=False):
+        if mode not in ('daily', 'weekly'):
+            raise ValueError('Choose daily practice or the weekly exam.')
+        with self.practice_lock:
+            current = self.practice_status()
+            target, job = current[mode], current[mode].get('job') or {}
+            skipped = {'started': False, 'run_id': job.get('run_id'), 'status': current}
+            if self.practice_stop.is_set() or job.get('status') in ('running', 'queued'):
+                return skipped
+            if automatic and (not current['settings']['automatic'] or not target['automatic_ready']):
+                return skipped
+            if not current.get('configured'):
+                if automatic:
+                    return skipped
+                raise LookupError('Connect Claude CLI or Kiro CLI on this computer, then retry AI practice.')
+            if not target['needs_generation']:
+                return skipped
+            command = state.py('AI daily practice' if mode == 'daily' else 'AI weekly exam',
+                               str(ROOT / 'learning_practice.py'), '--generate', mode, '--date', current['date'])
+            run_id = self.runner.start(command, action='learning-practice', day=current['date'])
+            return {'started': True, 'run_id': run_id, 'status': self.practice_status()}
+
+    def _prepare_daily_practice(self):
+        # Opt-in persists locally. No timers or agents run after this server closes.
+        while not self.practice_stop.is_set():
+            try:
+                if learning_practice.automatic_enabled(self.practice_root):
+                    self.start_practice('daily', automatic=True)
+            except (ValueError, OSError, RuntimeError):
+                # Invalid storage is exposed by the normal API. Busy runners retry
+                # on the next tick; failed AI jobs require an explicit user retry.
+                pass
+            self.practice_stop.wait(60)
 
     def server_close(self):
+        if getattr(self, 'practice_stop', None) is not None:
+            self.practice_stop.set()
+            self.practice_thread.join(timeout=2)
         if getattr(self, 'connections', None) is not None:
             self.connections.shutdown()
         super().server_close()

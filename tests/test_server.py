@@ -367,3 +367,10 @@ def test_research_progress_endpoint_is_local_validated_and_durable(app,monkeypat
         second.shutdown();second.server_close();thread.join()
     saved=json.loads((app[1].parent/'.memory/learning.json').read_text())
     assert saved['plan']['done']==[1] and len(saved['history'])==1
+
+
+def test_board_profile_jobs_open_a_visible_browser_but_applications_keep_the_env(monkeypatch):
+    monkeypatch.setattr(dashboard.state,'_query',lambda *args:[])
+    profile=dashboard.board_command({'board':'hirist','mode':'profile'})
+    assert dict(profile.env)=={'BACKGROUND':'false','HEADLESS':'false'} and '--profile-only' in profile.argv
+    assert dashboard.board_command({'board':'hirist','mode':'apply'}).env==()
