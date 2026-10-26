@@ -43,7 +43,7 @@ def naukri_command(o, save=False):
 
 def profile_command(o, save=False):
     base=state.profile_command(dry_run=server._on(o,'dry_run'),if_due=server._on(o,'if_due'),headless=server._on(o,'headless'))
-    return state.Command(base.label,(*base.argv,*(('--review',) if server._on(o,'review') else ())))
+    return state.Command(base.label,(*base.argv,*(('--review',) if server._on(o,'review') else ())),base.env)
 
 
 def linkedin_profile_command(o, save=False):

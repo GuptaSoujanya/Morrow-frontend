@@ -61,7 +61,8 @@ def board_command(options, save=False):
     name = "All job boards" if board == "all" else state.board_name(board)
     if mode == 'profile':
         name = 'All board profiles' if board == 'all' else name + ' profile'
-    return state.py(name + " · " + ("practice" if options.get("dry_run") else mode), *args)
+    cmd = state.py(name + " · " + ("practice" if options.get("dry_run") else mode), *args)
+    return state.Command(cmd.label, cmd.argv, state.VISIBLE_BROWSER) if mode == 'profile' else cmd
 
 
 def pipeline_command(options, save=False):
