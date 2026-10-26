@@ -1,0 +1,146 @@
+/* Completion marks: one round "done" badge used wherever work is finished.
+   A filled sage coin with a white tick, a soft lift and a short pop-in.
+   Pending counterparts are quiet hollow rings so the finished state reads first. */
+
+:root {
+  --mark-done: #37694c;
+  --mark-done-deep: #2a5a3e;
+  --mark-done-light: #5c9a74;
+  --mark-shadow: 0 2px 6px #2a5a3e33, inset 0 1px 0 #ffffff40;
+}
+
+@keyframes mark-pop {
+  0% { transform: scale(.55); opacity: 0; }
+  65% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Shared recipe for a finished badge. */
+.daily-agenda-row.is-complete .daily-agenda-number,
+.daily-week .is-done .daily-week-dot,
+.step-done .flow-step-number,
+.daily-win > .icon-check,
+.daily-save-status > .icon-check,
+.daily-status.is-complete .icon-check,
+.learning-library-status.is-complete .icon-check,
+.practice-status.is-complete .icon-check,
+.daily-problem-tab .icon-check {
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, var(--mark-done-light), var(--mark-done) 58%, var(--mark-done-deep));
+  color: #fff;
+  box-shadow: var(--mark-shadow);
+  animation: mark-pop 320ms cubic-bezier(.2, .9, .3, 1.2) both;
+}
+
+/* Tick stroke inside every badge: bold, white, centred. */
+.daily-agenda-row.is-complete .daily-agenda-number .icon-check,
+.daily-week .is-done .daily-week-dot .icon-check,
+.step-done .flow-step-number .icon-check,
+.daily-win > .icon-check,
+.daily-save-status > .icon-check,
+.daily-status.is-complete .icon-check,
+.learning-library-status.is-complete .icon-check,
+.practice-status.is-complete .icon-check,
+.daily-problem-tab .icon-check {
+  stroke: #fff;
+  stroke-width: 3;
+  flex: none;
+}
+
+/* Checklist rows: 28px coin, hollow numbered ring while pending. */
+.daily-agenda-row { grid-template-columns: 28px minmax(0, 1fr) auto; }
+.daily-agenda-number {
+  width: 28px;
+  height: 28px;
+  margin-top: 2px;
+  border: 1.5px solid color-mix(in srgb, var(--text-400) 55%, var(--border));
+  border-radius: 50%;
+  background: var(--canvas-raised);
+  color: var(--text-400);
+  font: 600 11px/1 var(--font-mono);
+  letter-spacing: 0;
+}
+.daily-agenda-row.is-complete .daily-agenda-number .icon-check { width: 16px; height: 16px; }
+
+/* Week strip: 28px coins with a dotted ring for empty days and a halo for today. */
+.daily-week-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px dashed color-mix(in srgb, var(--text-400) 45%, var(--border));
+  background: transparent;
+  color: var(--text-400);
+  font-size: 12px;
+  line-height: 1;
+}
+.daily-week .is-done .daily-week-dot { border: 0; }
+.daily-week .is-done .daily-week-dot .icon-check { width: 14px; height: 14px; }
+.daily-week .is-today .daily-week-dot {
+  outline: 0;
+  box-shadow: 0 0 0 2px var(--canvas-raised), 0 0 0 3.5px var(--accent);
+}
+.daily-week .is-today.is-done .daily-week-dot {
+  box-shadow: 0 0 0 2px var(--canvas-raised), 0 0 0 3.5px var(--accent), var(--mark-shadow);
+}
+
+/* Status chips and banners: 22px coin beside the text. */
+.daily-win > .icon-check,
+.daily-save-status > .icon-check,
+.daily-status.is-complete .icon-check,
+.learning-library-status.is-complete .icon-check,
+.practice-status.is-complete .icon-check,
+.daily-problem-tab .icon-check {
+  width: 22px;
+  height: 22px;
+  padding: 4px;
+  box-sizing: border-box;
+}
+.daily-status.is-complete .icon-check,
+.learning-library-status.is-complete .icon-check,
+.practice-status.is-complete .icon-check,
+.daily-problem-tab .icon-check { width: 18px; height: 18px; padding: 3px; }
+.daily-win, .daily-save-status { border-radius: 14px; }
+
+/* Flow steps: round the step coin so finished steps match. */
+.flow-step-number { border-radius: 50%; }
+
+/* Checkpoint checkboxes on the DSA page become round as well. */
+.daily-check input[type=checkbox]:not(.switch) {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  flex-basis: 24px;
+  margin-top: 0;
+  border-radius: 50%;
+  border-width: 1.5px;
+}
+.daily-check input[type=checkbox]:not(.switch):checked {
+  border-color: var(--mark-done);
+  background: radial-gradient(circle at 32% 28%, var(--mark-done-light), var(--mark-done) 58%, var(--mark-done-deep));
+  box-shadow: var(--mark-shadow);
+}
+.daily-check input[type=checkbox]:not(.switch):hover:not(:disabled) {
+  border-color: var(--mark-done);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mark-done) 10%, transparent);
+}
+.daily-check input[type=checkbox]:not(.switch)::before { width: 14px; height: 14px; }
+.daily-check { border-radius: 14px; align-items: center; }
+
+@media (max-width: 600px) {
+  .daily-agenda-row { grid-template-columns: 26px minmax(0, 1fr) auto; }
+  .daily-agenda-number { width: 26px; height: 26px; }
+  .daily-week-dot { width: 30px; height: 30px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .daily-agenda-row.is-complete .daily-agenda-number,
+  .daily-week .is-done .daily-week-dot,
+  .step-done .flow-step-number,
+  .daily-win > .icon-check,
+  .daily-save-status > .icon-check,
+  .daily-status.is-complete .icon-check,
+  .learning-library-status.is-complete .icon-check,
+  .practice-status.is-complete .icon-check,
+  .daily-problem-tab .icon-check { animation: none; }
+}

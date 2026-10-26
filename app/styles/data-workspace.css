@@ -97,7 +97,6 @@
 .bot-description,.bot-record { font-size:14px; }.bot-last,.bot-status { font-size:12px; }
 .bot-actions > .btn { font-size:13px; }.section-heading p { font-size:14px; }
 .sidebar .brand-symbol { border-radius:10px; }
-.toast-error { background:var(--red-100); color:var(--red-600); }.toast-ok { background:var(--emerald-100); color:var(--emerald-700); }
 .switch:checked::after { background:var(--on-accent); }
 .overview-footer { gap:var(--space-4); font-size:12px; }.overview-footer > span { line-height:1.5; }
 @media(min-width:1101px){.sidebar { padding-top:var(--space-7); }.sidebar-brand { margin-bottom:var(--space-5); }.nav-item { min-height:38px; }.sidebar-foot { margin-top:var(--space-5); }}
