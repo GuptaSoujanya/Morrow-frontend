@@ -90,7 +90,7 @@ test('the daily plan and DSA save together, persist on reload and award 60 XP on
   await ready(page);
   await expect(page.getByRole('heading', { name: 'How the web works', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Hash sets & frequency maps', exact: true })).toBeVisible();
-  await expect(page.locator('.daily-session-count')).toHaveText('0 / 7 complete');
+  await expect(page.locator('.daily-session-count')).toHaveText('0 / 8 complete');
   await capture(page, 'learning-home-desktop');
   await page.getByRole('link', { name: 'Open learning day', exact: true }).click();
   await expect(page.getByRole('article', { name: 'Today’s learning material' })).toContainText('request to a server');
@@ -123,7 +123,7 @@ test('the daily plan and DSA save together, persist on reload and award 60 XP on
   const saved = await (await request.get('/api/learning/activity')).json();
   expect(saved.xp).toBe(before.xp + 60); expect(saved.today_count).toBe(before.today_count + 2);
   await ready(page);
-  await expect(page.locator('.daily-session-count')).toHaveText('2 / 7 complete');
+  await expect(page.locator('.daily-session-count')).toHaveText('2 / 8 complete');
   await expect(page.locator('.daily-win')).toHaveCount(0);
   await ready(page, 'overview');
   await expect(page.locator('.learning-momentum').getByRole('link', { name: 'Open Learning', exact: true })).toHaveAttribute('href', '#/learning');
@@ -149,7 +149,9 @@ test('failed DSA saves restore the checkbox, allow retry and do not award XP', a
     return route.fulfill({ json: { ...snapshot, progress: { ...snapshot.progress, read: true } } });
   });
   await ready(page, 'learning/dsa'); await example(page);
-  await page.getByRole('checkbox', { name: readingLabel, exact: true }).check();
+  // A failing save intentionally replaces the checkbox with an unchecked one;
+  // click once so Playwright's check-state retry cannot issue a second save.
+  await page.getByRole('checkbox', { name: readingLabel, exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Temporary storage unavailable');
   await expect(page.getByRole('checkbox', { name: readingLabel, exact: true })).not.toBeChecked();
   await expect(page.getByRole('button', { name: 'Complete DSA topic', exact: true })).toBeDisabled();
@@ -223,7 +225,7 @@ test('learning views support keyboard steps, calendar dates, accessibility and r
   await page.keyboard.press('Enter');
   await expect(inspectDate).toHaveValue(firstDate);
   await inspectDate.fill(lastDate); await inspectDate.press('Tab');
-  await expect(page.locator('.learning-rewards')).toHaveAttribute('open');
+  await expect(page.getByRole('region', { name: 'Milestones and badges' })).toBeVisible();
   const routes = [['learning', 'learning-home'], ['learning/plan', 'learning-plan'],
     ['learning/dsa', 'learning-dsa'], ['learning/progress', 'learning-progress'], ['overview', 'dashboard-learning']];
   for (const [route, name] of routes) {
@@ -273,8 +275,9 @@ test('missing plan material has a clear next step without hiding DSA', async ({ 
     reason: 'Day 1 has no saved reading material yet. Generate the learning plan from Research agents.' };
   await page.route('**/api/learning/daily', route => route.fulfill({ json: snapshot }));
   await ready(page);
-  await expect(page.locator('.daily-session-count')).toHaveText(/[01] \/ 6 complete/);
-  await expect(page.locator('.daily-material-note')).toContainText('1 task needs material');
+  await expect(page.locator('.daily-session-count')).toHaveText(/[01] \/ 7 complete/);
+  await expect(page.getByRole('region', { name: 'Add more learning' })).toContainText('1 not prepared');
+  await expect(page.getByRole('link', { name: 'Set up my learning plan' })).toBeVisible();
   await openRoute(page, 'learning/plan');
   await expect(page.getByRole('heading', { name: 'Your learning material is not ready yet', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Open saved plans', exact: true })).toHaveAttribute('href', '#/learning/library?category=Learning');
@@ -287,7 +290,7 @@ test('missing plan material has a clear next step without hiding DSA', async ({ 
   await expect(task(page, 'plan').getByRole('link', { name: 'Revisit learning plan', exact: true })).toHaveAttribute('href', '#/learning/library?category=Learning');
   await expect(task(page, 'plan').getByRole('button', { name: 'Prepare learning day', exact: true })).toHaveCount(0);
   await expect(page.locator('.daily-material-note')).toHaveCount(0);
-  await expect(page.locator('.daily-session-count')).toHaveText(/[01] \/ 6 complete/);
+  await expect(page.locator('.daily-session-count')).toHaveText(/[01] \/ 7 complete/);
   await openRoute(page, 'learning/plan');
   await expect(page.getByRole('heading', { name: 'You’ve finished your learning plan', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Prepare learning day', exact: true })).toHaveCount(0);
@@ -307,11 +310,11 @@ test('returning from another tab refreshes rewards and stale reads cannot overwr
     if (deferRead) { pendingRead = route; return; }
     return route.fulfill({ json: current });
   });
-  await ready(page);
-  await expect(page.locator('.daily-progress-metrics')).toContainText(`${current.activity.xp} XP`);
+  await ready(page, 'learning/progress');
+  await expect(page.locator('.learning-xp')).toContainText(`${current.activity.xp} XP`);
   current.activity.xp += 20;
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-  await expect(page.locator('.daily-progress-metrics')).toContainText(`${current.activity.xp} XP`);
+  await expect(page.locator('.learning-xp')).toContainText(`${current.activity.xp} XP`);
   await openRoute(page, 'learning/dsa');
   await example(page);
   deferRead = true;
@@ -388,12 +391,12 @@ for (const unavailable of ['plan', 'dsa']) {
   });
 }
 
-test('Today orders all seven priorities and opens the saved papers, news and companies directly', async ({ page, request }) => {
+test('Today orders all eight priorities and opens the saved papers, news and companies directly', async ({ page, request }) => {
   const daily = await (await request.get('/api/learning/daily')).json();
   await ready(page);
-  await expect(page.locator('.daily-agenda [data-learning-task]')).toHaveCount(7);
+  await expect(page.locator('.daily-agenda [data-learning-task]')).toHaveCount(8);
   expect(await page.locator('.daily-agenda [data-learning-task]').evaluateAll(rows => rows.map(row => row.dataset.learningTask)))
-    .toEqual(['dsa', 'plan', 'papers', 'goal', 'design', 'tech', 'companies']);
+    .toEqual(['plan', 'dsa', 'papers', 'goal', 'design', 'tech', 'repos', 'companies']);
   await expect(page.locator('#nav .sidebar-scroll').getByRole('link', { name: 'Learning', exact: true })).toHaveCount(1);
   await expect(page.locator('#nav').getByRole('link', { name: 'Research Studio', exact: true })).toHaveCount(0);
   await expect(page.locator('#nav').getByRole('link', { name: 'Learning path', exact: true })).toHaveCount(0);
@@ -412,10 +415,9 @@ test('section navigation keeps the current page clear and today’s first task v
   test.setTimeout(75_000);
   const sections = [
     ['Today', '#/learning', 'Today’s learning'],
+    ['Your curriculum', '#/learning/weekly', 'Your curriculum'],
     ['DSA practice', '#/learning/dsa?step=practice', 'DSA practice'],
-    ['Practice & exams', '#/learning/practice', 'Practice & exams'],
-    ['Resume topics', '#/learning/resume', 'Resume topics'],
-    ['Courses', '#/learning/courses', 'Courses'],
+    ['Discover', '#/learning/discover', 'Discover'],
     ['Saved library', '#/learning/library', 'Saved library'],
     ['Progress', '#/learning/progress', 'Your progress'],
   ];
@@ -443,7 +445,7 @@ test('section navigation keeps the current page clear and today’s first task v
     await expect(selector).toBeVisible();
     await expect(selector).toHaveAttribute('data-value', '#/learning');
     await expect(selector).toBeInViewport({ ratio: 1 });
-    await expect(task(page, 'dsa').getByRole('link').first()).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.daily-agenda-summary')).toBeInViewport();
     await expect(page.locator('.daily-tabs')).toHaveCount(0);
     await fit(page);
     for (const [label, href, title] of sections.slice(1)) {
@@ -476,7 +478,7 @@ test('a research completion updates Today and shared progress without duplicate 
   await expect(page.getByRole('button', { name: 'Reopen reading', exact: true })).toBeEnabled();
   await page.getByRole('link', { name: 'Continue today’s priorities →', exact: true }).click();
   await expect(task(page, 'papers')).toContainText('Complete');
-  await expect(page.locator('.daily-session-count')).toHaveText('3 / 7 complete');
+  await expect(page.locator('.daily-session-count')).toHaveText('3 / 8 complete');
   const saved = await (await request.get('/api/learning/activity')).json();
   expect(saved.xp).toBe(before.xp + 10);
   expect(saved.today_count).toBe(before.today_count + 1);
@@ -557,7 +559,7 @@ test('library aliases, date filters, search and reader back navigation preserve 
   await expect(page.getByRole('heading', { name: 'Saved library', exact: true })).toBeVisible();
   await expect(page.getByRole('searchbox', { name: 'Search saved library', exact: true })).toHaveValue('Research');
   await expect(page.getByRole('button', { name: 'Briefing', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  const link = page.getByRole('link', { name: /Research worth reading today/ });
+  const link = page.locator('.learning-library-document').filter({ hasText: 'Research worth reading today' });
   await expect(link).toBeVisible();
   await expect(page.getByRole('link', { name: /Yesterday’s research notes/ })).toHaveCount(0);
   await link.click();
@@ -623,7 +625,7 @@ test('the consolidated workspace and saved reader remain accessible on desktop a
       await ready(page, route);
       if (title) await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
       if (width <= 1100) {
-        const section = route.startsWith('learning/read/') ? 'learning' : route;
+        const section = route.startsWith('learning/read/') ? 'learning' : ['learning/resume', 'learning/courses'].includes(route) ? 'learning/weekly' : route;
         await expect(page.getByRole('combobox', { name: 'Learning section', exact: true })).toHaveAttribute('data-value', '#/' + section);
       }
       await fit(page);

@@ -4,6 +4,7 @@ import { api, accountRequestSignal } from '../api.js';
 import { loadingState, errorState, empty } from '../components/panel.js';
 import { codeEditor } from '../components/code-editor.js';
 import { DSA_PRACTICE_PATH } from '../learning-sections.js';
+import { learningSave } from '../components/learning-save.js';
 
 const states = { todo: 'Not started', attempted: 'Attempted', solved: 'Solved' };
 const draftMemory = new WeakMap();
@@ -127,6 +128,7 @@ export function renderDsaSheet(arg = 'sheet') {
       if (currentStatus) currentStatus.value = data.status;
     } });
     const badge = h('span', { class: 'dsa-problem-status is-' + data.status, text: states[data.status] });
+    const savedActions = learningSave({ kind: 'dsa', title: data.title, url: '#/learning/dsa/problem/' + encodeURIComponent(problemId) });
     const remembered = drafts.get(problemId);
     const notes = h('textarea', { class: 'textarea dsa-notes', rows: 7, maxLength: 20000, value: remembered?.notes ?? data.notes ?? '', placeholder: 'Write your approach, complexity, edge cases, or code…', 'aria-label': 'Your approach and notes' });
     const status = h('select', { class: 'input', 'aria-label': 'Your problem status' }, Object.entries(states).map(([value, label]) => h('option', { value, selected: value === (remembered?.status || data.status), text: label })));
@@ -147,7 +149,7 @@ export function renderDsaSheet(arg = 'sheet') {
     root.replaceChildren(h('a', { class: 'back-link daily-task-back', href: '#/learning/dsa/sheet' + suffix(), text: '← Back to practice sheet' }),
       h('article', { class: 'daily-workspace dsa-problem-workspace' },
         h('header', { class: 'daily-workspace-head' }, h('div', {}, h('p', { class: 'eyebrow', text: data.level }), h('h2', { text: data.title })), badge),
-        h('div', { class: 'daily-reading' }, reading(data.prompt_html), coding,
+        h('div', { class: 'daily-reading' }, savedActions, reading(data.prompt_html), coding,
           h('details', { class: 'daily-solution' }, h('summary', { text: 'Review the approach & solution' }), reading(data.solution_html)),
           h('section', { class: 'dsa-work-notes' }, h('h3', { text: 'Approach & notes' }), h('p', { class: 'learning-library-note', text: 'Keep your reasoning and complexity notes here. Passing the full test suite marks the problem solved.' }), notes,
             h('div', { class: 'dsa-notes-actions' }, status, button), feedback))));

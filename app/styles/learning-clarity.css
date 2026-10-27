@@ -1,0 +1,74 @@
+/* Today: one next action, a short study list, then optional reading. */
+.daily-page .daily-head { margin-bottom: 14px; }
+.daily-page .daily-head .lead { margin: 6px 0 0; font-size: 15px; }
+.daily-today-clear .daily-today-overview { grid-template-columns: minmax(0, 1fr) 240px; gap: 0; margin-bottom: 26px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--canvas-raised); }
+.daily-today-clear .daily-agenda-summary { border: 0; border-radius: 0; background: var(--canvas-raised); padding: 24px; gap: 22px; flex-direction: row; align-items: center; }
+.daily-today-clear .daily-focus-copy strong { font-size: 24px; }
+.daily-today-clear .daily-focus-copy > p:last-child { font-size: 14px; max-width: 58ch; }
+.daily-today-clear .daily-agenda-summary > .btn { min-width: max-content; font-size: 14px; padding: 11px 16px; }
+.daily-today-clear .daily-session-progress { border: 0; border-left: 1px solid var(--border); border-radius: 0; padding: 22px; background: var(--canvas); }
+.daily-today-clear .daily-progress-heading { gap: 8px; align-items: flex-start; flex-direction: column; margin-bottom: 9px; }
+.daily-today-clear .daily-session-count { font-size: 19px; font-weight: 600; }
+.daily-today-clear .daily-progress-metrics { margin-top: 8px; }
+.daily-today-clear .daily-progress-metrics > span { font-size: 12px; color: var(--text-600); line-height: 1.4; }
+.daily-today-clear .daily-agenda { gap: 24px; }
+.daily-today-clear .daily-group-heading { justify-content: space-between; gap: 5px 16px; margin-bottom: 10px; }
+.daily-today-clear .daily-group-heading h2 { font-size: 20px; }
+.daily-today-clear .daily-group-heading p { color: var(--text-600); font-size: 14px; }
+.daily-today-clear .daily-agenda-row { padding: 15px 18px; gap: 12px; grid-template-columns: 28px minmax(0, 1fr) auto; }
+.daily-today-clear .daily-agenda-number { border: none; box-shadow: none; background: none; width: 28px; height: 28px; color: var(--accent); margin-top: 0; align-self: center; }
+.daily-today-clear .daily-agenda-copy h3 { font-size: 16px; font-weight: 600; margin: 3px 0; }
+.daily-today-clear .daily-agenda-copy p { font-size: 13px; color: var(--text-600); }
+.daily-today-clear .daily-agenda-label { font-size: 12px; }
+.daily-today-clear .daily-agenda-state { font-size: 12px; color: var(--text-600); }
+.daily-today-clear .is-complete .daily-agenda-state { color: var(--success); }
+.daily-today-clear .daily-agenda-action { min-width: 90px; max-width: 150px; }
+.daily-today-clear .daily-agenda-action .btn { font-size: 14px; background: var(--canvas-raised); padding: 9px 12px; }
+.daily-today-clear .daily-optional-group > ol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 22px; border: 0; border-radius: 0; background: transparent; }
+.daily-today-clear .daily-optional-group .daily-agenda-row { border: 0; border-bottom: 1px solid var(--border); padding: 13px 0; grid-template-columns: minmax(0, 1fr) auto; }
+.daily-today-clear .daily-optional-group .daily-agenda-number { display: none; }
+.daily-today-clear .daily-optional-group .daily-agenda-copy p { display: none; }
+.daily-today-clear .daily-optional-group .daily-agenda-action { min-width: 66px; }
+.daily-today-clear .daily-optional-group .daily-agenda-action .btn { border-color: transparent; background: transparent; color: var(--accent); }
+.daily-setup-card { padding: 20px; margin-top: 24px; border: 1px dashed var(--border-strong); border-radius: 12px; background: var(--canvas); }
+.daily-setup-card h2 { font-size: 18px; margin: 0 0 6px; }
+.daily-setup-card p { font-size: 14px; color: var(--text-600); line-height: 1.6; margin: 0 0 14px; }
+.daily-missing-material { margin-top: 10px; }
+.daily-missing-material > summary { font-size: 13px; color: var(--text-600); cursor: pointer; min-height: 44px; padding: 14px 0; }
+.daily-missing-material > ol { list-style: none; padding: 0; margin: 0; }
+.daily-missing-material .daily-agenda-row { padding-inline: 0; background: transparent; }
+.daily-missing-material .daily-agenda-copy p { display: none; }
+.daily-quick-library { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; border-top: 1px solid var(--border); margin-top: 26px; padding-top: 8px; font-size: 14px; }
+.daily-quick-library span { color: var(--text-600); margin-right: auto; }
+.daily-quick-library :is(a,button) { display: inline-flex; min-height: 44px; align-items: center; color: var(--accent); }
+.daily-quick-library button { border: 0; background: transparent; font: inherit; padding: 0; cursor: pointer; }
+/* Idle activity remains available in the tools row without covering lesson actions. */
+body:has(.daily-today-clear) .activity-console[data-size="collapsed"][data-launch-state="idle"] .activity-launch-control { display: none; }
+.daily-today-clear .daily-archive { border: 0; }
+@media (max-width: 1100px) {
+  .daily-page .learning-switcher { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; margin-bottom: 18px; }
+  .daily-today-clear .daily-today-overview { grid-template-columns: minmax(0, 1fr) 205px; }
+  .daily-today-clear .daily-agenda-summary { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .daily-today-clear .daily-optional-group > ol { gap: 0 18px; }
+}
+@media (max-width: 650px) {
+  .daily-page .daily-head { margin-bottom: 10px; }
+  .daily-today-clear .daily-today-overview { grid-template-columns: 1fr; margin-bottom: 20px; }
+  .daily-today-clear .daily-agenda-summary { padding: 19px; }
+  .daily-today-clear .daily-focus-copy strong { font-size: 23px; }
+  .daily-today-clear .daily-agenda-summary > .btn { width: auto; min-width: 0; font-size: 15px; padding: 11px 15px; gap: 10px; }
+  .daily-today-clear .daily-session-progress { border-left: 0; border-top: 1px solid var(--border); padding: 13px 19px; }
+  .daily-today-clear .daily-progress-heading { flex-direction: row; align-items: center; margin-bottom: 7px; }
+  .daily-today-clear .daily-session-count { font-size: 14px; }
+  .daily-today-clear .daily-progress-metrics { display: none; }
+  .daily-today-clear .daily-group-heading { align-items: flex-start; gap: 5px; }
+  .daily-today-clear .daily-group-heading h2 { font-size: 19px; }
+  .daily-today-clear .daily-group-heading p { font-size: 13px; }
+  .daily-today-clear .daily-agenda-row { padding: 13px; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+  .daily-today-clear .daily-agenda-number { display: none; }
+  .daily-today-clear .daily-agenda-action { min-width: 62px; max-width: 95px; }
+  .daily-today-clear .daily-agenda-action .btn { padding: 8px 10px; font-size: 13px; }
+  .daily-today-clear .daily-optional-group > ol { grid-template-columns: 1fr; }
+  .daily-quick-library { gap: 4px 20px; }
+  .daily-quick-library span { flex-basis: 100%; margin-top: 7px; }
+}

@@ -8,7 +8,7 @@ from web import server, state
 BOARDS = ('naukri', 'hirist', 'instahyre', 'cutshort', 'wellfound')
 STAGES = ('learn', 'research:resume', 'profile:linkedin',
           *(f'{group}:{board}' for group in ('profile', 'apply') for board in BOARDS),
-          *(f'brief:{key}' for key in ('goal','system-design','papers','tech-news','companies')))
+          *(f'brief:{key}' for key in ('goal','system-design','papers','tech-news','companies','repositories')))
 GROUPS = ('', 'learn', 'profile', 'apply', 'brief', 'research', *STAGES)
 
 
@@ -111,6 +111,7 @@ def pipeline_command(o, save=False):
         except ValueError: raise ValueError('Use a date in YYYY-MM-DD format.') from None
         args += ['--date',day]
     research_labels = {'brief': 'Daily research', 'brief:papers': 'Papers research',
+                       'brief:repositories': 'GitHub discoveries',
                        'brief:tech-news': 'Tech radar', 'brief:companies': 'Company radar',
                        'brief:goal': 'Learning goal', 'brief:system-design': 'System design research',
                        'learn': 'Learning material', 'research:resume': 'Resume learning'}

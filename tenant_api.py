@@ -16,6 +16,8 @@ from uuid import UUID
 
 import yaml
 
+from tenant_learning_workspace import LearningWorkspace
+
 SUBMITTED = {"applied", "applied_platform", "applied_external"}
 WAITING = {"external_manual", "abstained"}
 SKIPPED = {"already_applied", "external_skipped", "no_apply_button", "not_attempted"}
@@ -118,6 +120,7 @@ class TenantAPI:
     def __init__(self, bridge, handler, user):
         self.bridge, self.handler, self.user = bridge, handler, user
         self._cache = {}
+        self.learning_workspace = LearningWorkspace(self, TenantError)
 
     def request(self, path, method="GET", data=None):
         body = None if data is None else json.dumps(data, allow_nan=False).encode()
@@ -193,6 +196,11 @@ class TenantAPI:
             "/api/library": self.library,
             "/api/document": self.document,
             "/api/research/learning": self.learning,
+            "/api/learning/collection": self.learning_workspace.collection,
+            "/api/learning/curriculum": self.learning_workspace.curriculum,
+            "/api/learning/discovery": self.learning_workspace.discovery,
+            "/api/learning/overview": self.learning_workspace.overview,
+            "/api/learning/activity": self.learning_workspace.activity,
         }
         if method == "GET" and path == "/api/resume-file":
             try:
@@ -206,17 +214,14 @@ class TenantAPI:
             except TenantError as exc:
                 self.handler.error(exc.status, str(exc))
             return True
-        if method == "POST" and path in ("/api/file", "/api/research/read"):
+        if method == "POST" and path in ("/api/file", "/api/research/read", "/api/learning/collection"):
             try:
                 if data is None:
                     data = self.handler.body()
                 if not isinstance(data, dict):
                     raise TenantError(400, "Send a JSON object.")
-                result = (
-                    self.save_file(data)
-                    if path == "/api/file"
-                    else self.mark_read(data)
-                )
+                result = self.learning_workspace.update(data) if path == "/api/learning/collection" else (
+                    self.save_file(data) if path == "/api/file" else self.mark_read(data))
                 self.handler.json(result)
             except TenantError as exc:
                 self.handler.error(exc.status, str(exc))
@@ -534,7 +539,7 @@ class TenantAPI:
         data = saved["data"]
         if name == "profile":
             content = yaml.safe_dump(
-                {k: v for k, v in data.items() if k != "_dashboard_files"},
+                {k: v for k, v in data.items() if k not in ("_dashboard_files", "_learning_workspace")},
                 sort_keys=False,
                 allow_unicode=True,
             )
@@ -591,9 +596,10 @@ class TenantAPI:
                 raise TenantError(
                     400, "The profile must be a valid YAML mapping with named fields."
                 ) from None
-            parsed.pop("_dashboard_files", None)
-            if "_dashboard_files" in payload:
-                parsed["_dashboard_files"] = payload["_dashboard_files"]
+            for private_key in ("_dashboard_files", "_learning_workspace"):
+                parsed.pop(private_key, None)
+                if private_key in payload:
+                    parsed[private_key] = payload[private_key]
             payload = parsed
         else:
             payload["_dashboard_files"] = {

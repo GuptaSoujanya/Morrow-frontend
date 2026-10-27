@@ -17,6 +17,7 @@ READINGS = (
     ('design', 'System design'),
     ('tech', 'Tech news'),
     ('companies', 'Companies to apply to'),
+    ('repos', 'GitHub discoveries'),
 )
 
 
@@ -99,7 +100,8 @@ def _plan(data, date):
 def daily(*, today=None):
     today = today or dt.date.today()
     date = today.isoformat()
-    data = memory.transact(state.APPLY, studied=state.STUDIED)
+    from learning_workspace import sync_discovery_progress
+    data, _ = sync_discovery_progress()
     modules = state.course_modules(state.COURSE)
     assignment = state.todays_module(modules, today=today, course=state.COURSE)
     course = None

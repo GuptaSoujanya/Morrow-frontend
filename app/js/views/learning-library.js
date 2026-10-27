@@ -10,6 +10,7 @@ import { navigationArt } from '../components/navigation-art.js';
 import { readQuery, withQuery, choice, pageNumber } from '../url-state.js';
 import { fetchButton } from './research-desk.js';
 import { updateRunButtons } from '../forms.js';
+import { learningSave } from '../components/learning-save.js';
 
 const CATEGORIES = ['Briefing', 'Learning', 'Resume research', 'Email drafts'];
 const dateLabel = value => {
@@ -35,6 +36,7 @@ function documentRow(item, { from = 'library', filters = {}, number, next = fals
       number ? h('span', { class: 'learning-library-number', text: String(number).padStart(2, '0'), 'aria-hidden': 'true' }) : avatar(art, 'learning-library-row-art'),
       h('div', { class: 'learning-library-copy' }, h('strong', { text: item.title }),
         h('span', { class: 'learning-library-meta' }, next ? h('span', { class: 'learning-library-next', text: 'Next topic' }) : h('span', { text: item.category || 'Learning' }),
+          item.resume_status ? h('span', { text: { current: 'Current resume', previous: 'Previous resume', unverified: 'Source resume unverified' }[item.resume_status] }) : null,
           item.updated_at ? h('time', { dateTime: item.updated_at, text: dateLabel(item.updated_at) }) : null)),
       completionPill(item.read)));
 }
@@ -109,14 +111,16 @@ function resumeView() {
     if (!current()) return [];
     const resume = data.resume || { topics: [], index: null };
     const topics = resume.topics || [];
+    const previous = resume.previous_topics || [];
     const read = topics.filter(item => item.read).length;
     const next = topics.find(item => !item.read);
     return [
-      heading('Learn the tools, systems and projects from your resume. Pick up your next unfinished topic.',
+      heading('Learn from your resume in the same curriculum. Each topic shows whether its source matches your selected resume.',
         S.legacyAccess && hasModule('automations') ? fetchButton('Update resume library', 'research:resume', data.date, load) : null),
+      topics.some(item => item.resume_status === 'unverified') ? h('p', { class: 'learning-library-note', text: 'Some saved topics have no source resume recorded. They remain available to study; update the resume library to prepare topics from your current resume.' }) : null,
       topics.length ? h('section', { class: 'learning-library-continue' },
-        h('div', {}, h('p', { class: 'eyebrow', text: next ? 'YOUR NEXT UNFINISHED TOPIC' : 'ALL SAVED TOPICS COMPLETE' }),
-          h('h2', { text: next?.title || 'You have explored every saved resume topic.' }),
+        h('div', {}, h('p', { class: 'eyebrow', text: next ? 'YOUR NEXT UNFINISHED TOPIC' : 'ACTIVE TOPICS COMPLETE' }),
+          h('h2', { text: next?.title || 'You have explored every active resume topic.' }),
           h('p', { text: next?.excerpt || (next ? 'Read the explanation, connect it to your experience, and practice explaining it aloud.' : 'Revisit a topic to prepare for your next interview, or update your library when your resume changes.') }),
           next ? h('a', { class: 'btn btn-primary', href: readerHref(next.id, 'resume'), text: 'Continue resume learning' }) : null),
         h('div', { class: 'learning-library-summary' }, h('strong', { text: `${read} / ${topics.length}` }), h('span', { text: 'topics complete' }),
@@ -125,7 +129,11 @@ function resumeView() {
         h('div', { class: 'learning-library-section-head' }, h('h2', { text: 'Your saved topics' }),
           resume.index ? h('a', { class: 'text-link', href: readerHref(resume.index.id, 'resume'), text: 'Open resume overview →' }) : null),
         topics.length ? h('ol', { class: 'plain-list learning-library-list' }, topics.map((item, i) => documentRow(item, { from: 'resume', number: i + 1, next: item === next })))
-          : empty('No resume topics are saved yet. Update your resume library to prepare learning material from your saved resume.')),
+          : empty(previous.length ? 'Your saved topics belong to an earlier resume. Update your resume library to prepare topics from the selected resume.' : 'No resume topics are saved yet. Update your resume library to prepare learning material from your saved resume.')),
+      previous.length ? h('details', { class: 'learning-library-section' },
+        h('summary', { text: `Topics from previous resumes · ${previous.length}` }),
+        h('p', { class: 'learning-library-note', text: 'Your earlier reading and progress are preserved here and in the saved library. These topics are not used as your next resume recommendation.' }),
+        h('ol', { class: 'plain-list learning-library-list' }, previous.map((item, i) => documentRow(item, { from: 'resume', number: i + 1 })))) : null,
       h('p', { class: 'learning-library-note', text: 'Mark a topic complete after reading. It contributes to the same daily progress and streak as your other learning.' }),
     ];
   });
@@ -268,7 +276,10 @@ function libraryView() {
     class: 'learning-library-filter', type: 'button', dataset: { category }, 'aria-pressed': String(category === filters.category),
     text: category === 'Resume research' ? 'Resume topics' : category || 'All documents', onclick: () => { filters.category = category; filters.page = 1; load(); },
   })));
-  root.append(heading('Find your saved papers, daily briefings, resume topics and learning plans.'), archive,
+  root.append(heading('Find your saved papers, daily briefings, resume topics and learning plans.'),
+    h('nav', { class: 'learn-tabs', 'aria-label': 'Your learning library' },
+      h('a', { href: '#/learning/library', 'aria-current': 'page', text: 'Saved material' }),
+      h('a', { href: '#/learning/bookmarks', text: 'Bookmarks' }), h('a', { href: '#/learning/notes', text: 'My notes' })), archive,
     h('section', { class: 'learning-library-section' }, h('div', { class: 'learning-library-search' }, navigationArt('search', 'learning-library-search-art'), search), categories, count, feedback, list, paging));
   root.refresh = load;
   queueMicrotask(load);
@@ -344,6 +355,7 @@ function readView(id) {
     const status = h('span', {}, completionPill(data.read));
     return [h('article', { class: 'learning-library-reading' },
         h('header', { class: 'learning-library-reading-head' }, h('div', {}, h('p', { class: 'eyebrow', text: data.day ? `LEARNING DAY ${data.day} OF 90` : data.category || 'SAVED READING' }), h('h2', { text: data.title || 'Saved reading' })), status),
+        hasModule('learning') ? h('div', { class: 'learn-reader-save' }, learningSave({ kind: 'resource', title: data.title || 'Saved reading', url: '#/learning/read/' + encodeURIComponent(id) })) : null,
         safeReading(data.html, data.title),
         h('footer', { class: 'learning-library-reading-footer' }, feedback, toggle)),
       h('a', { class: 'learning-library-back', href: '#/learning', text: 'Continue today’s priorities →' })];

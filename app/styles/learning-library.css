@@ -28,7 +28,7 @@
 .learning-library-number { font: 12px var(--font-mono); color: var(--text-400); flex-shrink: 0; width: 24px; }
 .learning-library-arrow { color: var(--text-400); flex-shrink: 0; }
 .learning-library-note { font-size: 14px; line-height: 1.6; color: var(--text-600); margin: 14px 0; }
-.learning-library-note.field-error { color: #ffb4ba; }
+.learning-library-note.field-error { color: var(--red-600); }
 .learning-library-courses { display: grid; grid-template-columns: 225px minmax(0, 1fr); gap: 20px; align-items: start; }
 .learning-library-tracks { display: grid; gap: 4px; }
 .learning-library-tracks a { display: grid; gap: 4px; min-height: 64px; padding: 12px 14px; border: 1px solid transparent; border-radius: 8px; text-decoration: none; color: var(--text-600); }

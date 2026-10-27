@@ -374,3 +374,22 @@ def test_board_profile_jobs_open_a_visible_browser_but_applications_keep_the_env
     profile=dashboard.board_command({'board':'hirist','mode':'profile'})
     assert dict(profile.env)=={'BACKGROUND':'false','HEADLESS':'false'} and '--profile-only' in profile.argv
     assert dashboard.board_command({'board':'hirist','mode':'apply'}).env==()
+
+
+def test_file_backups_are_private_from_creation(app, monkeypatch):
+    monkeypatch.setattr(Path, "chmod", lambda self, mode: pytest.fail("chmod is too late"))
+    _, original = request(app, 'GET', '/api/file?name=profile')
+    assert request(app, 'POST', '/api/file', {'name': 'profile', 'revision': original['revision'], 'text': 'name: After\n'})[0] == 200
+    backups = list((app[1].parent / 'user/inputs/backups').glob('*.bak'))
+    assert len(backups) == 1 and backups[0].stat().st_mode & 0o777 == 0o600
+
+def test_every_reply_refuses_to_be_framed_by_other_sites(app):
+    server, _ = app
+    for method, path in (('GET', '/'), ('GET', '/api/file?name=profile'), ('GET', '/nope'), ('POST', '/api/stop')):
+        connection = http.client.HTTPConnection('127.0.0.1', server.server_port)
+        connection.request(method, path, body='{}' if method == 'POST' else None, headers={'Content-Type': 'application/json'})
+        response = connection.getresponse()
+        response.read()
+        assert response.getheader('X-Frame-Options') == 'SAMEORIGIN', (method, path)
+        assert response.getheader('X-Content-Type-Options') == 'nosniff', (method, path)
+        connection.close()

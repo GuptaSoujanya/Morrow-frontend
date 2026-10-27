@@ -30,6 +30,7 @@ import learning_practice
 import coding_practice
 import local_code_runner
 import learning_scores
+import learning_workspace
 from common import learning_activity, learning_memory, paths
 import pipeline_status as flow_status
 from connections import ConnectionService, ConnectionError
@@ -437,6 +438,7 @@ class DashboardHandler(server.Handler):
         self.send_header('Cache-Control', 'no-store' if '/api/' in self.path else 'no-cache')
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Referrer-Policy', 'no-referrer')
+        self.send_header('X-Frame-Options', 'SAMEORIGIN')
         self.send_header('Vary', 'Accept-Encoding')
         if compressed:
             self.send_header('Content-Encoding', 'gzip')
@@ -452,6 +454,14 @@ class DashboardHandler(server.Handler):
         url = urlsplit(self.path)
         try:
             query = {key: values[-1] for key, values in parse_qs(url.query).items()}
+            if url.path == '/api/learning/collection':
+                return self.json(learning_workspace.collection())
+            if url.path == '/api/learning/discovery':
+                return self.json(learning_workspace.discovery(query.get('date')))
+            if url.path == '/api/learning/curriculum':
+                return self.json(learning_workspace.curriculum(runner_setup.runtime_environment(state.APPLY, getattr(self.server, 'workspace_owner_email', ''))))
+            if url.path == '/api/learning/overview':
+                return self.json(learning_workspace.overview(runner_setup.runtime_environment(state.APPLY, getattr(self.server, 'workspace_owner_email', ''))))
             if url.path == '/api/learning/activity':
                 return self.json(learning_activity.summary(learning_memory.transact(state.APPLY, studied=state.STUDIED)))
             if url.path == '/api/learning/code/capabilities':
@@ -488,7 +498,7 @@ class DashboardHandler(server.Handler):
             if url.path == "/api/library":
                 return self.json(dashboard_data.artifacts(query if query else None))
             if url.path == "/api/research/learning":
-                return self.json(research_learning.summary(query))
+                return self.json(research_learning.summary(query, environment=runner_setup.runtime_environment(state.APPLY, getattr(self.server, 'workspace_owner_email', ''))))
             if url.path == "/api/data":
                 return self.json(dashboard_data.inventory(server.files(), query if query else None))
             if url.path == "/api/resume-file":
@@ -501,6 +511,7 @@ class DashboardHandler(server.Handler):
                 self.send_header('Content-Length', str(len(body)))
                 self.send_header('Cache-Control', 'no-store')
                 self.send_header('X-Content-Type-Options', 'nosniff')
+                self.send_header('X-Frame-Options', 'SAMEORIGIN')
                 self.end_headers()
                 self.wfile.write(body)
                 return
@@ -519,6 +530,9 @@ class DashboardHandler(server.Handler):
                 return super().do_GET()
             assets = ROOT / 'dist' if (ROOT / 'dist' / 'index.html').is_file() else ROOT / 'app'
             return self.file(server.inside(assets, url.path.lstrip("/")))
+        except (BrokenPipeError, ConnectionResetError):
+            # Navigation can cancel an in-flight learning summary response.
+            return
         except ValueError as exc:
             self.error(HTTPStatus.BAD_REQUEST, str(exc))
         except OSError:
@@ -544,6 +558,15 @@ class DashboardHandler(server.Handler):
         if self.account_request():
             return
         path = urlsplit(self.path).path
+        if path == '/api/learning/collection':
+            if not self.host_ok() or not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
+                return self.error(403, 'Only this dashboard can update your learning workspace.')
+            try:
+                return self.json(learning_workspace.update(self.body()))
+            except (ValueError, server.ApiError) as exc:
+                return self.error(400, str(exc))
+            except OSError:
+                return self.error(503, 'Your learning workspace could not be saved. Please retry.')
         if path.startswith('/api/learning/code/'):
             return self.coding_request(path)
         if path.startswith('/api/learning/practice/'):
@@ -587,8 +610,7 @@ class DashboardHandler(server.Handler):
                 backup.mkdir(parents=True, exist_ok=True)
                 if path.exists():
                     target = backup / f"dashboard-{data['name']}-{dt.datetime.now():%Y%m%d-%H%M%S-%f}.bak"
-                    target.write_text(original)
-                    target.chmod(0o600)
+                    user_repo.write_private(target, original.encode("utf-8"))
                 path.parent.mkdir(parents=True, exist_ok=True)
                 with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False, encoding="utf-8") as temp:
                     temp.write(data["text"])

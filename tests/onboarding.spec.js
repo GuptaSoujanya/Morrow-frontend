@@ -154,6 +154,37 @@ const card = (page, id = 'naukri') => page.locator(`.connection-card[data-provid
 const step = (page, title) => page.getByRole('navigation', { name: 'Setup steps' }).getByRole('button', { name: new RegExp(title) });
 const fieldFor = input => input.locator('..');
 
+for (const width of [375, 768, 1440]) {
+  test(`profile validation stays readable and fits at ${width}px`, async ({ page, fixture }) => {
+    fixture.setup.profile.data = {};
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width, height: 1000 });
+    await fixture.open();
+    const email = page.getByRole('textbox', { name: 'Contact email *', exact: true });
+    await email.fill('incomplete@');
+    await page.getByRole('button', { name: 'Save profile & continue' }).click();
+    const name = page.getByRole('textbox', { name: 'Full name *', exact: true });
+    await expect(name).toBeFocused();
+    await expect(email).toHaveAttribute('aria-invalid', 'true');
+    await expect(fieldFor(email).locator('.field-error')).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    await page.locator('main').evaluate(async element => {
+      await Promise.all(element.getAnimations({ subtree: true })
+        .filter(animation => animation.effect?.getTiming().iterations !== Infinity)
+        .map(animation => animation.finished.catch(() => {})));
+    });
+    const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(result.violations.map(item => ({ id: item.id, targets: item.nodes.map(node => node.target) }))).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `artifacts/onboarding/validation-${width}.png`, fullPage: true, animations: 'disabled' });
+    await email.fill('corrected@example.com');
+    await expect(email).toHaveAttribute('aria-invalid', 'false');
+    await expect(fieldFor(email).locator('.field-error')).toBeHidden();
+    expect(fixture.profiles).toEqual([]);
+    expect(fixture.saves).toEqual([]);
+  });
+}
+
 test('existing profile, selected resume and completed setup are clearly identified without saving again', async ({ page, fixture }) => {
   fixture.setup.version = 3;
   fixture.setup.resume_artifact_id = savedResume.id;

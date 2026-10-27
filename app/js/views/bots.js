@@ -23,7 +23,7 @@ export const BOTS = [
   { id:'cold_email', name:'Recruiter drafts', icon:'send', color:'teal', group:'career', description:'Prepare recruiter emails for your review. Drafts only.', route:'outreach', action:'cold_email' },
   { id:'resume', name:'Resume tailor', icon:'file', color:'coral', group:'career', description:'Shape your resume around a specific role.', route:'resume' },
   { id:'learn', name:'Learning assistant', icon:'book', color:'teal', group:'career', description:'Prepare your daily learning material.', route:'pipeline', action:'pipeline', pipeline:'learn' },
-  { id:'brief', name:'Daily briefing', icon:'sun', color:'violet', group:'career', description:'Five agents research roles, news and ideas.', route:'pipeline', action:'pipeline', pipeline:'brief' },
+  { id:'brief', name:'Daily briefing', icon:'sun', color:'violet', group:'career', description:'Research papers, technology, companies and useful repositories.', route:'pipeline', action:'pipeline', pipeline:'brief' },
   { id:'research', name:'Resume researcher', icon:'search', color:'indigo', group:'career', description:'Research the skills behind your experience.', route:'pipeline', action:'pipeline', pipeline:'research' },
   ...['hirist','instahyre','cutshort','wellfound'].map((board,i)=>({id:board+'_profile',board,name:({hirist:'Hirist',instahyre:'Instahyre',cutshort:'Cutshort',wellfound:'Wellfound'})[board]+' profile',group:'profiles',description:'Create or refresh your profile using your saved facts and resume.',route:'boards',action:'boards',mode:'profile',image:16+i})),
 ];

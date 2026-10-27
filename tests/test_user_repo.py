@@ -62,7 +62,8 @@ def test_connect_runs_setup_script_from_the_checkout(tmp_path, monkeypatch):
     assert user_repo.connect(tmp_path, None, run=fake_run)["is_repo"] and calls[1][0] == ["zsh", str(script.resolve())]
 
 
-@pytest.mark.parametrize("repo", ["../escape", "me/with space", "", "a/b/c", 5])
+@pytest.mark.parametrize("repo", ["../escape", "me/with space", "", "a/b/c", 5, "--help", "-R/name", "me/-name",
+                                  "me/name\n", ".git/x", "me/.ssh", "me/name/", "a" * 101 + "/b"])
 def test_connect_rejects_invalid_repo_names(tmp_path, repo):
     with pytest.raises(user_repo.RepoError) as caught:
         user_repo.connect(tmp_path, repo, run=lambda *a, **k: pytest.fail("must not run"))
@@ -150,3 +151,31 @@ def test_http_accounts_mode_sync_copies_owner_inputs_only(app):
     assert request(app, "POST", "/api/runner/repo/sync", EXPECTED)[0] == 403
     app[0].account_bridge = Bridge(None, False)
     assert request(app, "GET", "/api/runner/repo")[0] == 401
+
+
+def test_connect_accepts_dashes_and_dots_inside_a_repo_name(tmp_path, monkeypatch):
+    script = tmp_path / "scripts/setup_user.sh"
+    script.parent.mkdir()
+    script.write_text("#!/bin/zsh\n")
+    monkeypatch.setattr(user_repo, "_which", lambda name: "/usr/local/bin/gh")
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        make_repo(tmp_path)
+        return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
+
+    user_repo.connect(tmp_path, "my-org/My.repo_1-user", run=fake_run)
+    assert calls == [["zsh", str(script.resolve()), "my-org/My.repo_1-user"]]
+
+
+def test_backups_are_private_from_creation_not_only_after_a_chmod(tmp_path, monkeypatch):
+    monkeypatch.setattr(Path, "chmod", lambda self, mode: pytest.fail("chmod is too late"))
+    monkeypatch.setattr(user_repo.os, "chmod", lambda *a, **k: pytest.fail("chmod is too late"))
+    old = tmp_path / "profile.yaml"
+    old.write_text("full_name: Old\n")
+    backup = user_repo._backup(old)
+    assert backup.read_text() == "full_name: Old\n" and backup.stat().st_mode & 0o777 == 0o600
+    with pytest.raises(FileExistsError):
+        user_repo.write_private(backup, b"again")
+    assert user_repo._backup(tmp_path / "missing.yaml") is None

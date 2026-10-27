@@ -154,7 +154,7 @@ def saved_briefing(root, date, *, filenames=None):
     folder = root / f'user/research/daily/{date}'
     folder.mkdir(parents=True, exist_ok=True)
     for filename in filenames or ['README.md', '01-goal.md', '02-system-design.md',
-                                   '03-papers.md', '04-tech-news.md', '05-companies.md']:
+                                   '03-papers.md', '04-tech-news.md', '05-companies.md', '06-repositories.md']:
         (folder / filename).write_text(f'# Saved {filename}\n\nAn actual saved note.\n\n## First idea\nRead and reflect.\n\n## Second idea\nTry it yourself.')
     return folder
 
@@ -163,9 +163,9 @@ def test_priority_readings_have_stable_order_real_previews_and_canonical_links(w
     saved_briefing(workspace, DAY)
     before = memory.transact(workspace)
     result = daily_learning.daily(today=DAY)
-    assert [item['key'] for item in result['readings']] == ['papers', 'goal', 'design', 'tech', 'companies']
+    assert [item['key'] for item in result['readings']] == ['papers', 'goal', 'design', 'tech', 'companies', 'repos']
     assert [item['title'] for item in result['readings']] == [
-        'Research papers', 'Daily learning goal', 'System design', 'Tech news', 'Companies to apply to']
+        'Research papers', 'Daily learning goal', 'System design', 'Tech news', 'Companies to apply to', 'GitHub discoveries']
     for item in result['readings']:
         assert item['available'] and not item['read'] and not item['reason']
         assert item['date'] == DAY.isoformat()
@@ -174,10 +174,15 @@ def test_priority_readings_have_stable_order_real_previews_and_canonical_links(w
         assert item['route'] == '#/learning/read/' + item['id'].replace('/', '%2F') + '?from=today'
     assert result['readings'][0]['preview'] == ['First idea', 'Second idea']
     assert result['readings'][0]['group'] == 'brief:papers'
-    assert result['readings'][-1]['group'] == 'brief:companies'
+    assert result['readings'][-1]['group'] == 'brief:repositories'
     assert result['briefing']['digest']['id'] == f'research/daily/{DAY}/README.md'
     assert result['briefing']['latest'] == DAY.isoformat()
-    assert memory.transact(workspace) == before
+    # First discovery access binds saved resources to their document versions.
+    # That migration must not complete a task or create learning activity.
+    after = memory.transact(workspace)
+    assert {key: value for key, value in after.items() if key != 'workspace'} == before
+    daily_learning.daily(today=DAY)
+    assert memory.transact(workspace) == after
 
 
 def test_priority_readings_never_replace_missing_today_with_an_older_briefing(workspace):
@@ -207,7 +212,7 @@ def test_saved_goal_is_distinct_from_plan_aliases_and_shares_existing_completion
     research_learning.mark(f'research/learning/daily/{DAY}.md', True)
     result = daily_learning.daily(today=DAY)
     assert result['plan']['read'] and result['plan']['completed'] == 1
-    assert len(result['readings']) == 5 and not result['readings'][1]['read']
+    assert len(result['readings']) == 6 and not result['readings'][1]['read']
     goal = result['readings'][1]['id']
     research_learning.mark(goal, True)
     research_learning.mark(goal, True)
@@ -219,12 +224,12 @@ def test_saved_goal_is_distinct_from_plan_aliases_and_shares_existing_completion
 
 def test_reviewing_companies_marks_only_the_reading_and_does_not_create_an_application(workspace):
     saved_briefing(workspace, DAY)
-    company = daily_learning.daily(today=DAY)['readings'][-1]
+    company = next(item for item in daily_learning.daily(today=DAY)['readings'] if item['key'] == 'companies')
     before = {path.relative_to(workspace) for path in workspace.rglob('*') if path.is_file()}
     research_learning.mark(company['id'], True)
     result = daily_learning.daily(today=DAY)
-    assert result['readings'][-1]['read']
-    assert all(not item['read'] for item in result['readings'][:-1])
+    assert next(item for item in result['readings'] if item['key'] == 'companies')['read']
+    assert all(not item['read'] for item in result['readings'] if item['key'] != 'companies')
     assert not result['plan']['read'] and not result['course']['read']
     data = memory.transact(workspace)
     assert len(data['history']) == 1
@@ -234,7 +239,7 @@ def test_reviewing_companies_marks_only_the_reading_and_does_not_create_an_appli
 
 def test_empty_daily_material_has_no_digest_or_phantom_progress(workspace):
     result = daily_learning.daily(today=DAY)
-    assert len(result['readings']) == 5 and all(not item['available'] for item in result['readings'])
+    assert len(result['readings']) == 6 and all(not item['available'] for item in result['readings'])
     assert result['briefing'] == {'latest': None, 'available_dates': [], 'digest': None}
     assert not memory.transact(workspace)['history']
 
@@ -246,11 +251,11 @@ def test_archive_filters_saved_day_before_pagination_without_using_modification_
     legacy = workspace / f'user/research/daily/{yesterday}.md'
     legacy.write_text('# An older standalone daily note\n\nSaved earlier.')
     result = dashboard_data.artifacts({'date': yesterday.isoformat(), 'size': '2', 'page': '2'})
-    assert result['total'] == 7 and result['pages'] == 4 and len(result['items']) == 2
+    assert result['total'] == 8 and result['pages'] == 4 and len(result['items']) == 2
     all_items = dashboard_data.artifacts({'date': yesterday.isoformat(), 'size': '100'})['items']
     assert {item['path'] for item in all_items} == {
         *(f'daily/{yesterday}/{name}' for name in ['README.md', '01-goal.md', '02-system-design.md',
-                                                '03-papers.md', '04-tech-news.md', '05-companies.md']),
+                                                '03-papers.md', '04-tech-news.md', '05-companies.md', '06-repositories.md']),
         f'daily/{yesterday}.md'}
     assert dashboard_data.artifacts({'date': yesterday.isoformat(), 'category': 'Learning'})['total'] == 0
     assert dashboard_data.artifacts({'date': yesterday.isoformat(), 'q': 'standalone'})['total'] == 1
@@ -315,10 +320,32 @@ def test_http_reading_completion_uses_existing_history_and_stays_visible(http_ap
 
 def test_account_guard_blocks_other_users_local_learning(http_app):
     request, app = http_app
+    from auth_bridge import Unavailable
     class Bridge:
         def identity(self, handler):
             return {'id': 'guest', 'role': 'user', 'modules': ['learning'], 'email': 'guest@example.test'}
         def is_owner(self, handler, user):
             return False
+        def request(self, *args, **kwargs):
+            raise Unavailable('Account backend unavailable in this test.')
     app.account_bridge = Bridge()
     assert request('GET', '/api/learning/daily')[0] == 403
+    for path in ('collection', 'curriculum', 'overview'):
+        assert request('GET', '/api/learning/' + path)[0] == 503
+    status, result = request('GET', '/api/learning/discovery')
+    assert status == 200 and not result['generation_available']
+    assert all(not section['items'] for section in result['sections'])
+    assert request('POST', '/api/learning/collection', {'action': 'note', 'title': 'Other user', 'body': 'Private'})[0] == 503
+    app.account_bridge = None
+    assert request('GET', '/api/learning/collection')[1]['notes'] == []
+
+
+def test_workspace_http_persists_and_rejects_cross_origin_writes(http_app):
+    request, _ = http_app
+    body = {'action': 'note', 'title': 'My learning', 'body': 'A saved idea'}
+    assert request('POST', '/api/learning/collection', body, {'Origin': 'https://other.example'})[0] == 403
+    assert request('POST', '/api/learning/collection', body, {'Sec-Fetch-Site': 'cross-site'})[0] == 403
+    assert request('GET', '/api/learning/collection')[1]['notes'] == []
+    assert request('POST', '/api/learning/collection', body)[0] == 200
+    assert request('GET', '/api/learning/collection')[1]['notes'][0]['title'] == 'My learning'
+    assert request('GET', '/api/learning/overview')[1]['notes'] == 1

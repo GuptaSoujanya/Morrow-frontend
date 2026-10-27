@@ -22,6 +22,17 @@
 .chart-motion-root[data-chart-motion=pending] .chart-bars-motion { opacity: 0; transform: scaleY(.015); }
 .chart-motion-root[data-chart-motion=playing] .chart-bars-motion { animation: chart-depth-rise 820ms var(--ease) var(--bar-delay,0ms) both; }
 .chart-crosshair { stroke: var(--text-400); opacity: .35; stroke-dasharray: 3 5; }
+/* Keyboard focus follows the inspected value, without a frame around the plot. */
+.interactive-chart [role=slider]:focus, .score-chart [role=slider]:focus { outline: none; }
+.activity-explorer:has([role=slider]:focus-visible) .chart-day > span,
+.score-explorer:has([role=slider]:focus-visible) .score-readout > span:first-child {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 5px;
+}
+.interactive-chart:has([role=slider]:focus-visible) .chart-crosshair { stroke: var(--accent); opacity: 1; }
+.score-chart:has([role=slider]:focus-visible) .score-selection { fill: var(--accent-soft); stroke: var(--accent); }
 .chart-series.s-company { color: var(--peach); }
 .chart-series .chart-line { stroke-width: 2.7; stroke-dasharray: 1; stroke-dashoffset: 0; filter: drop-shadow(0 2px 2px #6c4b2b18); }
 .chart-series .chart-area { transform-origin: center bottom; }

@@ -56,6 +56,10 @@ def mark(identifier, done):
     if not isinstance(done, bool):
         raise ValueError("read must be true or false")
     info = document_info(identifier)
+    if re.fullmatch(r'research/daily/\d{4}-\d{2}-\d{2}/(?:03-papers|04-tech-news|05-companies|06-repositories)\.md', identifier):
+        import learning_workspace
+        learning_workspace.mark_discovery_document(info, done)
+        return {"ok": True, "read": done, "storage": "user/memory/learning.json"}
     memory.set_document(state.APPLY, info["key"], info["title"], done, info.get("day"))
     return {"ok": True, "read": done, "storage": "user/memory/learning.json"}
 
@@ -91,7 +95,8 @@ def daily_research(items, data, selected):
     folder = f'daily/{selected}/'
     definitions = [('digest', 'Daily digest', 'README.md', 'brief'), ('papers', 'Papers', '03-papers.md', 'brief:papers'),
                    ('tech', 'Tech radar', '04-tech-news.md', 'brief:tech-news'), ('companies', 'Company radar', '05-companies.md', 'brief:companies'),
-                   ('goal', 'Daily learning goal', '01-goal.md', 'brief:goal'), ('design', 'System design deep dive', '02-system-design.md', 'brief:system-design')]
+                   ('goal', 'Daily learning goal', '01-goal.md', 'brief:goal'), ('design', 'System design deep dive', '02-system-design.md', 'brief:system-design'),
+                   ('repos', 'GitHub discoveries', '06-repositories.md', 'brief:repositories')]
     sections = [{'key': key, 'title': title, 'group': group, 'path': 'user/research/' + folder + filename,
                  'document': brief_document(by_path.get(folder + filename), data)} for key, title, filename, group in definitions]
     known = {folder + filename for _, _, filename, _ in definitions}
@@ -101,10 +106,14 @@ def daily_research(items, data, selected):
             'ready': sum(bool(section['document']) for section in sections), 'total': len(sections), 'additional': extra, 'references': references}
 
 
-def summary(params=None):
+def summary(params=None, environment=None):
     import dashboard_data
+    import learning_profile
+    from learning_workspace import material_resume_status
     params = params or {}
-    data = saved()
+    profile = learning_profile.profile(environment)
+    from learning_workspace import sync_discovery_progress
+    data, _ = sync_discovery_progress()
     items = dashboard_data.artifacts()["items"]
     info = [document_info(item["id"], items) for item in items if item["id"].startswith("research/")]
     today = dt.date.today().isoformat()
@@ -123,7 +132,15 @@ def summary(params=None):
         except ValueError as exc:
             missing = str(exc)
     briefings = sorted((i for i in info if re.match(r"daily/\d{4}-\d{2}-\d{2}/", i["path"])), key=lambda i: (i["path"].split('/')[1], i["path"].endswith(('README.md', 'overview.md'))), reverse=True)
-    resume = sorted((i for i in info if re.match(r"resume-learning/\d{2}-", i["path"])), key=lambda i: i["path"])
+    resume = []
+    previous_resume = []
+    for item in sorted((i for i in info if re.fullmatch(r"resume-learning/\d{2}-[^/]+\.md", i["path"])), key=lambda i: i["path"]):
+        status = material_resume_status(state.APPLY / paths.research_dir() / item['path'], profile['resume_fingerprint'])
+        topic = {**item, 'resume_status': status}
+        (previous_resume if status == 'previous' else resume).append(topic)
+    # Prefer evidence tied to the selected resume; old untracked material stays
+    # available without being mislabeled as freshly personalized.
+    resume.sort(key=lambda item: (item['resume_status'] != 'current', item['path']))
     queue = [focus] if focus else []
     if briefings:
         latest = briefings[0]['path'].split('/')[1]
@@ -155,10 +172,13 @@ def summary(params=None):
     page = min(dashboard_data.integer(params.get("page"), 1, 1, 1000000), pages)
     courses = state.course_modules(state.COURSE)
     resume_index = next((i for i in info if i['path'] == 'resume-learning/README.md'), None)
-    weeks = sorted((i for i in info if i['path'].startswith('learning/weeks/')), key=lambda i: i['path'])
+    weeks = sorted((i for i in info if re.fullmatch(r'learning/weeks/week-(?:0[1-9]|1[0-3])\.md', i['path'])), key=lambda i: i['path'])
     return {"date": today, "selected_date": selected, "focus": focus, "missing": missing, "queue": queue,
+            "profile": profile,
             "briefing": daily_research(info, data, selected),
-            "resume": {'topics': [brief_document(i, data) for i in resume], 'index': brief_document(resume_index, data)},
+            "resume": {'topics': [brief_document(i, data) for i in resume],
+                       'previous_topics': [brief_document(i, data) for i in previous_resume],
+                       'index': brief_document(resume_index, data)},
             "weeks": [{**i, 'read': completion(i, data)} for i in weeks],
             "plan_done": len(done), "plan_total": 90, "plan_complete": len(done) == 90,
             "notes_read": len({i['key'] for i in info if completion(i, data)}), "notes_total": len({i['key'] for i in info}),

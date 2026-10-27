@@ -40,6 +40,7 @@ class Handler(dashboard.DashboardHandler):
     def do_GET(self):
         path = urlsplit(self.path).path
         if path.startswith('/api/') and path not in ('/api/learning/dsa', '/api/learning/activity', '/api/learning/daily',
+                '/api/learning/collection', '/api/learning/discovery', '/api/learning/curriculum', '/api/learning/overview',
                 '/api/learning/dsa/sheet', '/api/learning/dsa/problem', '/api/learning/practice', '/api/learning/practice/paper',
                 '/api/learning/code/capabilities', '/api/learning/code/problem', '/api/learning/code/progress',
                 '/api/research/learning', '/api/document', '/api/library', '/api/course'):
@@ -60,6 +61,7 @@ class Handler(dashboard.DashboardHandler):
             except ValueError as exc:
                 return self.error(400, str(exc))
         if path not in ('/api/learning/dsa', '/api/learning/dsa/problem', '/api/learning/practice/settings',
+                         '/api/learning/collection',
                          '/api/learning/practice/answer', '/api/research/read', '/api/course/read',
                          '/api/learning/code/draft', '/api/learning/code/execute'):
             return self.error(403, 'Only temporary learning progress can change in this preview.')
@@ -83,6 +85,12 @@ with TemporaryDirectory(prefix='morrow-learning-ui-') as folder:
     dashboard.state.STUDIED = Path(folder) / 'old-studied.json'
     dashboard.state.REPORTS = Path(folder) / 'data/reports'
     dashboard.state.COURSE = ROOT.parent / 'database/course'
+    inputs = Path(folder) / 'user/inputs'
+    inputs.mkdir(parents=True)
+    (inputs / 'profile.yaml').write_text('skills: [Python, React, PostgreSQL]\ntitles: [Full-stack engineer]\n')
+    resume = Path(folder) / 'user/resume/base.tex'
+    resume.parent.mkdir(parents=True)
+    resume.write_text('Built Python APIs, React interfaces and PostgreSQL applications. Studied AI agents.\n')
     weeks = Path(folder) / 'user/research/learning/weeks'
     weeks.mkdir(parents=True)
     (weeks / 'week-01.md').write_text('''# Week 1: Building a learning habit
@@ -116,9 +124,10 @@ duplicate effects, and compare a retryable failure with an invalid request.
         ('README.md', 'Your daily briefing', 'A saved reading list for today.\n\n## Read, reflect, and apply\nWork through the five daily sections.'),
         ('01-goal.md', 'Build a clear mental model', 'Explain today’s concepts in your own words.\n\n## Connect the ideas\nDraw a request through a small system.'),
         ('02-system-design.md', 'Design a reliable job queue', 'Compare retries and duplicate work.\n\n## Delivery guarantees\nConsider what happens when a worker stops.'),
-        ('03-papers.md', 'Research worth reading today', 'Read the saved abstracts and methods.\n\n## Evaluating retrieval systems\nCompare the experiment with its baseline.\n\n## Measuring agent reliability\nIdentify the evaluation limits.'),
+        ('03-papers.md', 'Research worth reading today', 'Read the saved abstracts and methods.\n\n## Evaluating retrieval systems (2026)\n[Original paper](https://arxiv.org/abs/2610.00001)\nCompare the experiment with its baseline.\n\n## Measuring agent reliability (2026)\n[Original paper](https://arxiv.org/abs/2610.00002)\nIdentify the evaluation limits.'),
         ('04-tech-news.md', 'Today’s technology notes', 'A saved technology briefing.\n\n## Engineering\n**A practical release checklist**\nRead the saved notes and consider one idea to try.'),
         ('05-companies.md', 'Companies to explore today', 'Research fit before choosing where to apply.\n\n## Example AI team\nReview the role and prepare a relevant question. Reading this note does not submit an application.'),
+        ('06-repositories.md', 'Repositories to explore today', 'Saved repository research.\n\n## example/agent-tools\nhttps://github.com/example/agent-tools\nA tool-use experiment related to your resume.\n\n## example/evaluation-kit\nhttps://github.com/example/evaluation-kit\nCompare evaluation methods in a small experiment.\n'),
     ]:
         (daily / filename).write_text(f'# {title}\n\n{body}\n', encoding='utf-8')
     archive = daily.parent / (dt.date.today() - dt.timedelta(days=1)).isoformat()
@@ -126,7 +135,7 @@ duplicate effects, and compare a retryable failure with an invalid request.
     (archive / '03-papers.md').write_text('# Yesterday’s research notes\n\nAn older saved paper summary.\n\n## Revisit the baseline\nCompare the earlier result with today’s reading.\n', encoding='utf-8')
     older = daily.parent / (dt.date.today() - dt.timedelta(days=2)).isoformat()
     older.mkdir()
-    (older / '03-papers.md').write_text('# Earlier evaluation methods\n\n## Comparing experiments\nDescribe the metric, baseline, and limits of an evaluation.\n', encoding='utf-8')
+    (older / '03-papers.md').write_text('# Earlier evaluation methods\n\n## Comparing experiments (2026)\nhttps://arxiv.org/abs/2609.00001\nDescribe the metric, baseline, and limits of an evaluation.\n\n## Auditing agent decisions (2026)\nhttps://arxiv.org/abs/2609.00002\nInspect the evidence behind each decision.\n', encoding='utf-8')
     resume = Path(folder) / 'user/research/resume-learning'
     resume.mkdir(parents=True)
     (resume / 'README.md').write_text('# Resume learning\n\n[Evaluation](01-evaluation.md)\n\n[Serving](02-serving.md)\n', encoding='utf-8')

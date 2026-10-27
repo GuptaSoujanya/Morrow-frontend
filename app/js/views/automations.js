@@ -7,7 +7,7 @@ import { field, selectInput, textInput, toggle, previewBox, runButton, liveRunCo
 
 const choices = entries => entries.map(([value, label]) => ({ value, label }));
 const boardNames={naukri:'Naukri',linkedin:'LinkedIn',hirist:'Hirist',instahyre:'Instahyre',cutshort:'Cutshort',wellfound:'Wellfound'};
-export const stageChoices=[['learn','Learning'],['research:resume','Resume research'],...Object.entries(boardNames).map(([key,name])=>['profile:'+key,name+' profile']),...Object.entries(boardNames).filter(([key])=>key!=='linkedin').map(([key,name])=>['apply:'+key,name+' applications']),...Object.entries({goal:'Career goals','system-design':'System design',papers:'Research papers','tech-news':'Technology news',companies:'Company research'}).map(([key,name])=>['brief:'+key,name])];
+export const stageChoices=[['learn','Learning'],['research:resume','Resume research'],...Object.entries(boardNames).map(([key,name])=>['profile:'+key,name+' profile']),...Object.entries(boardNames).filter(([key])=>key!=='linkedin').map(([key,name])=>['apply:'+key,name+' applications']),...Object.entries({goal:'Career goals','system-design':'System design',papers:'Research papers','tech-news':'Technology news',companies:'Company research',repositories:'GitHub discoveries'}).map(([key,name])=>['brief:'+key,name])];
 export const stageName=key=>stageChoices.find(([id])=>id===key)?.[1] || key.replaceAll(':',' / ');
 export function renderBoards(arg='') {
   const [board,mode]=arg.split('/');

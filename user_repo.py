@@ -17,7 +17,8 @@ import yaml
 
 from common import paths
 
-REPO_NAME = re.compile(r"^(?!\.)[A-Za-z0-9_.-]{1,100}/(?!\.)[A-Za-z0-9_.-]{1,100}$")
+# Neither part may start with "-" (it would read as an option of setup_user.sh) or ".".
+REPO_NAME = re.compile(r"(?![.-])[A-Za-z0-9_.-]{1,100}/(?![.-])[A-Za-z0-9_.-]{1,100}")
 SCRIPT = Path("scripts/setup_user.sh")
 
 
@@ -75,7 +76,7 @@ def _which(name):
 def connect(root, repo=None, run=subprocess.run):
     """Create or clone the private user repo through scripts/setup_user.sh."""
     root = Path(root).resolve()
-    if repo is not None and (not isinstance(repo, str) or not REPO_NAME.match(repo)):
+    if repo is not None and (not isinstance(repo, str) or not REPO_NAME.fullmatch(repo)):
         raise RepoError(400, "Give the repo as owner/name, letters, digits, dots, dashes and underscores only.")
     script = root / SCRIPT
     if not script.is_file():
@@ -119,9 +120,15 @@ def _backup(path):
     backups = path.parent / "backups"
     backups.mkdir(parents=True, exist_ok=True)
     target = backups / f"dashboard-{path.stem}-{dt.datetime.now():%Y%m%d-%H%M%S-%f}.bak"
-    target.write_bytes(path.read_bytes())
-    target.chmod(0o600)
+    write_private(target, path.read_bytes())
     return target
+
+
+def write_private(path, content):
+    """Create a new file that only this user can read, private from its first byte."""
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(content)
 
 
 def sync_account_inputs(root, setup, resume_content):

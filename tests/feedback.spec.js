@@ -41,6 +41,7 @@ const test = base.extend({
         return route.fulfill({ json: { mode: 'accounts', user: state.signedIn ? USER : null, legacy_access: false } });
       }
       if (pathname === '/api/v1/auth/options') return route.fulfill({ json: { provider: 'local', google: false, email: true } });
+      if (pathname === '/api/v1/billing/status') return route.fulfill({ json: { provider: 'razorpay', configured: false, subscription: null } });
       if (pathname === '/api/v1/plans') {
         state.plansRequests += 1;
         await state.plansGate?.promise;
@@ -117,7 +118,7 @@ for (const width of [375, 768, 1440]) {
       if (!signedIn) await expect(page.locator('#nav a')).toHaveCount(0);
       else {
         const links = await page.locator('#nav .sidebar-scroll a').evaluateAll(items => items.map(item => item.getAttribute('href')));
-        expect(links).toEqual(['#/overview', '#/records', '#/data', '#/files', '#/plans', '#/account']);
+        expect(links).toEqual(['#/overview', '#/records', '#/data', '#/files', '#/connections', '#/onboarding', '#/plans', '#/account']);
       }
       const primary = missingPage.getByRole('link', { name: signedIn ? 'Back to workspace' : 'Sign in', exact: true });
       await expect(primary).toHaveAttribute('href', signedIn ? '#/overview' : '#/login');

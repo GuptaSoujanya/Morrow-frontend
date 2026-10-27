@@ -160,15 +160,15 @@ test('one Learning entry preserves private research access and protects shared r
   }
   for (const context of [paid, admin]) {
     assert.deepEqual(routeAccess('learning', context), { kind: 'redirect', route: { name: 'learning', arg: 'library' } });
-    for (const arg of ['library', 'read/daily/example.md', 'resume']) {
+    for (const arg of ['library', 'read/daily/example.md', 'resume', 'weekly', 'discover', 'bookmarks', 'notes', 'progress']) {
       assert.equal(routeAccess({ name: 'learning', arg }, context).kind, 'allowed');
     }
-    for (const arg of ['plan', 'dsa', 'courses', 'progress']) {
+    for (const arg of ['plan', 'dsa', 'courses']) {
       assert.equal(routeAccess({ name: 'learning', arg }, context).kind, 'runtime');
       assert.equal(preloadRoute({ name: 'learning', arg }, context), null);
     }
   }
-  for (const arg of ['', 'library', 'read/daily/example.md', 'resume', 'plan', 'dsa', 'courses', 'progress']) {
+  for (const arg of ['', 'library', 'read/daily/example.md', 'resume', 'plan', 'dsa', 'courses', 'progress', 'weekly', 'discover', 'bookmarks', 'notes']) {
     assert.equal(routeAccess({ name: 'learning', arg }, beta).kind, 'allowed');
     assert.equal(routeAccess({ name: 'learning', arg }, free).kind, 'upgrade');
   }

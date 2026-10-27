@@ -6,23 +6,48 @@ administration screens. Each person runs their own copy on their computer.
 
 ## Start
 
-Use Node.js 22.19 or newer and the parent project's Python requirements. From this folder:
+Use Node.js 22.19 or newer, zsh, and the parent project's Python requirements. From the parent
+project, install the launcher once:
+
+```sh
+scripts/morrow install
+morrow start
+```
+
+Installation creates `~/.local/bin/morrow`, a symlink to this checkout's launcher. With
+`~/.local/bin` on your `PATH`, `morrow start` works from any directory. You can also run
+`scripts/morrow start` directly from the parent project without installing it.
+
+Open **http://127.0.0.1:8100/**. The launcher builds the frontend, starts the Python backend in
+the background, and waits for `/api/session` to confirm that the free beta is ready. It always
+uses beta mode, ignoring `MORROW_MODE=accounts` and account-service settings. The terminal can
+be closed after startup succeeds.
+
+| Command | Purpose |
+| --- | --- |
+| `morrow start` | Start the free beta, or reuse this launcher's running dashboard |
+| `morrow stop` | Stop only the dashboard process group owned by this launcher |
+| `morrow restart` | Rebuild and restart the owned dashboard |
+| `morrow status` | Check the owned dashboard and readiness |
+| `morrow logs` | Follow `reports/morrow/dashboard.log` in the parent checkout |
+
+Each command also works as `scripts/morrow <command>` from the parent project. An unrelated
+process on port 8100 is reported as a conflict and left running. The launcher does not start
+or stop Docker, PostgreSQL, or the account API. Finish any active work before restarting.
+
+For a foreground development server, run these commands from this frontend folder:
 
 ```sh
 npm install
-npm start
+npm start -- --mode beta
 ```
-
-Open **http://127.0.0.1:8100/**. From the parent project, `scripts/morrow start`
-starts the same free beta without starting Docker, PostgreSQL, or the account API.
-If an older dashboard is already running, stop it after its work finishes and restart
-to activate the new mode.
 
 `npm start` loads `.env.local`, builds the frontend, and starts the Python server.
 It uses `../venv/bin/python` when available; otherwise `python3`. Override the
-interpreter with `DASHBOARD_PYTHON`, or choose a port with `npm start -- --port 8102`.
-`MORROW_MODE=beta` is the default, even if an old `MORROW_API_URL` is still configured.
-Use `npm start -- --mode beta` to override an accounts-mode environment explicitly.
+interpreter with `DASHBOARD_PYTHON`, or choose a port with `npm start -- --mode beta --port 8102`.
+For this manual command, beta is the default unless `MORROW_MODE` selects accounts; `--mode beta`
+overrides that environment setting. Stop a manually started server with Ctrl+C in its terminal.
+The launcher does not take ownership of it.
 
 Old login, signup, recovery, plans, and administration links open the workspace.
 Account and onboarding links open **My profile & files**. The beta does not call
@@ -35,9 +60,9 @@ session are still needed to run the corresponding tools.
 ## Optional accounts mode
 
 Accounts, plan gates, payments, and administration are retained for a later release.
-Enable them explicitly with `MORROW_MODE=accounts` or `npm start -- --mode accounts`.
-The parent launcher accepts `scripts/morrow start accounts`. Account mode still
-requires authentication and fails closed if its backend is unavailable.
+Use the manual developer setup below to enable them with `npm start -- --mode accounts`.
+The beta launcher rejects `morrow start accounts`; it does not manage the account services.
+Account mode still requires authentication and fails closed if its backend is unavailable.
 
 Use the PostgreSQL/API stack described in [morrow-api/README.md](../morrow-api/README.md).
 Start that backend first, from the sibling `morrow-api` folder:
@@ -65,15 +90,17 @@ Then start the existing dashboard:
 
 ```sh
 npm install
-npm start
+npm start -- --mode accounts
 ```
 
-Open **http://127.0.0.1:8100/#/login**. `npm start` loads `.env.local`, builds this frontend,
+Open **http://127.0.0.1:8100/#/login**. `npm start -- --mode accounts` loads `.env.local`, builds this frontend,
 and starts its Python server. The dashboard serves the UI and forwards `/api/v1/*`
 to the backend on port 8200, keeping browser requests and session cookies on one
 origin. It uses `../venv/bin/python` when available; otherwise `python3`.
 Override the interpreter with `DASHBOARD_PYTHON`, or choose a dashboard port with
-`npm start -- --port 8102` and update the backend's `PUBLIC_ORIGIN` accordingly.
+`npm start -- --mode accounts --port 8102` and update the backend's `PUBLIC_ORIGIN` accordingly.
+Stop this foreground dashboard with Ctrl+C. Manage the API and PostgreSQL separately with
+Docker Compose from `morrow-api/`; `morrow stop` does not stop those services.
 
 ## Accounts and plans (accounts mode only)
 
@@ -443,12 +470,12 @@ for an unused Firestore transitive dependency pulled in by the umbrella SDK.
 
 ## Learning workspace and daily progress
 
-Open **Learning** (`#/learning`) for one workspace with **Today**, **DSA practice**, **Practice & exams**,
-**Resume topics**, **Courses**, **Saved library**, and **Progress**. Desktop navigation
+Open **Learning** (`#/learning`) for one workspace with **Today**, **Your curriculum**, **DSA practice**,
+**Discover**, **Saved library**, and **Progress**. Desktop navigation
 groups these destinations under Learning; smaller screens use one section selector.
 Today comes first: DSA practice,
 your saved learning-plan day, research papers, daily goals, system-design topics,
-tech news, and companies to explore. Each available task has its own reading or
+tech news, GitHub repositories, and companies to explore. Each available task has its own reading or
 practice view and explicit completion state. The daily count includes available
 tasks; missing material is listed separately with an action to prepare it. Company
 research completion records learning, while job applications remain in Applications.
@@ -457,8 +484,45 @@ The learning-plan reading uses the existing saved week files and completion hist
 Completing it keeps today's reading visible; the next local date selects your next
 unfinished day. Daily research only uses material saved for the selected local date;
 older briefings remain in the dated Saved library. No readings or progress are invented.
-Resume learning is the next priority, followed by the full course library. Those
-views reuse the same saved content and progress as the daily workspace.
+Your curriculum brings the weekly roadmap, resume topics, and course tracks together.
+The header and curriculum show supported skills and saved target roles from the
+selected learning profile. Generated lessons record the resume fingerprint:
+changing resumes refreshes unfinished material while preserving completed days,
+previous topic files, and notes. Older material without provenance is labeled as
+unverified rather than claimed to match the current resume.
+New weekly material uses the selected resume and target roles for system design,
+full-stack exercises, and AI-agent projects. Existing saved weeks remain available.
+The compact header shows your focus, date and learning day/week. Today has one
+completion count for its available activities, avoiding a conflicting event count.
+Its next-lesson action comes first, followed by a short study list and optional
+discoveries. Unprepared material is grouped in one setup section; individual
+preparation controls are available on expansion.
+
+Discover separates research papers, technology news, companies, and GitHub repositories.
+The paper researcher must return exactly two distinct original sources, prioritizing AI,
+and cannot repeat a paper from the previous 30 days. Each paper must include a
+publication date within the last 30 days, with recent work preferred. Fetching uses the configured AI
+research agents; it does not run merely by opening Learning. The existing daily pipeline
+includes the new `brief:repositories` stage. Individual readings can be marked complete;
+finishing all items completes that briefing once, using the shared activity store.
+Refreshed papers start unread, while previously earned activity stays in history.
+Reading states belong to each dated briefing, so reopening a repository in one
+briefing does not reopen another date's reading.
+
+Saved library groups archived material, bookmarks, and personal notes. Bookmark
+collections distinguish papers, DSA questions, GitHub repositories, and other resources.
+You can also add a repository link yourself. Notes support source links, categories,
+editing and deletion; conflicting revisions are rejected and unsaved drafts remain
+available while navigating within the current account session. Notes and bookmarks
+use the same locked `user/memory/learning.json` store as progress.
+
+In optional accounts mode, users with Learning access have private notes,
+bookmarks, resume-focus summaries and library-reading progress. Notes and bookmarks
+use versioned account storage, isolated from the local owner's files; combined
+storage is limited to 1 MB. Account activity reflects currently completed private
+documents, because account records do not yet retain completion-event history.
+Per-account AI generation and DSA execution still need a connected tenant runner;
+those actions are unavailable explicitly rather than falling back to owner data.
 
 The DSA practice provides one topic per local calendar day: a concept explanation,
 a worked Python example, and practice questions with revealable solutions. The path
@@ -476,8 +540,10 @@ can also reload the saved state.
 
 **DSA practice** separates Learn, Worked example, and Practice into individual steps,
 and Continue resumes at the first unfinished practice question after reading. The
-DSA roadmap is collapsed until requested. **Progress** contains the full
-calendar and rewards; the dashboard uses a compact calendar with collapsible badges.
+DSA roadmap is collapsed until requested. **Progress** contains separate completion
+bars for every learning area, course-level breakdowns, a seven-day activity chart,
+the full calendar, streaks, badges, coding results and learning history. Today keeps
+its focus on the next task. The dashboard retains its compact activity widget.
 Existing `#/dsa`, `#/research`, and `#/study` links open the corresponding view inside
 Learning. Reader return links and library filters survive browser Back and reload.
 
@@ -591,10 +657,11 @@ screens using a temporary workspace; it does not change personal learning progre
 In the free local beta (and for the original workspace owner in accounts mode), course lessons, research notes, daily DSA and 90-day learning completions save to **`user/memory/learning.json`** in your private user repo. The server imports prior `user/reports/studied.json` and `user/research/learning/progress.json` once, preserving the originals. Writes use a process lock, fsync and atomic replacement. Invalid storage is reported rather than silently reset. `scripts/sync_data.sh` pushes `user/` with the rest of your private data. Other accounts use their own stored reading progress and cannot read or change this shared progress file.
 
 - **Learning → Today**: follow the daily checklist. Fetch a whole briefing or one missing section after reviewing its exact command. **Saved library** provides dated archives, category filters and search.
-- **Resume learning**: continue the next unfinished resume topic, with its own overview and completion count. **Courses**: explore the full curriculum and mark chapters complete. Both sit below daily work in the same workspace.
+- **Your curriculum**: follow the daily/weekly plan, continue resume topics, and browse course tracks in one view. Detailed readers keep the same saved completion state.
+- **Discover**: read two AI-priority papers, explore new technology and companies, and find GitHub projects. **Saved library** includes categorized bookmarks and editable personal notes.
 - Fetch actions use your configured AI agents and persist their output in `user/research/`; they are not simulated feeds. The Activity panel follows each run, and its output views refresh when that agent finishes, even while another agent is still working. Independent research stages can run in parallel.
 - Open a read → **Mark complete**. **Reopen reading** reverses it. Opening alone never completes an item.
-- **Progress**: dated course/research completions and reopens, plus imported work whose original dates were not recorded.
+- **Progress**: individual learning-area and course totals, weekly charts, streaks, badges, coding results, and dated completion history. Imported work keeps its completion state without inventing activity dates.
 - Courses and the hosted course reader share the same progress. `/course/01-system-design/` redirects to `/course/#/01-system-design/`. The course reader still uses its existing CDN scripts.
 - Applications, Data hub and the Saved library keep page/filter/search state in the URL. Browser Back, Forward and reload restore it.
 

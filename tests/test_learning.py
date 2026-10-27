@@ -1,5 +1,6 @@
 """Durability and reading direction; all progress writes stay in temporary workspaces."""
 import datetime as dt
+import hashlib
 import importlib
 import json
 import sys
@@ -145,9 +146,10 @@ def test_daily_desk_exposes_each_source_without_substituting_another_date(worksp
     for filename,title in [('01-goal.md','Goal'),('02-system-design.md','Design'),('03-papers.md','Papers'),('04-tech-news.md','Tech news'),('05-companies.md','Companies')]:
         (folder/filename).write_text(f'# {title}\n\n## First saved section\nA real note.\n\n## Second saved section\nMore detail.')
     old=research_learning.summary({'date':'2026-10-22'})['briefing']
-    assert old['ready']==6 and old['total']==6
-    assert {section['key'] for section in old['sections']}=={'digest','papers','tech','companies','goal','design'}
-    assert all(section['document']['id'].startswith('research/daily/2026-10-22/') for section in old['sections'])
+    assert old['ready']==6 and old['total']==7
+    assert {section['key'] for section in old['sections']}=={'digest','papers','tech','companies','goal','design','repos'}
+    assert all(section['document']['id'].startswith('research/daily/2026-10-22/') for section in old['sections'] if section['document'])
+    assert next(section for section in old['sections'] if section['key']=='repos')['document'] is None
     papers=next(section for section in old['sections'] if section['key']=='papers')
     assert papers['document']['preview']==['First saved section','Second saved section']
     missing=research_learning.summary({'date':'2026-10-23'})['briefing']
@@ -170,3 +172,66 @@ def test_resume_learning_has_its_own_topics_and_a_complete_index(workspace):
     research_learning.mark(data['topics'][0]['id'],True)
     assert research_learning.summary()['resume']['topics'][0]['read'] is True
     assert research_learning.summary()['plan_done']==0
+
+
+def test_resume_topics_follow_selected_resume_and_preserve_previous_material(workspace):
+    resume_path = workspace / 'selected-resume.txt'
+    resume_path.write_text('Python engineer working on APIs and evaluation.')
+    fingerprint = hashlib.sha256(resume_path.read_bytes()).hexdigest()
+    environment = {'RESUME_PATH': str(resume_path), 'PROFILE_PATH': str(workspace / 'selected-profile.yaml')}
+    root = workspace / 'user/research/resume-learning'
+    root.mkdir(parents=True)
+    for name, title, source in [('01-previous', 'Earlier stack', 'a' * 64),
+                                ('02-untracked', 'Untracked concepts', None),
+                                ('03-current', 'Current APIs', fingerprint)]:
+        path = root / (name + '.md')
+        path.write_text('# ' + title + '\n\n## Understand it\nExplain the concept.')
+        if source:
+            path.with_suffix('.meta.json').write_text(json.dumps({'resume_sha256': source}))
+    previous_id = 'research/resume-learning/01-previous.md'
+    research_learning.mark(previous_id, True)
+    before = {path.name: path.read_bytes() for path in root.iterdir()}
+
+    data = research_learning.summary(environment=environment)
+    assert [(item['title'], item['resume_status']) for item in data['resume']['topics']] == [
+        ('Current APIs', 'current'), ('Untracked concepts', 'unverified')]
+    assert [(item['id'], item['resume_status'], item['read']) for item in data['resume']['previous_topics']] == [
+        (previous_id, 'previous', True)]
+    assert not any(item['id'] == previous_id for item in data['queue'])
+    assert data['queue'][-1]['title'] == 'Current APIs'
+    assert data['profile']['resume_fingerprint'] == fingerprint
+    assert data['notes_read'] == 1 and any(item['id'] == previous_id for item in data['history']['items'])
+    assert dashboard_data.artifact(previous_id)['read'] is True
+    assert {path.name: path.read_bytes() for path in root.iterdir()} == before
+
+    # Changing only the selected resume immediately changes provenance, without
+    # renaming old documents or resetting their completion history.
+    resume_path.write_text('A different resume focused on Rust systems.')
+    changed = research_learning.summary(environment=environment)
+    assert [item['title'] for item in changed['resume']['topics']] == ['Untracked concepts']
+    assert {item['title'] for item in changed['resume']['previous_topics']} == {'Earlier stack', 'Current APIs'}
+    assert changed['notes_read'] == 1
+
+
+def test_resume_topics_without_metadata_remain_unverified_and_available(workspace):
+    root = workspace / 'user/research/resume-learning'
+    root.mkdir(parents=True)
+    (root / '01-existing.md').write_text('# An existing topic\nA saved explanation.')
+    environment = {'RESUME_PATH': str(workspace / 'missing-resume.txt'),
+                   'PROFILE_PATH': str(workspace / 'missing-profile.yaml')}
+    data = research_learning.summary(environment=environment)
+    assert not data['profile']['resume_available']
+    assert data['resume']['topics'][0]['resume_status'] == 'unverified'
+    assert data['resume']['previous_topics'] == []
+    assert data['queue'][-1]['id'] == 'research/resume-learning/01-existing.md'
+
+
+def test_weekly_summary_excludes_archived_copies_but_keeps_them_in_library(workspace):
+    root = workspace / 'user/research/learning/weeks'
+    (root / 'week-01.previous.md').write_text('# Prior week\nArchived material.')
+    (root / 'archive').mkdir()
+    (root / 'archive/week-02.md').write_text('# Archived week 2\nSaved material.')
+    (root / 'week-14.md').write_text('# Out of range\nSaved material.')
+    assert [item['path'] for item in research_learning.summary()['weeks']] == ['learning/weeks/week-01.md']
+    paths = {item['path'] for item in dashboard_data.artifacts()['items']}
+    assert {'learning/weeks/week-01.previous.md', 'learning/weeks/archive/week-02.md', 'learning/weeks/week-14.md'} <= paths

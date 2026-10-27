@@ -79,7 +79,7 @@ export async function api(path, body, { onOnline, fresh = false, signal } = {}) 
     assertCurrent(scope);
     if (!['/api/preview', '/api/run/batch/preview'].includes(new URL(path, window.location.origin).pathname)) await invalidateReads();
     assertCurrent(scope);
-    if (['/api/course/read', '/api/research/read', '/api/learning/dsa', '/api/learning/dsa/problem', '/api/learning/practice/answer', '/api/learning/code/execute'].includes(new URL(path, window.location.origin).pathname)) {
+    if (['/api/course/read', '/api/research/read', '/api/learning/dsa', '/api/learning/dsa/problem', '/api/learning/practice/answer', '/api/learning/code/execute', '/api/learning/collection'].includes(new URL(path, window.location.origin).pathname)) {
       window.dispatchEvent(new Event('learning-updated'));
     }
     return data;
