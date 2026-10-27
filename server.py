@@ -733,6 +733,8 @@ def launch_options(argv=None):
 
 
 def main():
+    import signal
+
     args = launch_options()
     register_actions()
     try:
@@ -740,13 +742,33 @@ def main():
     except (OSError, ValueError) as exc:
         raise SystemExit(f"Cannot start dashboard on port {args.port}: {exc}") from exc
     print(f"Morrow ({'free beta' if args.mode == 'beta' else 'accounts'}): http://127.0.0.1:{args.port}", flush=True)
+    stopping = False
+    previous_handlers = {}
+
+    def stop(signum, frame):
+        nonlocal stopping
+        if not stopping:
+            stopping = True
+            raise KeyboardInterrupt
+
     try:
+        # A process-group signal and the Node launcher's forwarded signal can
+        # both arrive. The first starts cleanup; repeats must not interrupt it.
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            previous_handlers[signum] = signal.signal(signum, stop)
         app.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
-        app.runner.shutdown()
-        app.server_close()
+        stopping = True
+        try:
+            app.runner.shutdown()
+        finally:
+            try:
+                app.server_close()
+            finally:
+                for signum, handler in previous_handlers.items():
+                    signal.signal(signum, handler)
 
 
 if __name__ == "__main__":

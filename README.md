@@ -26,6 +26,7 @@ be closed after startup succeeds.
 | Command | Purpose |
 | --- | --- |
 | `morrow start` | Start the free beta, or reuse this launcher's running dashboard |
+| `morrow start --port 8116` | Start the free beta on a different local port |
 | `morrow stop` | Stop only the dashboard process group owned by this launcher |
 | `morrow restart` | Rebuild and restart the owned dashboard |
 | `morrow status` | Check the owned dashboard and readiness |
