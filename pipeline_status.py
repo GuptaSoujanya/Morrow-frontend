@@ -191,7 +191,7 @@ def read_status(root, selected_day=None, snapshot=None, *, now=None, pid_alive=N
         now = now.astimezone()
     today = now.date().isoformat()
     day = valid_day(selected_day) if selected_day is not None else today
-    path = root / ".memory" / "progress.json"
+    path = root / "user/memory" / "progress.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
         if not isinstance(data, dict) or not isinstance(data.get("days", {}), dict):
@@ -211,7 +211,7 @@ def read_status(root, selected_day=None, snapshot=None, *, now=None, pid_alive=N
                for value in recorded.values()):
             raise ValueError()
     except (ValueError, OSError):
-        raise ValueError("The pipeline checkpoint could not be read. Check .memory/progress.json.") from None
+        raise ValueError("The pipeline checkpoint could not be read. Check user/memory/progress.json.") from None
     names = list(dict.fromkeys([*plan, *recorded]))
     snapshot = snapshot or {}
     runs = _runs(snapshot, day, today)

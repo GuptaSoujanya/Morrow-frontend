@@ -12,7 +12,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parents[1]))
 import code_problem_catalog as catalog
 
-COURSE = Path(__file__).parents[2] / 'course' / '02-dsa'
+COURSE = Path(__file__).parents[2] / 'database/course' / '02-dsa'
 FUNCTIONS = {
     1: ('contains_duplicate', 'is_anagram', 'two_sum', 'group_anagrams', 'top_k_frequent', 'product_except_self', 'longest_consecutive'),
     2: ('is_palindrome', 'two_sum_sorted', 'three_sum', 'max_profit', 'length_of_longest_substring', 'min_window'),

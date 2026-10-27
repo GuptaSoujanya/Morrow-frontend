@@ -53,14 +53,14 @@ function reader(id,query){
     try{
       const data=await api('/api/document?id='+encodeURIComponent(id),undefined,{fresh});
       const frame=h('iframe',{class:'document-reader',title:data.title||'Research document',sandbox:'allow-popups allow-top-navigation-by-user-activation'});frame.srcdoc=READER_STYLE+data.html;
-      const feedback=h('p',{class:'reading-save-status small muted',role:'status',text:data.read?'Completed · saved in .memory':'Mark complete when you finish. Your progress is saved on this device.'});
+      const feedback=h('p',{class:'reading-save-status small muted',role:'status',text:data.read?'Completed · saved in user/memory':'Mark complete when you finish. Your progress is saved on this device.'});
       const toggle=h('button',{class:'btn '+(data.read?'':'btn-primary'),type:'button',text:data.read?'Reopen reading':'Mark complete',onclick:async()=>{
         const wanted=!data.read;toggle.disabled=true;toggle.textContent='Saving…';feedback.textContent='Saving your progress…';feedback.classList.remove('field-error');
-        try{await api('/api/research/read',{id,read:wanted});data.read=wanted;feedback.textContent=id.startsWith('artifact/')?(wanted?'Completed · saved to your private account.':'Reopened · saved to your private account.'):(wanted?'Completed · saved in .memory. Your saved progress is ready in Learning and Progress.':'Reopened · saved in .memory.');}
+        try{await api('/api/research/read',{id,read:wanted});data.read=wanted;feedback.textContent=id.startsWith('artifact/')?(wanted?'Completed · saved to your private account.':'Reopened · saved to your private account.'):(wanted?'Completed · saved in user/memory. Your saved progress is ready in Learning and Progress.':'Reopened · saved in user/memory.');}
         catch(error){feedback.classList.add('field-error');feedback.textContent=`Could not save. ${error.message} Please try again.`;}
         finally{toggle.disabled=false;toggle.textContent=data.read?'Reopen reading':'Mark complete';toggle.classList.toggle('btn-primary',!data.read);}
       }});
-      body.replaceChildren(panel(data.title||'Research document',{cls:'focus-reader',sub:data.day?`Learning day ${data.day} of 90`:id.replace(/^research\//,'.research/'),tools:toggle},feedback,frame));
+      body.replaceChildren(panel(data.title||'Research document',{cls:'focus-reader',sub:data.day?`Learning day ${data.day} of 90`:id.replace(/^research\//,'user/research/'),tools:toggle},feedback,frame));
     }catch(error){body.replaceChildren(errorState(error.message,()=>load(true)));}
   };load();
   return h('div',{class:'page research-page has-document'},h('header',{class:'page-head'},h('div',{},h('a',{class:'back-link',href:withQuery('research',Object.fromEntries(query)),text:'← Back to Research Studio'}),h('h1',{text:'Reading room'}))),body);
@@ -87,9 +87,9 @@ function library(q){
     try{
       const data=await api('/api/library?'+new URLSearchParams(filters),undefined,{fresh});if(request!==ticket)return;
       filters.page=data.page;writeQuery('research',filters,{replace:true});feedback.replaceChildren();
-      total.textContent=`${data.total} documents · ${data.research_count} notes from .research`;
+      total.textContent=`${data.total} documents · ${data.research_count} notes from user/research`;
       list.replaceChildren(...(data.items.length?data.items.map(item=>h('a',{class:'document-item research-row',href:routeHref('research',item.id)+returnURL().slice(returnURL().indexOf('?'))},
-        avatar(arts[item.category]||25,'research-row-art'),h('div',{class:'research-row-copy'},h('span',{class:'document-category',text:item.category}),h('strong',{text:item.title}),h('small',{text:item.id.startsWith('research/')?'.research/'+item.path:item.path})),item.read?h('span',{class:'pill pill-ok',text:'Complete'}):null,h('time',{dateTime:item.updated_at,text:new Date(item.updated_at).toLocaleDateString(undefined,{day:'numeric',month:'short'})}),icon('arrow-up-right','icon icon-sm'))):[empty('No notes match your search.',h('button',{class:'btn',type:'button',text:'Clear filters',onclick:()=>{filters.q='';search.value='';filters.category='';filters.page=1;load();}}))]));
+        avatar(arts[item.category]||25,'research-row-art'),h('div',{class:'research-row-copy'},h('span',{class:'document-category',text:item.category}),h('strong',{text:item.title}),h('small',{text:item.id.startsWith('research/')?'user/research/'+item.path:item.path})),item.read?h('span',{class:'pill pill-ok',text:'Complete'}):null,h('time',{dateTime:item.updated_at,text:new Date(item.updated_at).toLocaleDateString(undefined,{day:'numeric',month:'short'})}),icon('arrow-up-right','icon icon-sm'))):[empty('No notes match your search.',h('button',{class:'btn',type:'button',text:'Clear filters',onclick:()=>{filters.q='';search.value='';filters.category='';filters.page=1;load();}}))]));
       paging.replaceChildren(pagination({...data,label:'Research',onPage:page=>{filters.page=page;return load();},onSize:size=>{filters.size=size;filters.page=1;return load();}}));
     }catch(error){if(request===ticket){feedback.replaceChildren(errorState(error.message,()=>load(true)));if(list.querySelector('.state-loading'))list.replaceChildren();}}
     finally{if(request===ticket){list.setAttribute('aria-busy','false');refresh.disabled=false;}}
@@ -97,6 +97,6 @@ function library(q){
   ['',...categories].forEach(category=>tabs.append(h('button',{class:'collection-tab',type:'button',dataset:{category},'aria-pressed':String(category===filters.category),onclick:()=>{filters.category=category;filters.page=1;load();}},category?avatar(arts[category],'tab-art'):icon('grid','icon icon-sm'),category||'All notes')));
   load();
   return h('div',{class:'page research-page'},h('header',{class:'page-head'},h('div',{},h('p',{class:'eyebrow',text:'GOOD IDEAS START HERE'}),h('h1',{text:'Research Studio'}),h('p',{class:'lead',text:'A little curiosity. A clearer next move.'})),refresh),
-    studioTabs('library'),h('section',{class:'research-intro'},avatar(25,'research-intro-art'),h('div',{},h('h2',{text:'Your knowledge, connected.'}),h('p',{text:'Briefings, career research and learning notes from your .research folder.'})),h('a',{class:'btn',href:'#/pipeline/brief',text:'Research agents'},icon('arrow-up-right','icon icon-sm'))),
+    studioTabs('library'),h('section',{class:'research-intro'},avatar(25,'research-intro-art'),h('div',{},h('h2',{text:'Your knowledge, connected.'}),h('p',{text:'Briefings, career research and learning notes from your user/research folder.'})),h('a',{class:'btn',href:'#/pipeline/brief',text:'Research agents'},icon('arrow-up-right','icon icon-sm'))),
     panel('Your collection',{tools:total},tabs,h('div',{class:'research-search'},icon('search'),search),feedback,list,paging));
 }

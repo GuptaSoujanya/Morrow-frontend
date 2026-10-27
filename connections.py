@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 from common import connections as browser
+from common import paths
 from common.models import Settings
 
 BOARDS = ("hirist", "instahyre", "cutshort", "wellfound")
@@ -296,8 +297,8 @@ class ConnectionService:
         # Read only the two configured paths; never expose .env or credentials.
         from dotenv import dotenv_values
         values = dotenv_values(self.root / ".env")
-        main = os.getenv("BROWSER_PROFILE_DIR") or values.get("BROWSER_PROFILE_DIR") or "data/browser/naukri"
-        linkedin = os.getenv("LINKEDIN_BROWSER_PROFILE_DIR") or values.get("LINKEDIN_BROWSER_PROFILE_DIR") or "data/browser/linkedin"
+        main = os.getenv("BROWSER_PROFILE_DIR") or values.get("BROWSER_PROFILE_DIR") or "user/browser/naukri"
+        linkedin = os.getenv("LINKEDIN_BROWSER_PROFILE_DIR") or values.get("LINKEDIN_BROWSER_PROFILE_DIR") or "user/browser/linkedin"
         base = Path(linkedin if provider == "linkedin" else main).expanduser()
         if not base.is_absolute():
             base = self.root / base
@@ -316,7 +317,7 @@ class ConnectionService:
             path = self._owner_base(provider, scope)
         else:
             group = "linkedin" if provider == "linkedin" else "main" if scope == "main" else scope.replace(":", "-")
-            path = self.root / "data" / "private" / "connections" / tenant / group
+            path = self.root / paths.user_dir() / "private" / "connections" / tenant / group
         # Reject traversal and symlink aliases, including links to personal
         # Chrome. Configuration does not authorize importing those profiles.
         try:

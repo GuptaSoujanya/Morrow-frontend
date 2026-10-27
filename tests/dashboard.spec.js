@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/file' && route.request().method() === 'GET') {
       const name = url.searchParams.get('name');
-      return route.fulfill({ json: { name, path: name === 'env' ? '.env' : `data/inputs/${name}`, exists: true, text: sampleFiles[name], revision: 'fixture-v1' } });
+      return route.fulfill({ json: { name, path: name === 'env' ? '.env' : `user/inputs/${name}`, exists: true, text: sampleFiles[name], revision: 'fixture-v1' } });
     }
     if (route.request().method() === 'POST' && url.pathname !== '/api/preview') return route.fulfill({ status: 409, json: { error: 'Test safety guard: action was not executed.' } });
     return route.continue();
@@ -482,10 +482,10 @@ test('failed learning save rolls back the checkbox with visible feedback',async(
 test('research collections expose the real folder and preferences filter by purpose',async({page})=>{
   await page.goto('/#/research');
   await page.getByRole('link',{name:'Library',exact:true}).click();
-  await expect(page.getByText(/notes from \.research/)).toBeVisible();
+  await expect(page.getByText(/notes from user\/research/)).toBeVisible();
   await page.getByRole('button',{name:'Resume research',exact:true}).click();
   await expect(page.getByRole('button',{name:'Resume research',exact:true})).toHaveAttribute('aria-pressed','true');
-  await expect(page.locator('.document-item').first()).toContainText('.research/resume-learning/');
+  await expect(page.locator('.document-item').first()).toContainText('user/research/resume-learning/');
   await page.goto('/#/setup');
   await page.getByRole('button',{name:'Search & matching',exact:true}).click();
   await expect(page.locator('.setting-row:visible')).toHaveCount(2);
@@ -536,7 +536,7 @@ test('Research Studio and Data hub expose real sources and all-time records',asy
   await page.locator('.workspace-portal[href="#/research"]').click();
   await expect(page.getByRole('heading',{name:'Research Studio',exact:true})).toBeVisible();
   await page.getByRole('link',{name:'Library',exact:true}).click();
-  await expect(page.getByText(/notes from \.research/)).toBeVisible();
+  await expect(page.getByText(/notes from user\/research/)).toBeVisible();
   await page.locator('#nav a[href="#/data"]').click();
   await expect(page.locator('.source-tile')).toHaveCount(7);
   for(const source of sources.sources){
@@ -763,7 +763,7 @@ for(const [width,height] of [[1280,720],[1366,768],[1440,900]])test(`laptop work
 
 test('Research Learning shows the next read, saves explicitly and explains earlier progress',async({page})=>{
   let completed=false,fail=false;const date=new Date().toLocaleDateString('en-CA'),at=new Date().toISOString();
-  await page.route('**/api/research/learning?*',route=>route.fulfill({json:{date,focus:{id:completed?'plan/day-2':'plan/day-1',day:completed?2:1,title:completed?'Caching foundations':'Client and server'},queue:[{id:completed?'plan/day-2':'plan/day-1',title:completed?'Caching foundations':'Client and server',category:'Learning',caption:'Your next unfinished day'}],plan_done:completed?1:0,plan_total:90,course_done:3,course_total:49,completed_today:completed?[{id:'plan/day-1',kind:'research',title:'Client and server',completed_at:at}]:[],history:{items:completed?[{id:'plan/day-1',kind:'research',title:'Client and server',at,action:'completed'}]:[],page:1,pages:1,size:15,total:completed?1:0},imported:[{id:'intro.md',kind:'course',title:'Imported introduction',done:true}],legacy_plan_days:[],storage:'.memory/learning.json'}}));
+  await page.route('**/api/research/learning?*',route=>route.fulfill({json:{date,focus:{id:completed?'plan/day-2':'plan/day-1',day:completed?2:1,title:completed?'Caching foundations':'Client and server'},queue:[{id:completed?'plan/day-2':'plan/day-1',title:completed?'Caching foundations':'Client and server',category:'Learning',caption:'Your next unfinished day'}],plan_done:completed?1:0,plan_total:90,course_done:3,course_total:49,completed_today:completed?[{id:'plan/day-1',kind:'research',title:'Client and server',completed_at:at}]:[],history:{items:completed?[{id:'plan/day-1',kind:'research',title:'Client and server',at,action:'completed'}]:[],page:1,pages:1,size:15,total:completed?1:0},imported:[{id:'intro.md',kind:'course',title:'Imported introduction',done:true}],legacy_plan_days:[],storage:'user/memory/learning.json'}}));
   await page.route('**/api/document?id=plan%2Fday-1',route=>route.fulfill({json:{id:'plan/day-1',title:'Client and server',day:1,read:completed,html:'<h1>Client and server</h1><p>A saved lesson.</p>'}}));
   await page.route('**/api/research/read',route=>{if(fail)return route.fulfill({status:500,json:{error:'Disk is unavailable.'}});completed=route.request().postDataJSON().read;return route.fulfill({json:{ok:true,read:completed}});});
   await page.goto('/#/research?view=learning');await expect(page.locator('.daily-focus')).toContainText('Client and server');

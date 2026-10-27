@@ -119,6 +119,12 @@ accounts can open it from the sidebar whenever their facts, resume, or chosen si
 change. Drafts save to the account with version checks; conflicting saves preserve
 the edits on screen.
 
+For the workspace owner, step 4 also shows **Your private data repo**: the git clone under
+`user/` that the CLI bots read. **Connect repo** creates it from the Morrow-user template (or
+clones a repo you name) with the GitHub CLI on this computer, and **Finish setup** then copies the
+saved profile and resume into it. The free beta shows the same card under **Preferences →
+Connections & maintenance**.
+
 Existing details are prefilled and marked **Saved**. The checklist distinguishes saved
 steps, unsaved changes, and missing details; saved account choices are separate from
 verified browser sign-ins. Validation messages appear beside the affected field and
@@ -230,6 +236,9 @@ remain on disk.
 | `GET /api/connections?scope=main` | This account's browser status; supported parallel scopes are `lane:hirist`, `lane:instahyre`, `lane:cutshort`, and `lane:wellfound` |
 | `POST /api/connections/{provider}/{action}` | `open`, `check`, `close`, `switch`, or `disconnect`, with `scope` and optional `expected_account` |
 | `POST /api/runner/setup` | Prepare the selected private inputs using the saved `version` and `profile_version`; the server fetches files through the authenticated account API |
+| `GET /api/runner/repo` | Workspace owner only: whether `user/` (or `MORROW_USER_DIR`) is a git clone, its remote, whether `database/course` is present and which input files exist. Also available in the free beta |
+| `POST /api/runner/repo` | Workspace owner only: run `scripts/setup_user.sh` (optional `repo` as `owner/name`) to create the private repo from the Morrow-user template or clone an existing one, and clone Morrow-database. Needs the GitHub CLI signed in on this computer; refused while a workflow runs |
+| `POST /api/runner/repo/sync` | Workspace owner, accounts mode: merge the saved account profile into `user/inputs/profile.yaml` (existing facts kept, previous file backed up under `inputs/backups/`) and save the selected resume PDF to `user/resume/`, using the saved `version` and `profile_version` |
 
 Onboarding state and profile facts live in tenant-scoped PostgreSQL tables; uploaded
 resumes use the existing private artifact store. Apply backend migration
@@ -240,16 +249,16 @@ Paths below are relative to the parent workspace and are private runtime data:
 
 | Data | Location |
 | --- | --- |
-| Ordinary account browser groups | `data/private/connections/<tenant-id>/<main\|linkedin\|lane-board>/chrome/` |
-| Owner's existing browser groups | Configured `BROWSER_PROFILE_DIR` and `LINKEDIN_BROWSER_PROFILE_DIR`, each with its `chrome/` subfolder; defaults are `data/browser/naukri` and `data/browser/linkedin` |
+| Ordinary account browser groups | `user/private/connections/<tenant-id>/<main\|linkedin\|lane-board>/chrome/` |
+| Owner's existing browser groups | Configured `BROWSER_PROFILE_DIR` and `LINKEDIN_BROWSER_PROFILE_DIR`, each with its `chrome/` subfolder; defaults are `user/browser/naukri` and `user/browser/linkedin` |
 | Owner's parallel board groups | `lanes/<board>/chrome/` beside the configured main profile directory |
 | Connection status/account labels | `.morrow-connections.json` beside each group's `chrome/` folder |
-| Prepared profile and resume | `data/private/runner/<tenant-id>/<snapshot-id>/profile.yaml` and `resume.pdf`; `current.json` selects that tenant's snapshot |
+| Prepared profile and resume | `user/private/runner/<tenant-id>/<snapshot-id>/profile.yaml` and `resume.pdf`; `current.json` selects that tenant's snapshot |
 
 Private directories use restrictive filesystem permissions, and these paths stay out
 of Git. Browser session state remains on this computer. The original profile/resume
 files are preserved: a verified owner snapshot sets `PROFILE_PATH` and `RESUME_PATH`
-for future dashboard jobs through `data/private/runner/active-owner.json`.
+for future dashboard jobs through `user/private/runner/active-owner.json`.
 
 **Current execution boundary:** all authenticated accounts can save private setup and
 manage their isolated local browser sessions. Individual tenant workflow execution is
@@ -295,7 +304,7 @@ these shared workflows. The original workspace includes:
   recent runs and 7/14/30/all-time CSV exports.
 - **Learning:** follow daily DSA, learning, papers, topics, news and company research, then
   continue resume learning or the full course curriculum. Saved library searches the
-  `.research` collection, including dated briefings and recruiter drafts. Progress shows
+  `user/research` collection, including dated briefings and recruiter drafts. Progress shows
   shared activity, badges and completion history. Missing material has direct fetch controls.
 - **Automation controls:** Naukri and four other job boards, company sites, Naukri/LinkedIn
   profiles plus dedicated Hirist/Instahyre/Cutshort/Wellfound profile agents, LinkedIn posts, recruiter email drafts and resume tailoring.
@@ -377,14 +386,14 @@ version; a conflicting edit must be reloaded rather than silently overwritten.
 Private uploads and account history remain separate from the original workspace.
 
 For the configured owner, the original tools still read the project's existing
-SQLite database, `data/`, `.memory/`, `.research/`, `course/`, and `.env`. Original
+SQLite database, `user/` (inputs, memory, research) and `database/course/`, and `.env`. Original
 course endpoints use the same durable progress store; `common/learning_memory.py`
 is shared with the learning CLI. Importing the original workspace into an account
 creates a snapshot, not ongoing synchronization. Bot output continues to use the
 legacy stores until individual runtimes and their storage adapters are migrated.
 
 Owner-workspace file saves require the revision that was opened; external changes cause a conflict instead
-of an overwrite. Prior versions are saved under `data/inputs/backups/dashboard-*.bak` with
+of an overwrite. Prior versions are saved under `user/inputs/backups/dashboard-*.bak` with
 private permissions. Unsaved editor drafts survive in-app navigation; they are held only
 in memory. Reloading the whole page discards them after the browser's warning.
 
@@ -483,8 +492,8 @@ still available. Dates follow the computer's local calendar, including the origi
 local date recorded for each completion. Older imported progress without dates
 does not create invented streaks or calendar entries.
 
-Learning activity uses the local `.memory/learning.json` store described below;
-code drafts and verified scores use `.memory/code-practice.json`. No Morrow
+Learning activity uses the local `user/memory/learning.json` store described below;
+code drafts and verified scores use `user/memory/code-practice.json`. No Morrow
 account is required in the free beta. To verify the feature without changing your
 own progress, run `npm run test:learning`; its server uses temporary synthetic data
 and blocks all non-learning actions.
@@ -526,8 +535,8 @@ server-verified score; no AI grade is assigned to written answers.
 
 Answers save as you type. Submission saves an immutable completed paper and records
 10 XP in the shared activity calendar; retries cannot earn duplicate credit. Papers,
-answers, settings, and generation state live in **`.memory/practice.json`**, with locked,
-atomic writes. Back up this file alongside `.memory/learning.json`. Stopped or failed
+answers, settings, and generation state live in **`user/memory/practice.json`**, with locked,
+atomic writes. Back up this file alongside `user/memory/learning.json`. Stopped or failed
 generation keeps any completed papers and requires an explicit retry.
 
 ### Local compiler and coding progress
@@ -572,18 +581,18 @@ learning heatmap and XP rewards. A problem earns up to 100 daily points based on
 tests passed; only its best result that day contributes. Repeats cannot inflate the
 score or daily XP. A full pass marks the problem solved and earns 10 learning XP
 once per problem per local day. Manual checklist changes earn no verified code score.
-Back up `.memory/code-practice.json` alongside the other learning stores.
+Back up `user/memory/code-practice.json` alongside the other learning stores.
 
 `npm run test:learning` checks the editor, real local execution, scoring, and responsive
 screens using a temporary workspace; it does not change personal learning progress.
 
 ## Local-workspace learning and navigation
 
-In the free local beta (and for the original workspace owner in accounts mode), course lessons, research notes, daily DSA and 90-day learning completions save to **`.memory/learning.json`** in the project root. The server imports prior `data/reports/studied.json` and `.research/learning/progress.json` once, preserving the originals. Writes use a process lock, fsync and atomic replacement. Invalid storage is reported rather than silently reset. Back up `.memory/` with the rest of your workspace. Other accounts use their own stored reading progress and cannot read or change this shared progress file.
+In the free local beta (and for the original workspace owner in accounts mode), course lessons, research notes, daily DSA and 90-day learning completions save to **`user/memory/learning.json`** in your private user repo. The server imports prior `user/reports/studied.json` and `user/research/learning/progress.json` once, preserving the originals. Writes use a process lock, fsync and atomic replacement. Invalid storage is reported rather than silently reset. `scripts/sync_data.sh` pushes `user/` with the rest of your private data. Other accounts use their own stored reading progress and cannot read or change this shared progress file.
 
 - **Learning → Today**: follow the daily checklist. Fetch a whole briefing or one missing section after reviewing its exact command. **Saved library** provides dated archives, category filters and search.
 - **Resume learning**: continue the next unfinished resume topic, with its own overview and completion count. **Courses**: explore the full curriculum and mark chapters complete. Both sit below daily work in the same workspace.
-- Fetch actions use your configured AI agents and persist their output in `.research/`; they are not simulated feeds. The Activity panel follows each run, and its output views refresh when that agent finishes, even while another agent is still working. Independent research stages can run in parallel.
+- Fetch actions use your configured AI agents and persist their output in `user/research/`; they are not simulated feeds. The Activity panel follows each run, and its output views refresh when that agent finishes, even while another agent is still working. Independent research stages can run in parallel.
 - Open a read → **Mark complete**. **Reopen reading** reverses it. Opening alone never completes an item.
 - **Progress**: dated course/research completions and reopens, plus imported work whose original dates were not recorded.
 - Courses and the hosted course reader share the same progress. `/course/01-system-design/` redirects to `/course/#/01-system-design/`. The course reader still uses its existing CDN scripts.

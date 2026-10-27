@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 from common import learning_memory as memory, learning_activity
 import daily_dsa
 
-COURSE = Path(__file__).parents[2] / 'course'
+COURSE = Path(__file__).parents[2] / 'database/course'
 DAY = dt.date(2026, 10, 26)
 
 
@@ -106,7 +106,7 @@ def test_problem_status_and_notes_persist_without_duplicate_history_or_xp(tmp_pa
     assert attempted['status'] == 'attempted' and attempted['notes'] == body['notes']
     solved = daily_dsa.update_problem(tmp_path, COURSE, {'id': identifier, 'status': 'solved'}, today=DAY)
     assert solved['notes'] == body['notes']
-    path = tmp_path / '.memory/learning.json'; before = path.read_bytes()
+    path = tmp_path / 'user/memory/learning.json'; before = path.read_bytes()
     daily_dsa.update_problem(tmp_path, COURSE, {'id': identifier, 'status': 'solved'}, today=DAY)
     assert path.read_bytes() == before
     assert daily_dsa.problem(tmp_path, COURSE, identifier)['status'] == 'solved'
@@ -127,7 +127,7 @@ def test_problem_ids_cannot_open_files_outside_the_catalog(tmp_path, identifier)
                  lambda: daily_dsa.update_problem(tmp_path, COURSE, {'id': identifier, 'status': 'solved'})):
         with pytest.raises(ValueError, match='Choose a problem'):
             call()
-    assert not (tmp_path / '.memory/learning.json').exists()
+    assert not (tmp_path / 'user/memory/learning.json').exists()
 
 
 @pytest.mark.parametrize('change', [{'status': 'complete'}, {'status': []}, {'notes': None},
@@ -135,7 +135,7 @@ def test_problem_ids_cannot_open_files_outside_the_catalog(tmp_path, identifier)
 def test_invalid_problem_updates_preserve_saved_progress(tmp_path, change):
     identifier = '01-arrays-strings-hashing/problem-2'
     daily_dsa.update_problem(tmp_path, COURSE, {'id': identifier, 'status': 'attempted', 'notes': 'Keep this note.'})
-    path = tmp_path / '.memory/learning.json'; before = path.read_bytes()
+    path = tmp_path / 'user/memory/learning.json'; before = path.read_bytes()
     with pytest.raises(ValueError):
         daily_dsa.update_problem(tmp_path, COURSE, {'id': identifier, 'status': 'solved', **change})
     assert path.read_bytes() == before
@@ -211,7 +211,7 @@ def test_problem_saves_are_atomic_for_different_questions(tmp_path):
     {'a': {'status': 'todo', 'notes': '', 'updated_at': 'invalid'}}])
 def test_corrupt_sheet_progress_is_reported_without_reset(tmp_path, broken):
     daily_dsa.daily(tmp_path, COURSE, today=DAY)
-    path = tmp_path / '.memory/learning.json'
+    path = tmp_path / 'user/memory/learning.json'
     data = json.loads(path.read_text()); data['dsa']['problems'] = broken
     path.write_text(json.dumps(data)); before = path.read_bytes()
     with pytest.raises(ValueError, match='not been reset'):
@@ -238,7 +238,7 @@ def test_completion_requires_checklist_and_retries_award_once(tmp_path):
     {'task': 'practice', 'problem': []}, {'task': 'complete', 'done': False}])
 def test_invalid_changes_do_not_mutate_saved_progress(tmp_path, change):
     daily_dsa.daily(tmp_path, COURSE, today=DAY)
-    path = tmp_path / '.memory/learning.json'; before = path.read_bytes()
+    path = tmp_path / 'user/memory/learning.json'; before = path.read_bytes()
     with pytest.raises(ValueError):
         daily_dsa.update(tmp_path, COURSE, {'date': DAY.isoformat(), 'topic': 'hashing', 'task': 'read', 'done': True, **change}, today=DAY)
     assert path.read_bytes() == before
@@ -288,9 +288,9 @@ def test_existing_progress_survives_initialization(tmp_path):
 def test_missing_content_and_corrupt_progress_are_not_reset(tmp_path):
     with pytest.raises(ValueError, match='missing'):
         daily_dsa.daily(tmp_path, tmp_path / 'absent', today=DAY)
-    assert not (tmp_path / '.memory/learning.json').exists()
+    assert not (tmp_path / 'user/memory/learning.json').exists()
     daily_dsa.daily(tmp_path, COURSE, today=DAY)
-    path = tmp_path / '.memory/learning.json'
+    path = tmp_path / 'user/memory/learning.json'
     data = json.loads(path.read_text()); data['dsa']['days'][DAY.isoformat()]['practiced'] = 'broken'
     path.write_text(json.dumps(data)); before = path.read_bytes()
     with pytest.raises(ValueError, match='not been reset'):

@@ -113,7 +113,7 @@ def _validate(data):
 
 
 def _transact(root, change=None):
-    folder = Path(root) / '.memory'
+    folder = Path(root) / 'user/memory'
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / _FILE
     with _LOCK, (folder / 'code-practice.lock').open('a') as lock:

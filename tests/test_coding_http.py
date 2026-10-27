@@ -17,7 +17,7 @@ KEY = 'dsa/01-arrays-strings-hashing/problem-1'
 @pytest.fixture
 def coding_app(app, monkeypatch):
     root = dashboard.state.APPLY
-    monkeypatch.setattr(dashboard.state, 'COURSE', Path(__file__).parents[2] / 'course')
+    monkeypatch.setattr(dashboard.state, 'COURSE', Path(__file__).parents[2] / 'database/course')
     monkeypatch.setattr(dashboard.state, 'STUDIED', root / 'old-studied.json')
     calls = []
     def run(body, *, tests=None):

@@ -28,7 +28,7 @@ def workspace(tmp_path, monkeypatch):
     course = state.COURSE / '01-system-design'; course.mkdir(parents=True)
     (state.COURSE / '_sidebar.md').write_text('- **Systems**\n  - [Introduction](01-system-design/intro.md)\n')
     (course / 'intro.md').write_text('# Introduction\nA saved lesson.')
-    weeks = tmp_path / '.research/learning/weeks'; weeks.mkdir(parents=True)
+    weeks = tmp_path / 'user/research/learning/weeks'; weeks.mkdir(parents=True)
     (weeks / 'week-01.md').write_text('''# Week 1
 
 ## Day 1: Client and server
@@ -99,7 +99,7 @@ def test_reopened_day_is_available_to_finish_again(workspace):
 
 
 def test_stored_legacy_progress_and_course_status_are_preserved(workspace):
-    progress = workspace / '.research/learning/progress.json'
+    progress = workspace / 'user/research/learning/progress.json'
     progress.write_text('{"done":[1],"start":"2026-10-20"}')
     state.STUDIED.parent.mkdir(parents=True)
     state.STUDIED.write_text('["01-system-design/intro.md"]')
@@ -111,7 +111,7 @@ def test_stored_legacy_progress_and_course_status_are_preserved(workspace):
 
 
 def test_missing_plan_is_explicit_and_course_still_works(workspace):
-    path = workspace / '.research/learning/weeks/week-01.md'
+    path = workspace / 'user/research/learning/weeks/week-01.md'
     path.unlink()
     result = daily_learning.daily(today=DAY)
     assert not result['plan']['available'] and not result['plan']['content_html']
@@ -131,7 +131,7 @@ def test_unavailable_selected_day_does_not_substitute_a_different_reading(worksp
 
 def test_missing_completed_reading_preserves_its_known_completion(workspace):
     complete(workspace)
-    (workspace / '.research/learning/weeks/week-01.md').unlink()
+    (workspace / 'user/research/learning/weeks/week-01.md').unlink()
     result = daily_learning.daily(today=DAY)['plan']
     assert result['day'] == 1 and result['read'] and result['completed'] == 1
     assert not result['available'] and result['content_html'] == ''
@@ -139,7 +139,7 @@ def test_missing_completed_reading_preserves_its_known_completion(workspace):
 
 def test_extras_only_include_the_selected_local_date(workspace):
     for date in [DAY, DAY - dt.timedelta(days=1)]:
-        folder = workspace / f'.research/daily/{date}'; folder.mkdir(parents=True)
+        folder = workspace / f'user/research/daily/{date}'; folder.mkdir(parents=True)
         (folder / '01-goal.md').write_text('# A real learning goal\nRead and reflect.')
         (folder / '02-system-design.md').write_text('# A real design reading\nCompare two choices.')
     identifier = f'research/daily/{DAY}/01-goal.md'
@@ -151,7 +151,7 @@ def test_extras_only_include_the_selected_local_date(workspace):
 
 
 def saved_briefing(root, date, *, filenames=None):
-    folder = root / f'.research/daily/{date}'
+    folder = root / f'user/research/daily/{date}'
     folder.mkdir(parents=True, exist_ok=True)
     for filename in filenames or ['README.md', '01-goal.md', '02-system-design.md',
                                    '03-papers.md', '04-tech-news.md', '05-companies.md']:
@@ -199,7 +199,7 @@ def test_priority_readings_never_replace_missing_today_with_an_older_briefing(wo
 
 def test_saved_goal_is_distinct_from_plan_aliases_and_shares_existing_completion(workspace):
     saved_briefing(workspace, DAY)
-    learning = workspace / '.research/learning'
+    learning = workspace / 'user/research/learning'
     (learning / 'daily').mkdir()
     (learning / 'today.md').write_text('# Learning Day 1\n\nThe plan alias.')
     (learning / f'daily/{DAY}.md').write_text('# Learning Day 1\n\nThe same plan day.')
@@ -243,7 +243,7 @@ def test_archive_filters_saved_day_before_pagination_without_using_modification_
     yesterday = DAY - dt.timedelta(days=1)
     saved_briefing(workspace, yesterday)
     saved_briefing(workspace, DAY)
-    legacy = workspace / f'.research/daily/{yesterday}.md'
+    legacy = workspace / f'user/research/daily/{yesterday}.md'
     legacy.write_text('# An older standalone daily note\n\nSaved earlier.')
     result = dashboard_data.artifacts({'date': yesterday.isoformat(), 'size': '2', 'page': '2'})
     assert result['total'] == 7 and result['pages'] == 4 and len(result['items']) == 2
@@ -264,7 +264,7 @@ def test_archive_rejects_invalid_dates(workspace, date):
 
 
 def test_archive_dates_include_legacy_notes_but_ignore_invalid_calendar_folders(workspace):
-    daily = workspace / '.research/daily'
+    daily = workspace / 'user/research/daily'
     daily.mkdir(parents=True)
     (daily / f'{DAY}.md').write_text('# A standalone daily note')
     saved_briefing(workspace, '2026-02-30')

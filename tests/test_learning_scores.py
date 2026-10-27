@@ -106,7 +106,7 @@ def test_badges_count_unique_verified_problems_and_real_submission_consistency(t
 
 @pytest.mark.parametrize('contents', ['{broken', '{"version":99}', '{"version":1,"drafts":{},"submissions":[{}]}'])
 def test_corruption_never_resets_saved_file(tmp_path, contents):
-    folder = tmp_path / '.memory'; folder.mkdir()
+    folder = tmp_path / 'user/memory'; folder.mkdir(parents=True)
     path = folder / 'code-practice.json'; path.write_text(contents)
     with pytest.raises(ValueError, match='not been reset'):
         scores.summary(tmp_path)
@@ -124,5 +124,5 @@ def test_concurrent_drafts_and_submissions_do_not_overwrite_each_other(tmp_path)
     assert len(results) == result['totals']['attempts'] == result['totals']['verified_solves'] == 24
     assert result['today']['score'] == 2400
     assert all(scores.get_draft(tmp_path, f'dsa/arrays/problem-{i + 1}', 'python')['code'] == str(i) for i in range(24))
-    stored = json.loads((tmp_path / '.memory/code-practice.json').read_text())
+    stored = json.loads((tmp_path / 'user/memory/code-practice.json').read_text())
     assert len(stored['submissions']) == len(stored['drafts']) == 24

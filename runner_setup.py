@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 
 import yaml
 
+from common import paths
 from common.profile import ProfileError, extract_pdf_text
 
 
@@ -23,8 +24,11 @@ class SetupError(ValueError):
 
 def private_root(root):
     root = Path(root).resolve()
-    current = root
-    for part in ('data', 'private', 'runner'):
+    # Snapshots live inside the person's private user repo (user/ by default,
+    # MORROW_USER_DIR otherwise); private/runner/ is gitignored there.
+    user = Path(paths.user_dir())
+    current, parts = (Path(user.anchor), user.parts[1:]) if user.is_absolute() else (root, user.parts)
+    for part in (*parts, 'private', 'runner'):
         current /= part
         if current.is_symlink():
             raise SetupError(409, 'The private runner folder cannot be a symbolic link.')

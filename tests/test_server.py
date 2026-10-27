@@ -165,7 +165,7 @@ def test_file_saving_is_versioned_and_backed_up(app):
     _, original = request(app, 'GET', '/api/file?name=profile')
     assert request(app, 'POST', '/api/file', {'name': 'profile', 'revision': original['revision'], 'text': 'name: After\n'})[0] == 200
     assert app[1].read_text() == 'name: After\n'
-    backups = list((app[1].parent / 'data/inputs/backups').glob('*.bak'))
+    backups = list((app[1].parent / 'user/inputs/backups').glob('*.bak'))
     assert len(backups) == 1 and backups[0].read_text() == 'name: Before\n'
     assert request(app, 'POST', '/api/file', {'name': 'profile', 'revision': original['revision'], 'text': 'stale edit'})[0] == 409
     assert app[1].read_text() == 'name: After\n'
@@ -349,7 +349,7 @@ def test_course_legacy_deep_links_redirect_to_the_hash_reader(app,monkeypatch):
 
 
 def test_research_progress_endpoint_is_local_validated_and_durable(app,monkeypatch):
-    root=app[1].parent/'.research/learning/weeks';root.mkdir(parents=True)
+    root=app[1].parent/ 'user/research/learning/weeks';root.mkdir(parents=True)
     (root/'week-01.md').write_text('## Day 1: First lesson\nRead this.\n\n## Day 2: Second lesson\nRead next.')
     monkeypatch.setattr(dashboard.state,'STUDIED',app[1].parent/'studied.json')
     assert request(app,'GET','/api/document?id=plan/day-1')[1]['read'] is False
@@ -365,7 +365,7 @@ def test_research_progress_endpoint_is_local_validated_and_durable(app,monkeypat
         assert request((second,app[1]),'GET','/api/document?id=plan/day-1')[1]['read'] is True
     finally:
         second.shutdown();second.server_close();thread.join()
-    saved=json.loads((app[1].parent/'.memory/learning.json').read_text())
+    saved=json.loads((app[1].parent/ 'user/memory/learning.json').read_text())
     assert saved['plan']['done']==[1] and len(saved['history'])==1
 
 

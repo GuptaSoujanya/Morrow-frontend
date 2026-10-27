@@ -17,8 +17,8 @@ DAY = "2026-10-23"
 
 
 def checkpoint(tmp_path, entry, **days):
-    path = tmp_path / ".memory" / "progress.json"
-    path.parent.mkdir(exist_ok=True)
+    path = tmp_path / "user/memory" / "progress.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"days": {DAY: entry, **days}}))
     return path
 
@@ -71,7 +71,7 @@ def test_missing_checkpoint_has_no_invented_steps_and_never_creates_file(tmp_pat
     data = read(tmp_path)
     assert data["status"] == "not started" and data["stages"] == []
     assert data["latest_error"] is None and data["resume"]["available"] is False
-    assert data["watch"] and not (tmp_path / ".memory").exists()
+    assert data["watch"] and not (tmp_path / "user/memory").exists()
 
 
 def test_http_date_query_selects_the_checkpoint_and_rejects_empty_or_invalid_dates(app):

@@ -16,7 +16,7 @@ import learning_practice as practice
 
 REAL_ASK = practice.ai_cli.ask
 
-COURSE = Path(__file__).parents[2] / 'course'
+COURSE = Path(__file__).parents[2] / 'database/course'
 DAY = dt.date(2026, 10, 26)
 
 
@@ -26,11 +26,11 @@ def workspace(tmp_path, monkeypatch):
     def no_cli(*args, **kwargs):
         raise AssertionError('Tests must not invoke a real AI CLI.')
     monkeypatch.setattr(practice.ai_cli, 'ask', no_cli)
-    weeks = tmp_path / '.research/learning/weeks'
+    weeks = tmp_path / 'user/research/learning/weeks'
     weeks.mkdir(parents=True)
     (weeks / 'week-01.md').write_text('# Week 1\n\n## Day 1: Client and server\nA client sends a request.\n\n## Day 2: Caching\nA cache stores reusable results.\n')
     for date in (DAY - dt.timedelta(days=2), DAY):
-        directory = tmp_path / '.research/daily' / str(date)
+        directory = tmp_path / 'user/research/daily' / str(date)
         directory.mkdir(parents=True)
         (directory / '03-papers.md').write_text(f'# Research papers {date}\nA saved paper measures retrieval accuracy. Its limited sample does not establish general performance.\n')
     return tmp_path
@@ -85,7 +85,7 @@ def test_daily_sources_are_current_dsa_first_unfinished_plan_and_oldest_unread_p
         calls.append(context(prompt))
         return response(prompt)
     memory.transact(workspace)
-    before = (workspace / '.memory/learning.json').read_bytes()
+    before = (workspace / 'user/memory/learning.json').read_bytes()
     result = practice.generate(workspace, COURSE, 'daily', today=DAY, ask=ask)
     saved = papers(result)
     assert len(calls) == len(saved) == 3 and result['daily']['status'] == 'ready'
@@ -96,7 +96,7 @@ def test_daily_sources_are_current_dsa_first_unfinished_plan_and_oldest_unread_p
     assert all(value['questions'][0]['reference_answer'] for value in saved.values())
     assert all(call['pending_sources'] for call in calls)
     assert not result['daily']['needs_generation'] and not result['daily']['automatic_ready']
-    assert (workspace / '.memory/learning.json').read_bytes() == before
+    assert (workspace / 'user/memory/learning.json').read_bytes() == before
 
 
 def test_incomplete_papers_and_answers_carry_forward_without_new_ai_calls(workspace):
@@ -139,10 +139,10 @@ def test_submission_is_explicit_complete_idempotent_and_rejects_late_edits(works
     with pytest.raises(ValueError, match='every question'):
         practice.update(workspace, COURSE, {'paper_id': value['id'], 'completed': True}, today=DAY)
     submitted = submit(workspace, value)
-    before = (workspace / '.memory/practice.json').read_bytes()
+    before = (workspace / 'user/memory/practice.json').read_bytes()
     again = practice.update(workspace, COURSE, {'paper_id': value['id'], 'completed': True}, today=DAY + dt.timedelta(days=1))
     assert again['completed_at'] == submitted['completed_at']
-    assert (workspace / '.memory/practice.json').read_bytes() == before
+    assert (workspace / 'user/memory/practice.json').read_bytes() == before
     with pytest.raises(practice.Conflict, match='already submitted'):
         practice.update(workspace, COURSE, {'paper_id': value['id'], 'question_id': 'q1', 'answer': 'A replacement answer.'}, today=DAY)
     with pytest.raises(ValueError, match='question'):
@@ -194,8 +194,8 @@ def test_weekly_exam_only_uses_completed_current_sources_in_last_seven_days(work
 
 
 def test_missing_research_is_blocked_and_never_fabricated(workspace):
-    for path in (workspace / '.research/daily').glob('*/03-papers.md'):
-        mark(workspace, 'research/' + path.relative_to(workspace / '.research').as_posix())
+    for path in (workspace / 'user/research/daily').glob('*/03-papers.md'):
+        mark(workspace, 'research/' + path.relative_to(workspace / 'user/research').as_posix())
     seen = []
     def ask(prompt):
         seen.append(context(prompt)['kind'])
@@ -207,7 +207,7 @@ def test_missing_research_is_blocked_and_never_fabricated(workspace):
 
 
 def test_missing_first_learning_day_does_not_jump_to_day_two(workspace):
-    path = workspace / '.research/learning/weeks/week-01.md'
+    path = workspace / 'user/research/learning/weeks/week-01.md'
     path.write_text('## Day 2: Caching\nA real second lesson.\n')
     result = practice.generate(workspace, COURSE, 'daily', today=DAY + dt.timedelta(days=20), ask=response)
     assert result['daily']['papers'][1]['status'] == 'blocked'
@@ -311,7 +311,7 @@ def test_superseded_worker_cannot_overwrite_recovered_generation(workspace):
 
 
 def test_source_context_is_bounded_and_omits_contact_details(workspace):
-    path = workspace / '.research/learning/weeks/week-01.md'
+    path = workspace / 'user/research/learning/weeks/week-01.md'
     path.write_text('## Day 1: Learning\nContact someone@example.test or +91 9876543210.\n' + 'A saved concept. ' * 2000)
     seen = []
     def ask(prompt):
@@ -350,7 +350,7 @@ def test_production_generation_uses_configured_cli_without_tools(workspace, monk
 
 def test_corrupt_practice_storage_is_not_reset(workspace):
     practice.status(workspace, COURSE, today=DAY)
-    path = workspace / '.memory/practice.json'
+    path = workspace / 'user/memory/practice.json'
     path.write_text('{broken')
     with pytest.raises(ValueError, match='not been reset'):
         practice.status(workspace, COURSE, today=DAY)
@@ -360,10 +360,10 @@ def test_corrupt_practice_storage_is_not_reset(workspace):
 def test_automatic_settings_read_has_no_side_effects_and_invalid_settings_fail_closed(tmp_path):
     assert practice.get_settings(tmp_path) == {'automatic': False}
     assert not practice.automatic_enabled(tmp_path)
-    assert not (tmp_path / '.memory').exists()
+    assert not (tmp_path / 'user/memory').exists()
     practice.settings(tmp_path, {'automatic': True})
     assert practice.automatic_enabled(tmp_path)
-    path = tmp_path / '.memory/practice.json'
+    path = tmp_path / 'user/memory/practice.json'
     data = json.loads(path.read_text())
     data['settings']['automatic'] = 'yes'
     path.write_text(json.dumps(data))

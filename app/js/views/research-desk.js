@@ -51,7 +51,7 @@ function sourceSection(section,day,query,refresh){
     h('p',{class:'research-source-path',text:section.path}));
 }
 function compactLink(item,query,label){
-  return h('a',{class:'document-item research-row',href:href(item.id,query)},avatar(item.category==='Resume research'?43:25,'research-row-art'),h('div',{class:'research-row-copy'},h('strong',{text:label||item.title}),h('small',{text:'.research/'+item.path})),item.read?h('span',{class:'pill pill-ok',text:'Complete'}):null,icon('arrow-up-right','icon icon-sm'));
+  return h('a',{class:'document-item research-row',href:href(item.id,query)},avatar(item.category==='Resume research'?43:25,'research-row-art'),h('div',{class:'research-row-copy'},h('strong',{text:label||item.title}),h('small',{text:'user/research/'+item.path})),item.read?h('span',{class:'pill pill-ok',text:'Complete'}):null,icon('arrow-up-right','icon icon-sm'));
 }
 function runningNotice(){
   return S.status?.run?.running?h('div',{class:'inline-notice',role:'status'},h('strong',{text:S.status.run.label+' is running.'}),' Follow the output in Activity. Saved content remains readable; new results appear when the run finishes.'):null;
@@ -83,5 +83,5 @@ export function renderResearchDesk(data,{view,query,refresh,completed,stats,save
   return [h('section',{class:'resume-lab-intro'},avatar(43,'digest-art'),h('div',{},h('p',{class:'eyebrow',text:'FROM YOUR EXPERIENCE. FOR YOUR NEXT INTERVIEW.'}),h('h2',{text:'Know your resume inside out.'}),h('p',{text:'A separate learning library for the systems, tools and projects in your saved resume.'})),progressRing(read,resume.topics.length,'topics read')),
     statStrip([[resume.topics.length,'saved topics'],[read,'completed'],[resume.topics.length-read,'left to explore']]),
     h('div',{class:'research-learning-tools'},resume.index?h('a',{class:'btn',href:href(resume.index.id,query),text:'Open resume README'}):null,fetchButton('Update resume library','research:resume',b.date,refresh)),runningNotice(),
-    panel('Your resume topics',{sub:'Read, practice and mark each topic complete. Your progress stays in .memory.'},resume.topics.length?resume.topics.map(item=>compactLink(item,query)):empty('No resume learning topics are saved yet. Update the resume library to generate them from your saved resume.')),saved].filter(Boolean);
+    panel('Your resume topics',{sub:'Read, practice and mark each topic complete. Your progress stays in user/memory.'},resume.topics.length?resume.topics.map(item=>compactLink(item,query)):empty('No resume learning topics are saved yet. Update the resume library to generate them from your saved resume.')),saved].filter(Boolean);
 }

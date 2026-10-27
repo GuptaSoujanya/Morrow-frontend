@@ -71,7 +71,7 @@ def test_missing_database_has_no_invented_records(tmp_path):
 def library(tmp_path,monkeypatch):
     monkeypatch.setattr(data.state,'APPLY',tmp_path)
     monkeypatch.setattr(data.state,'REPORTS',tmp_path/'reports')
-    root=tmp_path/'.research';root.mkdir()
+    root=tmp_path/ 'user/research';root.mkdir(parents=True)
     (root/'safe.md').write_text('# Learning notes\n\n<script>alert(1)</script>\n\n[Next](next.md)\n\n![remote](https://remote.example/a.png)\n\n[External](https://example.com)')
     (root/'next.md').write_text('# Next lesson\n\nSafe text')
     outside=tmp_path/'private.md';outside.write_text('Do not expose')
@@ -160,7 +160,7 @@ def test_data_inventory_reports_corrupt_sources_without_losing_other_collections
     bad=root/'bad.db';bad.write_text('not a database')
     monkeypatch.setattr(data.state,'database',lambda:bad)
     monkeypatch.setattr(data.state,'RESUMES',root/'resumes')
-    (root/'.memory').mkdir();(root/'.memory/progress.json').write_text('[]')
+    (root/ 'user/memory').mkdir(parents=True);(root/ 'user/memory/progress.json').write_text('[]')
     result=data.inventory({})
     by_id={s['id']:s for s in result['sources']}
     assert by_id['applications']['count'] is None and by_id['applications']['error']

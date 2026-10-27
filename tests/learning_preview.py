@@ -82,8 +82,8 @@ with TemporaryDirectory(prefix='morrow-learning-ui-') as folder:
     dashboard.state.APPLY = Path(folder)
     dashboard.state.STUDIED = Path(folder) / 'old-studied.json'
     dashboard.state.REPORTS = Path(folder) / 'data/reports'
-    dashboard.state.COURSE = ROOT.parent / 'course'
-    weeks = Path(folder) / '.research/learning/weeks'
+    dashboard.state.COURSE = ROOT.parent / 'database/course'
+    weeks = Path(folder) / 'user/research/learning/weeks'
     weeks.mkdir(parents=True)
     (weeks / 'week-01.md').write_text('''# Week 1: Building a learning habit
 
@@ -110,7 +110,7 @@ and describe when reusing a result is safe.
 Describe how a retry can repeat a job. Explain how an idempotency key prevents
 duplicate effects, and compare a retryable failure with an invalid request.
 ''', encoding='utf-8')
-    daily = Path(folder) / '.research/daily' / dt.date.today().isoformat()
+    daily = Path(folder) / 'user/research/daily' / dt.date.today().isoformat()
     daily.mkdir(parents=True)
     for filename, title, body in [
         ('README.md', 'Your daily briefing', 'A saved reading list for today.\n\n## Read, reflect, and apply\nWork through the five daily sections.'),
@@ -127,7 +127,7 @@ duplicate effects, and compare a retryable failure with an invalid request.
     older = daily.parent / (dt.date.today() - dt.timedelta(days=2)).isoformat()
     older.mkdir()
     (older / '03-papers.md').write_text('# Earlier evaluation methods\n\n## Comparing experiments\nDescribe the metric, baseline, and limits of an evaluation.\n', encoding='utf-8')
-    resume = Path(folder) / '.research/resume-learning'
+    resume = Path(folder) / 'user/research/resume-learning'
     resume.mkdir(parents=True)
     (resume / 'README.md').write_text('# Resume learning\n\n[Evaluation](01-evaluation.md)\n\n[Serving](02-serving.md)\n', encoding='utf-8')
     (resume / '01-evaluation.md').write_text('# Explain your evaluation work\n\n## Evidence and trade-offs\nDescribe the metric, baseline, and decision from a project.\n', encoding='utf-8')

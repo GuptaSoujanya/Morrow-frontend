@@ -22,7 +22,7 @@ import learning_practice as practice
 import learning_scores as scores
 from common import learning_activity, learning_memory as memory
 
-COURSE = Path(__file__).parents[2] / 'course'
+COURSE = Path(__file__).parents[2] / 'database/course'
 DAY = dt.date(2026, 10, 26)
 PROBLEM = '01-arrays-strings-hashing/problem-1'
 KEY = 'dsa/' + PROBLEM
@@ -131,7 +131,7 @@ def test_ai_binding_rejects_problem_from_another_source_in_same_paper(tmp_path):
     with pytest.raises(ValueError, match='question’s saved DSA topics'):
         practice._generated(json.dumps(raw), 3, [HASHING, TREES])
     save_paper(tmp_path, sources=[HASHING, TREES], problem_ids=[PROBLEM, None, None])
-    path = tmp_path / '.memory/practice.json'
+    path = tmp_path / 'user/memory/practice.json'
     stored = json.loads(path.read_text())
     stored['papers'][PAPER_ID]['questions'][0]['problem_id'] = '05-trees-bst/problem-1'
     path.write_text(json.dumps(stored))
@@ -236,7 +236,7 @@ def test_invalid_submission_id_rejected_before_runner_or_draft_write(tmp_path, r
     with pytest.raises(ValueError, match='valid submission identifier'):
         coding.execute(tmp_path, COURSE, body)
     assert runner.calls == []
-    assert not (tmp_path / '.memory/code-practice.json').exists()
+    assert not (tmp_path / 'user/memory/code-practice.json').exists()
 
 
 @pytest.mark.parametrize('stdin', ['{broken', '[1,]', '"unterminated', '[' * 2_000 + ']' * 1_999],
@@ -245,7 +245,7 @@ def test_malformed_custom_input_rejected_before_runner_or_draft_write(tmp_path, 
     with pytest.raises(ValueError, match='valid JSON'):
         coding.execute(tmp_path, COURSE, payload(action='custom', stdin=stdin))
     assert runner.calls == []
-    assert not (tmp_path / '.memory/code-practice.json').exists()
+    assert not (tmp_path / 'user/memory/code-practice.json').exists()
 
 
 def test_caller_cannot_supply_test_cases_or_score_totals(tmp_path, runner):

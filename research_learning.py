@@ -5,6 +5,7 @@ import re
 from common import learning_memory as memory
 from pipeline.learning import split_days, week_of
 from web import state
+from common import paths
 
 
 def saved():
@@ -14,7 +15,7 @@ def saved():
 def plan_document(day):
     if not 1 <= day <= 90:
         raise ValueError("Choose a learning day between 1 and 90.")
-    root = state.APPLY / ".research/learning"
+    root = state.APPLY/paths.user_dir()/"research/learning"
     path = root / "weeks" / f"week-{week_of(day):02d}.md"
     if not path.is_file() or not path.resolve().is_relative_to(root.resolve()):
         raise ValueError(f"Day {day} has no saved reading material yet. Generate the learning plan from Research agents.")
@@ -38,7 +39,7 @@ def document_info(identifier, items=None):
         raise ValueError("This document is not available in the library.")
     info = {**item, "key": identifier, "day": None}
     if identifier.startswith("research/learning/daily/") or identifier == "research/learning/today.md":
-        text = (state.APPLY / ".research" / item["path"]).read_text(encoding="utf-8")
+        text = (state.APPLY/paths.user_dir()/"research" / item["path"]).read_text(encoding="utf-8")
         match = re.search(r"^#{1,2} .*?\bDay (\d+)\b", text[:1500], re.M)
         if match and 1 <= int(match[1]) <= 90:
             info["day"] = int(match[1])
@@ -56,13 +57,13 @@ def mark(identifier, done):
         raise ValueError("read must be true or false")
     info = document_info(identifier)
     memory.set_document(state.APPLY, info["key"], info["title"], done, info.get("day"))
-    return {"ok": True, "read": done, "storage": ".memory/learning.json"}
+    return {"ok": True, "read": done, "storage": "user/memory/learning.json"}
 
 
 def brief_document(item, data):
     if not item:
         return None
-    path = state.APPLY / '.research' / item['path']
+    path = state.APPLY/paths.user_dir()/'research' / item['path']
     text = path.read_text(encoding='utf-8')
     def plain(value):
         value = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', value)
@@ -91,7 +92,7 @@ def daily_research(items, data, selected):
     definitions = [('digest', 'Daily digest', 'README.md', 'brief'), ('papers', 'Papers', '03-papers.md', 'brief:papers'),
                    ('tech', 'Tech radar', '04-tech-news.md', 'brief:tech-news'), ('companies', 'Company radar', '05-companies.md', 'brief:companies'),
                    ('goal', 'Daily learning goal', '01-goal.md', 'brief:goal'), ('design', 'System design deep dive', '02-system-design.md', 'brief:system-design')]
-    sections = [{'key': key, 'title': title, 'group': group, 'path': '.research/' + folder + filename,
+    sections = [{'key': key, 'title': title, 'group': group, 'path': 'user/research/' + folder + filename,
                  'document': brief_document(by_path.get(folder + filename), data)} for key, title, filename, group in definitions]
     known = {folder + filename for _, _, filename, _ in definitions}
     extra = [brief_document(item, data) for item in items if (item['path'].startswith(folder) and item['path'] not in known) or item['path'] == f'daily/{selected}.md']
@@ -167,4 +168,4 @@ def summary(params=None):
             "imported": [{"id": key, "kind": kind, **value} for kind in ("course", "documents") for key, value in data[kind].items() if value.get("imported") and value.get("done")],
             "legacy_plan_days": [n for n in done if f"plan/day-{n}" not in data["documents"]],
             "history": {"items": history[(page - 1) * size:page * size], "page": page, "pages": pages, "total": len(history), "size": size},
-            "storage": ".memory/learning.json"}
+            "storage": "user/memory/learning.json"}

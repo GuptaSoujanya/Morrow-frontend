@@ -23,18 +23,18 @@ def _complete(args):
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    for key, relative in [('APPLY','.'),('COURSE','course'),('REPORTS','data/reports'),('STUDIED','data/reports/studied.json')]:
+    for key, relative in [('APPLY','.'),('COURSE','course'),('REPORTS','user/reports'),('STUDIED','user/reports/studied.json')]:
         monkeypatch.setattr(state, key, tmp_path / relative)
     course = tmp_path / 'course';course.mkdir()
     (course / '_sidebar.md').write_text('- **Systems**\n  - [Introduction](intro.md)\n')
     (course / 'intro.md').write_text('# Introduction\nA lesson.')
-    root = tmp_path / '.research/learning';(root / 'weeks').mkdir(parents=True)
+    root = tmp_path / 'user/research/learning';(root / 'weeks').mkdir(parents=True)
     (root / 'weeks/week-01.md').write_text('# Week 1\n\n## Day 1: Client and server\nRead the first topic.\n\n## Day 2: Caching\nRead the second topic.\n')
     (root / 'progress.json').write_text('{"start":"2026-10-22"}')
     (root / 'daily').mkdir()
     (root / 'daily/2026-10-22.md').write_text('# 2026-10-22: Day 1 of 90\n## Day 1: Client and server\nRead.')
     (root / 'today.md').write_text('# 2026-10-23: Day 1 of 90\n## Day 1: Client and server\nRead.')
-    brief = tmp_path / '.research/daily/2026-10-22';brief.mkdir(parents=True)
+    brief = tmp_path / 'user/research/daily/2026-10-22';brief.mkdir(parents=True)
     (brief / 'README.md').write_text('# Saved briefing\nA real dated briefing.')
     return tmp_path
 
@@ -42,13 +42,13 @@ def workspace(tmp_path, monkeypatch):
 def test_migrates_legacy_progress_once_and_preserves_originals(workspace):
     state.STUDIED.parent.mkdir(parents=True)
     state.STUDIED.write_text('["intro.md"]')
-    path = workspace / '.research/learning/progress.json'
+    path = workspace / 'user/research/learning/progress.json'
     path.write_text('{"done":[1],"start":"2026-10-22"}')
     data = memory.transact(workspace)
     assert data['course']['intro.md']['done'] and data['plan']['done'] == [1]
     assert 'completed_at' not in data['course']['intro.md']
     assert data['history'] == []
-    assert (workspace / '.memory/learning.json').is_file()
+    assert (workspace / 'user/memory/learning.json').is_file()
     state.mark_studied('intro.md',False)
     assert not state.studied()
     assert state.STUDIED.read_text() == '["intro.md"]'
@@ -79,7 +79,7 @@ def test_daily_direction_aliases_and_history_are_consistent(workspace):
 
 
 def test_cli_and_dashboard_use_the_same_locked_progress(workspace):
-    root = workspace / '.research/learning'
+    root = workspace / 'user/research/learning'
     assert learning.mark_done(root) == 1
     assert research_learning.summary()['focus']['day'] == 2
     assert learning.mark_done(root) == 1  # same-day CLI retry remains idempotent
@@ -100,7 +100,7 @@ def test_independent_processes_do_not_lose_each_others_progress(workspace):
 
 def test_corruption_is_reported_and_never_reset(workspace):
     memory.transact(workspace)
-    path = workspace / '.memory/learning.json';path.write_text('{damaged')
+    path = workspace / 'user/memory/learning.json';path.write_text('{damaged')
     with pytest.raises(ValueError,match='not been reset'):
         state.mark_studied('intro.md')
     assert path.read_text() == '{damaged'
@@ -108,7 +108,7 @@ def test_corruption_is_reported_and_never_reset(workspace):
 
 def test_failed_atomic_replace_preserves_previous_commit(workspace,monkeypatch):
     memory.set_course(workspace,'intro.md',True)
-    path=workspace/'.memory/learning.json';before=path.read_bytes()
+    path=workspace/ 'user/memory/learning.json';before=path.read_bytes()
     def fail(*args):raise OSError('Disk unavailable')
     monkeypatch.setattr(memory.os,'replace',fail)
     with pytest.raises(OSError):memory.set_course(workspace,'intro.md',False)
@@ -135,13 +135,13 @@ def test_history_is_bounded_and_survives_reload(workspace):
 
 def test_malformed_history_is_reported_without_overwriting(workspace):
     data=memory.transact(workspace);data['history']=[{'action':'completed'}]
-    path=workspace/'.memory/learning.json';path.write_text(json.dumps(data));before=path.read_bytes()
+    path=workspace/ 'user/memory/learning.json';path.write_text(json.dumps(data));before=path.read_bytes()
     with pytest.raises(ValueError,match='history.*not been reset'):research_learning.summary()
     assert path.read_bytes()==before
 
 
 def test_daily_desk_exposes_each_source_without_substituting_another_date(workspace):
-    folder=workspace/'.research/daily/2026-10-22'
+    folder=workspace/ 'user/research/daily/2026-10-22'
     for filename,title in [('01-goal.md','Goal'),('02-system-design.md','Design'),('03-papers.md','Papers'),('04-tech-news.md','Tech news'),('05-companies.md','Companies')]:
         (folder/filename).write_text(f'# {title}\n\n## First saved section\nA real note.\n\n## Second saved section\nMore detail.')
     old=research_learning.summary({'date':'2026-10-22'})['briefing']
@@ -157,7 +157,7 @@ def test_daily_desk_exposes_each_source_without_substituting_another_date(worksp
 
 
 def test_resume_learning_has_its_own_topics_and_a_complete_index(workspace):
-    root=workspace/'.research/resume-learning';root.mkdir()
+    root=workspace/ 'user/research/resume-learning';root.mkdir(parents=True)
     for number,title in [(1,'Evaluation'),(2,'Serving'),(3,'Infrastructure')]:
         (root/f'{number:02}-topic.md').write_text(f'# {title}\n\n## Core concepts\nAn explanation.')
     learning.write_resume_index(root)

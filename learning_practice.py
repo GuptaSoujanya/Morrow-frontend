@@ -60,7 +60,7 @@ def _initial():
 
 
 def _validate(data):
-    message = 'Invalid .memory/practice.json. Your saved practice has not been reset.'
+    message = 'Invalid user/memory/practice.json. Your saved practice has not been reset.'
     if (not isinstance(data, dict) or data.get('version') != 1
             or any(not isinstance(data.get(key), dict) for key in ('settings', 'papers', 'sets', 'answers', 'jobs', 'metadata'))
             or type(data['settings'].get('automatic')) is not bool):
@@ -105,7 +105,7 @@ def _validate(data):
 
 
 def _transact(root, change=None):
-    folder = Path(root) / '.memory'
+    folder = Path(root) / 'user/memory'
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / 'practice.json'
     with _LOCK, (folder / 'practice.lock').open('a') as lock:
@@ -113,7 +113,7 @@ def _transact(root, change=None):
         try:
             data = _validate(json.loads(path.read_text(encoding='utf-8'))) if path.exists() else _initial()
         except (OSError, json.JSONDecodeError) as exc:
-            raise ValueError('Cannot read .memory/practice.json. Your saved practice has not been reset.') from exc
+            raise ValueError('Cannot read user/memory/practice.json. Your saved practice has not been reset.') from exc
         before = json.dumps(data, sort_keys=True)
         if change:
             change(data)
@@ -164,7 +164,7 @@ def _source(identifier, title, text, read, route, completed_at=None):
 
 
 def _plan_source(root, day, data):
-    base = Path(root) / '.research/learning'
+    base = Path(root) / 'user/research/learning'
     text = split_days(_read(base / 'weeks' / f'week-{week_of(day):02d}.md', base)).get(day)
     if not text:
         raise ValueError(f'Learning day {day} has no saved material. Prepare that day before generating practice.')
@@ -184,7 +184,7 @@ def _dsa_source(course, topic, data, as_of):
 
 
 def _research_sources(root, data, day):
-    base = Path(root) / '.research'
+    base = Path(root) / 'user/research'
     sources = []
     for path in sorted((base / 'daily').glob('*/03-papers.md')):
         try:
@@ -244,7 +244,7 @@ def _contexts(root, course, day, mode, window_start=None, window_end=None):
                     sources['learning'].append(_plan_source(root, int(match[1]), data))
                 elif identifier.startswith(('research/learning/', 'research/resume-learning/')):
                     relative = identifier.removeprefix('research/')
-                    text = _read(Path(root) / '.research' / relative, Path(root) / '.research')
+                    text = _read(Path(root) / 'user/research' / relative, Path(root) / 'user/research')
                     sources['learning'].append(_source(identifier, record.get('title') or relative, text, True,
                                                        '#/learning/read/' + quote(identifier, safe='') + '?from=library', record['completed_at']))
             except (ValueError, OSError):
@@ -384,7 +384,7 @@ def settings(root, body):
 def get_settings(root):
     """Read only the opt-in flag, without scanning sources or creating state."""
     try:
-        data = json.loads((Path(root) / '.memory/practice.json').read_text(encoding='utf-8'))
+        data = json.loads((Path(root) / 'user/memory/practice.json').read_text(encoding='utf-8'))
     except FileNotFoundError:
         return {'automatic': False}
     except (OSError, json.JSONDecodeError) as exc:
@@ -415,7 +415,7 @@ def reconcile_jobs(root, runner_snapshot):
         match = re.search(r'(?:^|\s)--generate (daily|weekly)(?:\s|$)', run.get('shown', ''))
         if match and (match[1] not in latest or timestamp(run.get('started_at')) >= timestamp(latest[match[1]].get('started_at'))):
             latest[match[1]] = run
-    if not latest and not (Path(root) / '.memory/practice.json').exists():
+    if not latest and not (Path(root) / 'user/memory/practice.json').exists():
         return
     def reconcile(data):
         _recover(data)

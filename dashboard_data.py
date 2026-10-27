@@ -5,6 +5,7 @@ import sqlite3
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 from web import state
+from common import paths
 
 SUBMITTED = {'applied','applied_platform','applied_external'}
 BOARDS = {'all','naukri','hirist','instahyre','cutshort','wellfound','external'}
@@ -55,11 +56,11 @@ def inventory(input_files, params=None):
             result = state._query(db, f'SELECT COUNT(*) AS total FROM {table}')
             item['count'] = result[0]['total'] if result else 0
         except (sqlite3.Error, OSError): item.update(count=None, error='The ledger could not be read. Try refreshing.')
-    research = source('research', 'Research notes', state.APPLY/'.research', '#/research', 25, 'Briefings, learning plans and deep dives.')
+    research = source('research', 'Research notes', state.APPLY/paths.user_dir()/'research', '#/research', 25, 'Briefings, learning plans and deep dives.')
     try:
         for item in artifacts()['items']:
             is_research = item['id'].startswith('research/')
-            path = (state.APPLY/'.research' if is_research else state.REPORTS)/item['path']
+            path = (state.APPLY/paths.user_dir()/'research' if is_research else state.REPORTS)/item['path']
             files.append(file_metadata(path, 'Research' if is_research else 'Drafts', item['title'], '#/research/'+quote(item['id'], safe='')))
             if is_research: research['count'] += 1
     except OSError: research['error'] = 'Some research files could not be read.'
@@ -72,7 +73,7 @@ def inventory(input_files, params=None):
             files.append(file_metadata(path, 'Reports', 'Report · '+day, '#/reports/'+day))
             reports['count'] += 1
     except OSError: reports['error'] = 'Some reports could not be read.'
-    profiles = source('profile', 'Profile & answers', state.APPLY/'data/inputs', '#/files/profile', 20, 'The saved facts and answers your crew uses.')
+    profiles = source('profile', 'Profile & answers', state.APPLY/paths.user_dir()/'inputs', '#/files/profile', 20, 'The saved facts and answers your crew uses.')
     for key, title in [('profile','Your profile'),('answers','Screening answers'),('company_sites','Company follow-ups')]:
         path = input_files.get(key)
         try:
@@ -87,14 +88,14 @@ def inventory(input_files, params=None):
             files.append(file_metadata(path, 'Resumes', title, '/api/resume-file?file='+quote(path.relative_to(state.RESUMES).as_posix(), safe='')))
             resumes['count'] += 1
     except OSError: resumes['error'] = 'Some resume files could not be read.'
-    checkpoint = state.APPLY/'.memory/progress.json'
+    checkpoint = state.APPLY/paths.user_dir()/'memory/progress.json'
     flows = source('flows', 'Flow checkpoint', checkpoint, '#/pipeline', 28, 'Recorded daily stages and their saved progress.')
     try:
         saved = read_json(checkpoint, {})
         flows['count'] = len(saved.get('days', {}))
         if checkpoint.is_file(): files.append(file_metadata(checkpoint, 'Automation', 'Flow checkpoint', '#/pipeline'))
     except (OSError, ValueError): flows.update(count=None, error='The saved checkpoint could not be read.')
-    learning = state.APPLY / '.memory/learning.json'
+    learning = state.APPLY/paths.user_dir()/'memory/learning.json'
     if learning.is_file():
         files.append(file_metadata(learning, 'Research', 'Learning progress & completion history', '#/research?view=progress'))
     result = {'sources': sources, 'files': sorted(files, key=lambda f:f['updated_at'], reverse=True),
@@ -183,7 +184,7 @@ def read_json(path, default):
 
 def workspace():
     root=state.APPLY
-    checkpoint=read_json(root/'.memory/progress.json',{})
+    checkpoint=read_json(root/'user/memory/progress.json',{})
     today=dt.date.today().isoformat()
     entry=checkpoint.get('days',{}).get(today,{})
     stages=entry.get('stages',{})
@@ -198,7 +199,7 @@ def workspace():
 
 def artifacts(params=None):
     items=[]
-    for prefix,root,pattern in [('research',state.APPLY/'.research','**/*.md'),('email',state.REPORTS,'*/emails/*.eml')]:
+    for prefix,root,pattern in [('research',state.APPLY/paths.user_dir()/'research','**/*.md'),('email',state.REPORTS,'*/emails/*.eml')]:
         if not root.is_dir(): continue
         for path in root.glob(pattern):
             resolved=path.resolve()
@@ -245,11 +246,11 @@ def artifact(identifier):
     info = research_learning.document_info(identifier)
     prefix,sep,relative=str(identifier).partition('/')
     if not sep or prefix not in ('research','email','plan'): raise ValueError('Choose a generated document.')
-    root=(state.APPLY/'.research') if prefix=='research' else state.REPORTS
+    root=(state.APPLY/paths.user_dir()/'research') if prefix=='research' else state.REPORTS
     path=(root/relative).resolve()
     allowed={item['id']:item for item in artifacts()['items']}
     if prefix == 'plan':
-        root = state.APPLY / '.research'
+        root = state.APPLY/paths.user_dir()/'research'
         path = info['file'].resolve()
         allowed[identifier] = info
     if identifier not in allowed or not path.is_relative_to(root.resolve()): raise ValueError('This document is not available in the library.')

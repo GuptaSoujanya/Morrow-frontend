@@ -44,7 +44,7 @@ def sync(tmp_path, runner=None, user=OWNER, owner=True, data=None, content=PDF, 
 
 
 def test_owner_snapshot_is_private_immutable_and_selected_for_runtime(tmp_path):
-    original = tmp_path / "data/inputs/profile.yaml"
+    original = tmp_path / "user/inputs/profile.yaml"
     original.parent.mkdir(parents=True)
     original.write_text("full_name: Original untouched\n")
     result = sync(tmp_path)
@@ -72,7 +72,7 @@ def test_other_user_cannot_select_shared_runner_inputs(tmp_path):
     assert result["saved"] and not result["automation_available"]
     assert runner_inputs.runtime_environment(tmp_path, OWNER["email"]) == owner_env
     assert runner_inputs.runtime_environment(tmp_path, USER["email"]) == {}
-    assert (tmp_path / "data/private/runner" / USER["tenant_id"] / "current.json").is_file()
+    assert (tmp_path / "user/private/runner" / USER["tenant_id"] / "current.json").is_file()
 
 
 def test_active_owner_job_blocks_switch_but_nonowner_can_save_private_snapshot(tmp_path):
@@ -82,7 +82,7 @@ def test_active_owner_job_blocks_switch_but_nonowner_can_save_private_snapshot(t
         sync(tmp_path, runner=runner)
     assert list(tmp_path.iterdir()) == []
     assert sync(tmp_path, runner=runner, user=USER, owner=False)["saved"]
-    assert not (tmp_path / "data/private/runner/active-owner.json").exists()
+    assert not (tmp_path / "user/private/runner/active-owner.json").exists()
 
 
 @pytest.mark.parametrize("expected,status", [({}, 400), ({"version": 1, "profile_version": 3}, 409),
@@ -118,7 +118,7 @@ def test_client_identity_never_becomes_a_path(tmp_path, bad):
     assert list(tmp_path.iterdir()) == []
 
 
-@pytest.mark.parametrize("part", ["data", "data/private", "data/private/runner", "data/private/runner/" + OWNER["tenant_id"]])
+@pytest.mark.parametrize("part", ["user", "user/private", "user/private/runner", "user/private/runner/" + OWNER["tenant_id"]])
 def test_input_symlinks_cannot_escape_private_workspace(tmp_path, part):
     outside = tmp_path / "other-location"
     outside.mkdir()
@@ -135,7 +135,7 @@ def test_runtime_rejects_symlink_replacement_after_setup(tmp_path, part):
     sync(tmp_path)
     env = runner_inputs.runtime_environment(tmp_path, OWNER["email"])
     profile = Path(env["PROFILE_PATH"])
-    paths = {"manifest": tmp_path / "data/private/runner/active-owner.json", "tenant": profile.parent.parent,
+    paths = {"manifest": tmp_path / "user/private/runner/active-owner.json", "tenant": profile.parent.parent,
              "snapshot": profile.parent, "profile": profile, "resume": Path(env["RESUME_PATH"])}
     selected = paths[part]
     replacement = selected.with_name(selected.name + "-saved")
@@ -148,7 +148,7 @@ def test_runtime_rejects_symlink_replacement_after_setup(tmp_path, part):
 @pytest.mark.parametrize("field", ["tenant", "snapshot"])
 def test_runtime_manifest_traversal_cannot_select_another_path(tmp_path, field):
     sync(tmp_path)
-    manifest = tmp_path / "data/private/runner/active-owner.json"
+    manifest = tmp_path / "user/private/runner/active-owner.json"
     value = json.loads(manifest.read_text())
     value[field] = "../../other-user"
     manifest.write_text(json.dumps(value))
@@ -243,7 +243,7 @@ def test_runner_setup_http_ordinary_account_cannot_activate_legacy_worker(app):
     app[0].account_bridge = Bridge(USER, False)
     status, result = request(app, "POST", "/api/runner/setup", EXPECTED)
     assert status == 200 and not result["automation_available"]
-    assert not (app[1].parent / "data/private/runner/active-owner.json").exists()
+    assert not (app[1].parent / "user/private/runner/active-owner.json").exists()
     assert request(app, "POST", "/api/run", {"action": "naukri", "options": {}})[0] == 403
 
 
@@ -258,7 +258,7 @@ def test_runner_setup_http_rejects_signedout_cross_origin_and_deleted_artifacts(
     assert bridge.calls == []
     bridge.artifact_status = 404
     assert request(app, "POST", "/api/runner/setup", EXPECTED)[0] == 409
-    assert not (app[1].parent / "data/private/runner").exists()
+    assert not (app[1].parent / "user/private/runner").exists()
 
 
 def test_real_pdf_setup_handoff_and_scanned_replacement_leave_active_snapshot_intact(tmp_path, monkeypatch):

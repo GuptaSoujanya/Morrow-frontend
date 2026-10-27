@@ -137,7 +137,7 @@ def test_open_check_close_reuses_exact_profile_on_one_worker_thread(manager):
     checked = row(wait(service))
     assert checked["state"] == "connected" and checked["verified_account"] == "test@example.com"
     assert len(opened) == 1
-    assert Path(opened[0][0]) == service.root / "data/browser/naukri"
+    assert Path(opened[0][0]) == service.root / "user/browser/naukri"
     service.action(USER, True, "google", "close")
     closed = row(wait(service))
     assert closed["state"] == "connected" and not closed["browser_open"]
@@ -154,7 +154,7 @@ def test_tenant_sessions_never_use_owner_profiles_or_leak_between_accounts(manag
     assert row(other, "naukri")["browser_open"] is False
     assert other["automation_available"] is False
     assert USER["tenant_id"] in opened[0][0]
-    assert opened[0][0] != str(service.root / "data/browser/naukri")
+    assert opened[0][0] != str(service.root / "user/browser/naukri")
 
 
 def test_shared_window_targets_one_provider_and_preserves_other_site_tabs(manager):
@@ -339,8 +339,8 @@ def test_owner_lane_maps_to_actual_pipeline_profile_without_copying_main(manager
     service.action(USER, True, "hirist", "open", {"scope": "lane:hirist"})
     data = wait(service, scope="lane:hirist")
     assert {item["id"] for item in data["connections"]} == {"google", "hirist"}
-    assert opened[0][0] == str(service.root / "data/browser/lanes/hirist")
-    assert not (service.root / "data/browser/naukri").exists()
+    assert opened[0][0] == str(service.root / "user/browser/lanes/hirist")
+    assert not (service.root / "user/browser/naukri").exists()
 
 
 @pytest.mark.parametrize("user,provider,operation,payload", [
@@ -364,7 +364,7 @@ def test_symlink_cannot_import_personal_chrome(manager, tmp_path):
     service, opened = manager
     target = service.root / "personal"
     target.mkdir()
-    linked = service.root / "data/browser/naukri"
+    linked = service.root / "user/browser/naukri"
     linked.parent.mkdir(parents=True)
     linked.symlink_to(target, target_is_directory=True)
     with pytest.raises(service_module.ConnectionError, match="link"):
@@ -382,7 +382,7 @@ def test_active_run_and_chrome_profile_locks_block_connection(manager):
     assert "Activity" in row(status)["fix"]
     assert row(status, "linkedin")["can_open"] and row(status, "linkedin")["busy_reason"] == ""
     service.runner.runs = []
-    profile = service.root / "data/browser/naukri/chrome"
+    profile = service.root / "user/browser/naukri/chrome"
     profile.mkdir(parents=True)
     (profile / "SingletonLock").symlink_to("host-999999")
     with pytest.raises(service_module.ConnectionError, match="already open"):
@@ -425,7 +425,7 @@ def test_main_sign_in_does_not_block_an_independent_board_lane(manager):
 
 def test_dead_local_linkedin_lock_allows_open_without_deleting_leftover_profile_links(manager, monkeypatch):
     service, opened = manager
-    profile = service.root / "data/browser/linkedin/chrome"
+    profile = service.root / "user/browser/linkedin/chrome"
     profile.mkdir(parents=True)
     targets = {"SingletonLock": "synthetic-local-host-654321", "SingletonSocket": "/synthetic/missing/socket", "SingletonCookie": "synthetic-cookie"}
     for name, target in targets.items():
@@ -461,7 +461,7 @@ def test_dead_local_linkedin_lock_allows_open_without_deleting_leftover_profile_
 ])
 def test_live_local_profile_lock_blocks_only_its_own_browser_group(manager, monkeypatch, locked_provider, free_provider, directory):
     service, opened = manager
-    profile = service.root / "data/browser" / directory / "chrome"
+    profile = service.root / "user/browser" / directory / "chrome"
     profile.mkdir(parents=True)
     (profile / "SingletonLock").symlink_to("synthetic-local-host-654322")
     monkeypatch.setattr(browser.socket, "gethostname", lambda: "synthetic-local-host")

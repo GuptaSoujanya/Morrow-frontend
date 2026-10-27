@@ -30,7 +30,7 @@ import learning_practice
 import coding_practice
 import local_code_runner
 import learning_scores
-from common import learning_activity, learning_memory
+from common import learning_activity, learning_memory, paths
 import pipeline_status as flow_status
 from connections import ConnectionService, ConnectionError
 import runner_setup
@@ -535,7 +535,7 @@ class DashboardHandler(server.Handler):
                 original = path.read_text() if path.exists() else ""
                 if data.get("revision") != revision(original):
                     return self.error(HTTPStatus.CONFLICT, "This file changed since you opened it. Reload before saving; your draft is still available.")
-                backup = state.APPLY / "data" / "inputs" / "backups"
+                backup = state.APPLY / paths.user_dir() / "inputs" / "backups"
                 backup.mkdir(parents=True, exist_ok=True)
                 if path.exists():
                     target = backup / f"dashboard-{data['name']}-{dt.datetime.now():%Y%m%d-%H%M%S-%f}.bak"
