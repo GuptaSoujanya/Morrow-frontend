@@ -79,6 +79,8 @@ def execute(root, course, body, *, studied=None):
     language, code = body.get('language'), body.get('code')
     if language not in ('python', 'javascript', 'cpp') or not isinstance(code, str) or not code.strip() or len(code) > 100_000:
         raise ValueError('Choose Python, JavaScript, or C++ and enter up to 100,000 characters of code.')
+    if code.strip() == problem['starter'][language].strip():
+        raise ValueError('Write your solution before running or submitting. The starter template is not a solution.')
     stdin = body.get('stdin', '{}')
     if not isinstance(stdin, str) or len(stdin) > 20_000:
         raise ValueError('Keep custom input to 20,000 characters of JSON.')

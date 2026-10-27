@@ -146,12 +146,14 @@ def test_catalog_covers_every_real_sheet_problem_and_matching_title():
         public = catalog.problem(identifier)
         assert public['title'] == title
         assert public['input_spec'] and public['output_spec'] and public['constraints']
-        assert public['test_count'] == 4
+        assert public['test_count'] == 8
+        assert public['complexity']['time'] and public['complexity']['space']
         assert public['sample_count'] == len(public['samples']) == 1
         assert 'cases' not in public
         assert all(case['sample'] for case in public['samples'])
-        assert len(catalog.cases(identifier)) == 4
-        assert len({json.dumps(case['input'], sort_keys=True) for case in catalog.cases(identifier)}) == 4
+        assert len(catalog.cases(identifier)) == 8
+        assert len({json.dumps(case['input'], sort_keys=True) for case in catalog.cases(identifier)}) == 8
+        assert sum(case.get('category') == 'stress' for case in catalog.cases(identifier)) == 4
         assert set(public['starter']) == {'python', 'javascript', 'cpp'}
         assert 'def solve(input):' in public['starter']['python']
         assert 'function solve(input)' in public['starter']['javascript']

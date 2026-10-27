@@ -34,6 +34,15 @@ def execute(app, action='submit', code='correct', **extra):
     return request(app, 'POST', '/api/learning/code/execute', {'key': KEY, 'language': 'python', 'code': code, 'action': action, **extra})
 
 
+def test_empty_or_untouched_solution_is_a_validation_error(coding_app):
+    app, calls = coding_app
+    descriptor = request(app, 'GET', '/api/learning/code/problem?key=' + quote(KEY))[1]
+    for source in ('', '   ', descriptor['starter']['python']):
+        status, result = execute(app, code=source)
+        assert status == 400 and result['error']
+    assert calls == []
+
+
 def test_drafts_are_separate_by_language_and_never_score(coding_app):
     app, calls = coding_app
     for language, code in [('python', 'print(True)'), ('javascript', 'console.log(true)')]:

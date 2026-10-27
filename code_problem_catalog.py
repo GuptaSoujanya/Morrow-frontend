@@ -9,6 +9,7 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 import math
+from code_judge_data import complexity, scale_cases
 
 
 _BANK = {}
@@ -34,15 +35,18 @@ def _add(chapter, number, title, input_spec, output_spec, fixtures,
     _BANK[identifier] = {
         'id': identifier, 'title': title, 'input_spec': input_spec,
         'output_spec': output_spec, 'constraints': [constraints, _BASE_LIMIT],
-        'comparison': comparison,
+        'comparison': comparison, 'complexity': complexity(chapter, number),
         'judge_note': ('Tests check returned values; they do not prove time complexity or '
-                       'which algorithm you used. Submit includes additional local test cases. '
+                       'which algorithm you used. Submit includes edge cases and larger inputs with time and memory limits. '
                        'These cases are stored on your computer, not kept secret by a server.'
                        + (' ' + note if note else '')),
         'cases': [{'id': f'case-{index + 1}', 'name': name, 'input': data,
                    'expected': expected, 'comparison': comparison, 'sample': index == 0}
                   for index, (name, data, expected) in enumerate(fixtures)],
     }
+    for case in scale_cases(chapter, number):
+        _BANK[identifier]['cases'].append({**case, 'id': f'case-{len(_BANK[identifier]["cases"]) + 1}',
+                                          'comparison': comparison, 'sample': False})
 
 
 # Arrays, strings, and hashing.

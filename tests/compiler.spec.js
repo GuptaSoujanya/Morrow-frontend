@@ -85,6 +85,117 @@ async function captureAndAudit(page, name, widths = [375, 1440]) {
 }
 async function progress(request) { return (await request.get('/api/learning/code/progress')).json(); }
 
+test('Tab indents, Shift-Tab outdents, and Escape then Tab leaves every language editor', async ({ page }) => {
+  await ready(page);
+  for (const [language, spaces] of [['python', 4], ['javascript', 2], ['cpp', 4]]) {
+    await page.getByRole('combobox', { name: 'Code language', exact: true }).selectOption(language);
+    const editor = page.locator(`.cm-content[aria-label="${names[language]} code editor"]`);
+    await expect(page.getByRole('combobox', { name: 'Code language', exact: true })).toBeEnabled();
+    await editor.click();
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.press('Tab');
+    await expect(editor).toBeFocused();
+    expect(await editor.locator('.cm-line').first().textContent()).toBe(' '.repeat(spaces));
+    await expect(page.locator('.code-cursor-status')).toContainText(`Col ${spaces + 1}`);
+    await page.keyboard.press('Shift+Tab');
+    await expect(editor).toBeFocused();
+    expect(await editor.locator('.cm-line').first().textContent()).toBe('');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Tab');
+    await expect(editor).not.toBeFocused();
+  }
+});
+
+test('Tab accepts autocomplete, keyboard save persists it, and editor tools keep the draft', async ({ page, request }) => {
+  await ready(page);
+  const editor = await setCode(page, 'python', 'def solve(input):\n    ');
+  await editor.click();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.insertText('pri');
+  const completion = page.locator('.cm-tooltip-autocomplete [aria-selected=true] .cm-completionLabel');
+  await expect(completion).toHaveText('print');
+  await page.keyboard.press('Tab');
+  await expect(editor).toBeFocused();
+  await expect(editor.locator('.cm-line').last()).toHaveText('    print');
+  await page.keyboard.insertText('(input)');
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect(page.locator('.code-save-status')).toHaveText('Code saved on this computer');
+  const saved = await (await request.get('/api/learning/code/problem', { params: { key, language: 'python' } })).json();
+  expect(saved.draft.code).toBe('def solve(input):\n    print(input)');
+  await page.getByRole('button', { name: 'Find in code', exact: true }).click();
+  await page.locator('.cm-search input[name=search]').pressSequentially('input');
+  await expect(page.locator('.cm-searchMatch')).toHaveCount(2);
+  await page.keyboard.press('Escape');
+  const wrap = page.getByRole('button', { name: 'Wrap lines', exact: true });
+  await wrap.click();
+  await expect(wrap).toHaveAttribute('aria-pressed', 'false');
+  await expect(editor).not.toHaveClass(/cm-lineWrapping/);
+  await wrap.click();
+  await expect(editor).toHaveClass(/cm-lineWrapping/);
+  await expect(editor).toContainText('print(input)');
+  await page.reload();
+  await expect(page.locator('.cm-content')).toContainText('print(input)');
+});
+
+test('short code fills the editor and long code scrolls with its line numbers', async ({ page }) => {
+  const shortCode = 'def solve(input):\n    return input\n';
+  const longCode = 'def solve(input):\n' + Array.from({ length: 140 }, (_, index) => `    # Line ${index + 1}\n`).join('') + '    return input\n';
+  await ready(page);
+  for (const width of [1440, 375]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const editor = await setCode(page, 'python', shortCode);
+    const scroller = page.locator('.code-editor-host .cm-scroller');
+    await expect.poll(() => scroller.evaluate(element => {
+      const height = element.clientHeight;
+      return ['.cm-content', '.cm-gutters'].map(selector => ({
+        selector, missingHeight: Math.max(0, Math.round(height - element.querySelector(selector).getBoundingClientRect().height)),
+      }));
+    }), { message: 'The editable area and line-number gutter must fill the visible editor.' }).toEqual([
+      { selector: '.cm-content', missingHeight: 0 }, { selector: '.cm-gutters', missingHeight: 0 },
+    ]);
+    await editor.click({ position: { x: 100, y: 260 } });
+    await expect(editor).toBeFocused();
+    await page.keyboard.insertText('# Clicked below the last line');
+    await expect(editor).toContainText('# Clicked below the last line');
+    await setCode(page, 'python', longCode);
+    await expect.poll(() => scroller.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+    await scroller.evaluate(element => { element.scrollTop = element.scrollHeight; });
+    await expect(editor.locator('.cm-line').last()).toBeInViewport();
+    await expect.poll(() => scroller.evaluate(element => {
+      const content = element.querySelector('.cm-content').getBoundingClientRect();
+      const gutter = element.querySelector('.cm-gutters').getBoundingClientRect();
+      return Math.abs(content.bottom - gutter.bottom);
+    })).toBeLessThanOrEqual(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  }
+});
+
+test('autocomplete stays readable and accepts Tab on desktop and mobile', async ({ page }) => {
+  await mkdir('artifacts/compiler', { recursive: true });
+  await ready(page);
+  for (const width of [1440, 375]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const editor = await setCode(page, 'python', 'def solve(input):\n    ');
+    await editor.click();
+    await page.keyboard.press('ControlOrMeta+End');
+    await page.keyboard.insertText('pri');
+    const menu = page.locator('.cm-tooltip-autocomplete');
+    await expect(menu).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await page.keyboard.press('Control+Space');
+    await expect(menu).toBeInViewport({ ratio: 1 });
+    await expect(menu.locator('[aria-selected=true] .cm-completionLabel')).toHaveText('print');
+    const audit = await new AxeBuilder({ page }).include('.code-workspace').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(audit.violations.map(item => ({ id: item.id, targets: item.nodes.map(node => node.target) }))).toEqual([]);
+    await page.screenshot({ path: `artifacts/compiler/autocomplete-${width}.png`, animations: 'disabled' });
+    await page.keyboard.press('Tab');
+    await expect(editor).toBeFocused();
+    await expect(editor.locator('.cm-line').last()).toHaveText('    print');
+  }
+});
+
 test('real local runtimes are available and empty coding progress is accessible', async ({ page, request }) => {
   const capability = await (await request.get('/api/learning/code/capabilities')).json();
   expect(capability.available, capability.reason).toBe(true);
@@ -207,14 +318,58 @@ for (const language of ['python', 'javascript', 'cpp']) {
     expect(examples.status).toBe('accepted');
     expect(examples.passed).toBe(examples.total);
     expect(examples.scored).toBe(false);
-    await expect(page.locator('.code-result-head')).toContainText('All tests passed');
+    await expect(page.locator('.code-result-head')).toContainText('Examples passed');
     await page.getByText('Try your own input', { exact: true }).click();
     await page.getByRole('textbox', { name: 'Custom JSON input', exact: true }).fill('{"nums":[-7,0,3,-7]}');
     const custom = await execute(page, 'Run input');
     expect(custom.status).toBe('ok'); expect(custom.stdout.trim()).toBe('true');
+    await expect(page.locator('.code-result-head')).toContainText('Executed · not judged');
     expect(custom.scored).toBe(false); expect((await progress(request)).totals.attempts).toBe(0);
   });
 }
+
+test('empty code and untouched templates show an error without running or scoring', async ({ page, request }) => {
+  await ready(page);
+  const descriptor = await (await request.get('/api/learning/code/problem', { params: { key, language: 'python' } })).json();
+  let executions = 0;
+  page.on('request', request => { if (new URL(request.url()).pathname === '/api/learning/code/execute') executions++; });
+  const before = (await progress(request)).totals.attempts;
+  for (const source of ['', descriptor.starter.python]) {
+    await setCode(page, 'python', source);
+    await page.getByRole('button', { name: 'Run examples', exact: true }).click();
+    await expect(page.locator('.code-output [role=alert]')).toContainText('Write your solution');
+    await page.getByRole('button', { name: 'Submit solution', exact: true }).click();
+    await expect(page.locator('.code-output [role=alert]')).toContainText('Write your solution');
+    await expect(page.locator('.code-result-head')).toHaveCount(0);
+  }
+  expect(executions).toBe(0);
+  expect((await progress(request)).totals.attempts).toBe(before);
+});
+
+test('wrong answers expose input and types; debug prints do not replace returned answers', async ({ page, request }) => {
+  await ready(page);
+  const before = (await progress(request)).totals.attempts;
+  await setCode(page, 'python', 'def solve(input):\n    print(True)\n    return "true"\n');
+  const wrong = await execute(page, 'Run examples');
+  expect(wrong.verdict).toBe('wrong_answer');
+  await expect(page.locator('.code-result-head')).toContainText('Wrong answer');
+  await expect(page.getByRole('region', { name: 'Test 1 input', exact: true })).toContainText('nums');
+  await expect(page.getByRole('region', { name: 'Test 1 expected output', exact: true })).toHaveText('true');
+  await expect(page.getByRole('region', { name: 'Test 1 actual output', exact: true })).toHaveText('"true"');
+  await expect(page.getByRole('region', { name: 'Test 1 debug output', exact: true })).toContainText('True');
+  await expect(page.locator('.code-metrics').first()).toContainText('Peak memory');
+  await page.getByText('Time & space complexity targets', { exact: true }).click();
+  await expect(page.locator('.code-complexity')).toContainText('O(n)');
+  await expect(page.locator('.code-complexity')).toContainText('not an analysis of your code');
+  await captureAndAudit(page, 'wrong-answer-details');
+  await setCode(page, 'python', solutions.python.replace('    nums', '    print("debugging")\n    nums'));
+  await expect(page.locator('.code-result-head')).toHaveCount(0);
+  const correct = await execute(page, 'Run examples');
+  expect(correct.status).toBe('accepted');
+  expect(correct.tests[0].debug_stdout).toContain('debugging');
+  await expect(page.locator('.code-result-head')).toContainText('Examples passed');
+  expect((await progress(request)).totals.attempts).toBe(before);
+});
 
 test('runtime errors and timeouts show diagnostics without scoring a practice run', async ({ page, request }) => {
   test.setTimeout(60000);
@@ -225,11 +380,11 @@ test('runtime errors and timeouts show diagnostics without scoring a practice ru
   await setCode(page, 'python', 'def solve(input):\n    while True:\n        pass\n');
   const timeout = await execute(page, 'Run examples');
   expect(timeout.tests[0].status).toBe('timeout');
-  await expect(page.locator('.code-test summary')).toContainText('timeout');
+  await expect(page.locator('.code-test summary')).toContainText('Time limit exceeded');
   await setCode(page, 'cpp', 'int main( {\n');
   const compileError = await execute(page, 'Run examples');
   expect(compileError.status).toBe('compile_error');
-  await expect(page.locator('.code-result-head')).toContainText('compile error');
+  await expect(page.locator('.code-result-head')).toContainText('Compilation error');
   expect((await progress(request)).totals.attempts).toBe(0);
   await captureAndAudit(page, 'execution-failure');
 });

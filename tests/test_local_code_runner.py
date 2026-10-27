@@ -52,12 +52,14 @@ def test_real_languages_return_stdout(supported, language, code):
     assert json.loads(result['stdout']) == 6
 
 
-def test_runtime_errors_and_invalid_json_do_not_pass(supported):
+def test_runtime_errors_fail_and_debug_output_does_not_corrupt_return_value(supported):
     error = run('def solve(data): raise ValueError("Try a valid index")')
     assert error['status'] == 'runtime_error' and 'Try a valid index' in error['stderr']
     result = runner.execute({'language': 'python', 'code': 'def solve(data):\n print("debug")\n return 6'},
         tests=[{'id': 'sample', 'input': {}, 'expected': 6}])
-    assert result['passed'] == 0 and result['tests'][0]['status'] == 'invalid_output'
+    assert result['passed'] == 1 and result['tests'][0]['status'] == 'accepted'
+    assert result['tests'][0]['debug_stdout'] == 'debug\n'
+    assert result['tests'][0]['actual'] == 6
 
 
 def test_compile_error(supported):
@@ -72,6 +74,61 @@ def test_parent_judges_each_case_and_strict_types(supported):
         {'id': 'three', 'input': {'value': [2, 1]}, 'expected': [1, 2], 'comparison': 'unordered'}])
     assert result['status'] == 'failed' and result['passed'] == 2 and result['total'] == 3
     assert [item['passed'] for item in result['tests']] == [True, False, True]
+    assert result['verdict'] == result['tests'][1]['status'] == 'wrong_answer'
+    assert result['tests'][1]['input'] == {'value': True}
+    assert result['runtime_ms'] > 0 and result['peak_memory_bytes'] > 0
+
+
+@pytest.mark.parametrize('language,source', [
+    ('python', 'def solve(input):\n    pass'),
+    ('javascript', 'function solve(input) {}'),
+    ('cpp', 'int main() {}'),
+])
+def test_unimplemented_solution_never_passes_a_boolean_test(supported, language, source):
+    result = runner.execute({'language': language, 'code': source},
+                            tests=[{'id': 'empty', 'input': {}, 'expected': True}])
+    assert result['passed'] == 0 and result['status'] == 'failed'
+    assert result['tests'][0]['status'] != 'ok'
+
+
+@pytest.mark.parametrize('language,source', [
+    ('python', 'def solve(input):\n print("true")\n return "true"'),
+    ('javascript', 'function solve(input) { console.log(true); return "true"; }'),
+])
+def test_printed_correct_answer_cannot_hide_incorrect_return_type(supported, language, source):
+    result = runner.execute({'language': language, 'code': source},
+                            tests=[{'id': 'types', 'input': {}, 'expected': True}])
+    assert result['verdict'] == 'wrong_answer' and result['passed'] == 0
+    assert result['tests'][0]['actual'] == 'true'
+    assert result['tests'][0]['debug_stdout'].strip() == 'true'
+
+
+def test_exiting_without_return_cannot_reuse_previous_case_answer(supported):
+    source = 'import os\ndef solve(input):\n if input["stop"]: os._exit(0)\n return 7'
+    result = runner.execute({'language': 'python', 'code': source}, tests=[
+        {'id': 'returned', 'input': {'stop': False}, 'expected': 7},
+        {'id': 'missing', 'input': {'stop': True}, 'expected': 7}])
+    assert result['passed'] == 1
+    assert result['tests'][1]['status'] == 'invalid_output'
+
+
+@pytest.mark.parametrize('kind', ['symlink', 'fifo'])
+def test_return_channel_cannot_read_a_link_or_block_on_a_pipe(supported, kind):
+    source = ('import os, sys\ndef solve(input):\n path = sys.argv[2]\n os.unlink(path)\n '
+              + ('os.symlink("/etc/passwd", path)' if kind == 'symlink' else 'os.mkfifo(path)')
+              + '\n os._exit(0)')
+    result = run(source)
+    assert result['status'] == 'invalid_output'
+    assert result['stdout'] == ''
+
+
+def test_slow_exponential_solution_hits_limit_on_larger_inputs(supported):
+    import code_problem_catalog as catalog
+    source = 'def solve(input):\n def stairs(n):\n  return 1 if n <= 1 else stairs(n-1) + stairs(n-2)\n return stairs(input["n"])'
+    result = runner.execute({'language': 'python', 'code': source}, tests=catalog.cases('09-dynamic-programming/problem-1'))
+    assert result['status'] == 'failed'
+    assert any(case['status'] == 'timeout' and case['category'] == 'stress' for case in result['tests'])
+    assert result['passed'] < result['total']
 
 
 def test_timeout_and_output_limits(supported):
@@ -201,7 +258,7 @@ def test_cpp_starter_reads_named_json_fields_and_returns_algorithm_result(suppor
     }
     return json::array();''')
     result = runner.execute({'language': 'cpp', 'code': source}, tests=catalog.cases(identifier))
-    assert result['status'] == 'accepted' and result['passed'] == result['total'] == 4, result
+    assert result['status'] == 'accepted' and result['passed'] == result['total'] == len(catalog.cases(identifier)), result
 
 
 def test_bundled_cpp_header_matches_official_pinned_release():

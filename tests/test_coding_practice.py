@@ -26,6 +26,7 @@ COURSE = Path(__file__).parents[2] / 'database/course'
 DAY = dt.date(2026, 10, 26)
 PROBLEM = '01-arrays-strings-hashing/problem-1'
 KEY = 'dsa/' + PROBLEM
+CASE_COUNT = len(catalog.cases(PROBLEM))
 PAPER_ID = 'p-' + 'a' * 32
 PAPER_KEY = 'practice/' + PAPER_ID + '/q1'
 HASHING = {'id': 'dsa/hashing', 'title': 'Hash sets & frequency maps', 'read': True,
@@ -51,7 +52,7 @@ def no_external_execution(monkeypatch):
 
 @pytest.fixture
 def runner(monkeypatch):
-    state = SimpleNamespace(passed=4, status=None, calls=[])
+    state = SimpleNamespace(passed=CASE_COUNT, status=None, calls=[])
     def execute(payload, tests=None):
         state.calls.append({'payload': deepcopy(payload), 'tests': deepcopy(tests)})
         if state.status == 'unavailable':
@@ -74,6 +75,16 @@ def runner(monkeypatch):
 def payload(key=KEY, *, action='submit', code='pass', identifier=None, **extra):
     return {'key': key, 'language': 'python', 'code': code, 'action': action,
             **({'submission_id': identifier} if identifier is not None else {}), **extra}
+
+
+@pytest.mark.parametrize('language', ['python', 'javascript', 'cpp'])
+@pytest.mark.parametrize('action', ['samples', 'custom', 'submit'])
+def test_untouched_template_is_rejected_before_execution_or_credit(tmp_path, runner, language, action):
+    starter = catalog.problem(PROBLEM)['starter'][language]
+    with pytest.raises(ValueError, match='Write your solution'):
+        coding.execute(tmp_path, COURSE, payload(action=action, language=language, code='\n' + starter + '\n'))
+    assert runner.calls == []
+    assert scores.summary(tmp_path, DAY)['totals']['attempts'] == 0
 
 
 def raw_paper(*, references=None, problem_ids=None):
@@ -151,13 +162,13 @@ def test_ai_binding_rejects_unknown_or_invalid_problem_ids(identifier):
 
 def test_saved_paper_and_sheet_share_daily_best_score_without_double_credit(tmp_path, runner, clock):
     save_paper(tmp_path, problem_ids=[PROBLEM, None, None])
-    runner.passed = 2
+    runner.passed = CASE_COUNT // 2
     first = coding.execute(tmp_path, COURSE, payload(PAPER_KEY, identifier='paper-half'))
-    assert first['scored'] and first['passed'] == 2 and first['total'] == 4
+    assert first['scored'] and first['passed'] == CASE_COUNT // 2 and first['total'] == CASE_COUNT
     assert first['submission']['score'] == first['submission']['improvement'] == 50
     assert daily_dsa.problem(tmp_path, COURSE, PROBLEM)['status'] == 'attempted'
     assert activity(tmp_path)['xp'] == 0
-    runner.passed = 4
+    runner.passed = CASE_COUNT
     second = coding.execute(tmp_path, COURSE, payload(identifier='sheet-full'))
     assert second['submission']['score'] == 100 and second['submission']['improvement'] == 50
     third = coding.execute(tmp_path, COURSE, payload(PAPER_KEY, identifier='paper-full'))
@@ -189,13 +200,13 @@ def test_practice_runs_save_code_without_awarding_score_or_progress(tmp_path, ru
 
 def test_submit_counts_only_literal_passed_true_for_trusted_cases(tmp_path, monkeypatch, clock):
     def result(payload, tests):
-        assert len(tests) == 4
+        assert len(tests) == CASE_COUNT
         return {'status': 'accepted', 'passed': 4, 'total': 4,
                 'tests': [{'passed': True}, {'passed': 1}, {'passed': 'true'}, {'passed': False}]}
     monkeypatch.setattr(coding.local_code_runner, 'execute', result)
     saved = coding.execute(tmp_path, COURSE, payload())
-    assert saved['passed'] == 1 and saved['total'] == 4
-    assert saved['submission']['score'] == 25 and not saved['submission']['verified']
+    assert saved['passed'] == 1 and saved['total'] == CASE_COUNT
+    assert saved['submission']['score'] == 100 // CASE_COUNT and not saved['submission']['verified']
     assert activity(tmp_path)['xp'] == 0
 
 
@@ -210,10 +221,10 @@ def test_unavailable_runtime_cannot_create_a_scored_attempt(tmp_path, runner, cl
 
 def test_failed_suite_with_unavailable_case_never_records_score_or_attempt(tmp_path, monkeypatch, clock):
     def interrupted(payload, tests):
-        assert len(tests) == 4
+        assert len(tests) == CASE_COUNT
         return {'status': 'failed', 'passed': 1, 'total': 4, 'stdout': '', 'stderr': '',
                 'tests': [{'id': case['id'], 'passed': index == 0,
-                           'status': ['ok', 'unavailable', 'not_run', 'not_run'][index],
+                           'status': 'ok' if index == 0 else 'unavailable' if index == 1 else 'not_run',
                            'stderr': 'The local process could not start.' if index == 1 else ''}
                           for index, case in enumerate(tests)]}
     monkeypatch.setattr(coding.local_code_runner, 'execute', interrupted)

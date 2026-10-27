@@ -16,6 +16,7 @@ import platform
 import selectors
 import shutil
 import signal
+import stat
 import struct
 import subprocess
 import sys
@@ -217,7 +218,7 @@ def _run(command, workspace, stdin='', *, compile=False):
     started = time.monotonic()
     deadline = started + (COMPILE_SECONDS if compile else WALL_SECONDS)
     process = None
-    result = {'status': 'ok', 'stdout': '', 'stderr': '', 'duration_ms': 0, 'exit_code': None}
+    result = {'status': 'ok', 'stdout': '', 'stderr': '', 'duration_ms': 0, 'exit_code': None, 'peak_memory_bytes': None}
     streams = {'stdout': bytearray(), 'stderr': bytearray()}
     selector = selectors.DefaultSelector()
     seccomp = None
@@ -252,7 +253,10 @@ def _run(command, workspace, stdin='', *, compile=False):
             if len(descendants) > 32:
                 result['status'] = 'process_limit'
                 break
-            if sum(_resident_memory(pid) for pid in descendants) > MEMORY_BYTES * (3 if compile else 1):
+            memory = sum(_resident_memory(pid) for pid in descendants)
+            if memory:
+                result['peak_memory_bytes'] = max(result['peak_memory_bytes'] or 0, memory)
+            if memory > MEMORY_BYTES * (3 if compile else 1):
                 result['status'] = 'memory_limit'
                 break
             for key, _ in selector.select(timeout=0.025):
@@ -347,15 +351,45 @@ _PYTHON_WRAPPER = '''import json, sys
 from solution import solve
 value = json.loads(sys.stdin.read() or '{}')
 result = solve(value)
-print(json.dumps(result, allow_nan=False, separators=(',', ':')))
+with open(sys.argv[2], 'w') as output:
+    json.dump(result, output, allow_nan=False, separators=(',', ':'))
 '''
 
 _JAVASCRIPT_WRAPPER = '''\n; Promise.resolve(solve(JSON.parse(require('fs').readFileSync(0, 'utf8') || '{}'))).then(value => {
   const output = JSON.stringify(value);
   if (output === undefined) throw new Error('solve(input) must return a JSON value');
-  process.stdout.write(output + '\\n');
+  require('fs').writeFileSync(process.argv[2], output);
 }).catch(error => { console.error(error && error.stack || String(error)); process.exitCode = 1; });
 '''
+
+
+def _returned_output(result, path):
+    """Read the return channel without confusing debug prints with the answer.
+
+    The child owns this path: never follow links, block on a pipe, or read an
+    unbounded file in the trusted parent. A missing return is not JSON null.
+    """
+    result['debug_stdout'] = result['stdout']
+    result['stdout'] = ''
+    if result['status'] != 'ok':
+        return
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, 'rb') as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode):
+                raise ValueError('No regular result file.')
+            if info.st_size > OUTPUT_LIMIT:
+                result['status'] = 'output_limit'
+                return
+            data = stream.read(OUTPUT_LIMIT + 1)
+        if len(data) + len(result['debug_stdout'].encode()) + len(result['stderr'].encode()) > OUTPUT_LIMIT:
+            result['status'] = 'output_limit'
+            return
+        result['stdout'] = data.decode('utf-8')
+        _strict_json(result['stdout'])
+    except (OSError, ValueError, TypeError, RecursionError):
+        result['status'] = 'invalid_output'
 
 
 def _json_input(value):
@@ -418,15 +452,16 @@ def execute(payload, tests=None):
     started = time.monotonic()
     with _workspace() as directory:
         workspace = Path(directory).resolve()
+        returned = workspace / 'returned.json'
         if language == 'python':
             (workspace / 'solution.py').write_text(code)
             (workspace / 'main.py').write_text(_PYTHON_WRAPPER)
             # -I excludes cwd; explicitly add this new workspace before loading the harness.
             command = [runtimes[language], '-I', '-B', '-c',
-                       'import sys; sys.path.insert(0, sys.argv[1]); import main', str(workspace)]
+                       'import sys; sys.path.insert(0, sys.argv[1]); import main', str(workspace), str(returned)]
         elif language == 'javascript':
             (workspace / 'main.cjs').write_text(code + _JAVASCRIPT_WRAPPER)
-            command = [runtimes[language], '--max-old-space-size=192', str(workspace / 'main.cjs')]
+            command = [runtimes[language], '--max-old-space-size=192', str(workspace / 'main.cjs'), str(returned)]
         else:
             try:
                 (workspace / 'nlohmann').mkdir()
@@ -446,8 +481,23 @@ def execute(payload, tests=None):
             command = [str(workspace / 'program')]
         outcomes = []
         for case, stdin in inputs:
+            # Cases use fresh processes and fresh return channels. An empty
+            # channel cannot inherit an answer from an earlier execution.
+            if language != 'cpp':
+                descriptor, path = tempfile.mkstemp(prefix='returned-', suffix='.json', dir=workspace)
+                os.close(descriptor)
+                returned = Path(path)
+                command[-1] = str(returned)
             result = _run(_command(backend, workspace, command), workspace, stdin)
+            if language != 'cpp':
+                _returned_output(result, returned)
             if case is None:
+                if result['status'] == 'ok':
+                    try:
+                        result['actual'] = _strict_json(result['stdout'].strip())
+                    except (ValueError, TypeError, RecursionError):
+                        result['status'] = 'invalid_output'
+                result['judged'] = False
                 return result
             actual = None
             if result['status'] == 'ok':
@@ -457,15 +507,28 @@ def execute(payload, tests=None):
                     result['status'] = 'invalid_output'
             from code_problem_catalog import matches
             passed = result['status'] == 'ok' and matches(actual, case['expected'], case.get('comparison', 'exact'))
-            outcomes.append({**result, 'id': case['id'], 'passed': passed, 'actual': actual, 'expected': case['expected']})
+            if result['status'] == 'ok':
+                result['status'] = 'accepted' if passed else 'wrong_answer'
+            outcomes.append({**result, 'id': case['id'], 'name': case.get('name', case['id']),
+                             'category': case.get('category', 'sample' if case.get('sample') else 'edge'), 'size': case.get('size'),
+                             'input': case['input'], 'comparison': case.get('comparison', 'exact'),
+                             'passed': passed, 'actual': actual, 'expected': case['expected']})
             # Repeated infinite loops should not multiply the wall-time budget.
             if result['status'] in ('timeout', 'memory_limit', 'output_limit', 'process_limit', 'unavailable') or time.monotonic() - started > TOTAL_SECONDS - WALL_SECONDS:
-                outcomes.extend({'id': pending['id'], 'passed': False, 'status': 'not_run', 'actual': None,
+                outcomes.extend({'id': pending['id'], 'name': pending.get('name', pending['id']),
+                    'category': pending.get('category', 'edge'), 'input': pending['input'],
+                    'passed': False, 'status': 'not_run', 'actual': None,
                     'expected': pending['expected'], 'stdout': '', 'stderr': 'Stopped after an execution limit.', 'duration_ms': 0,
                     'exit_code': None} for pending, _ in inputs[len(outcomes):])
                 break
         passed = sum(item['passed'] for item in outcomes)
         unavailable = next((item for item in outcomes if item['status'] == 'unavailable'), None)
+        failure = next((item for item in outcomes if not item['passed']), None)
         return {'status': 'unavailable' if unavailable else 'accepted' if passed == len(outcomes) else 'failed', 'passed': passed,
+                'verdict': 'unavailable' if unavailable else failure['status'] if failure else 'accepted', 'judged': True,
                 'total': len(outcomes), 'tests': outcomes, 'stdout': outcomes[0]['stdout'],
-                'stderr': unavailable['stderr'] if unavailable else outcomes[0]['stderr'], 'duration_ms': sum(item['duration_ms'] for item in outcomes), 'language': language}
+                'stderr': unavailable['stderr'] if unavailable else '',
+                'duration_ms': sum(item['duration_ms'] for item in outcomes),
+                'runtime_ms': max(item['duration_ms'] for item in outcomes),
+                'peak_memory_bytes': max((item.get('peak_memory_bytes') or 0 for item in outcomes), default=0) or None,
+                'language': language}
