@@ -34,6 +34,7 @@ from common import learning_activity, learning_memory, paths
 import pipeline_status as flow_status
 from connections import ConnectionService, ConnectionError
 import runner_setup
+import user_repo
 
 BOARDS = ("hirist", "instahyre", "cutshort", "wellfound")
 BOT_IDS = ("naukri", *BOARDS, "external", "profile", "linkedin", "linkedin_profile", "cold_email", "resume", "learn", "brief", "research", *(board + '_profile' for board in BOARDS))
@@ -275,6 +276,48 @@ class DashboardHandler(server.Handler):
         self.send(HTTPStatus.NOT_FOUND, body, 'text/html; charset=utf-8')
         return True
 
+    def repo_request(self, path, owner, bridge):
+        """GET /api/runner/repo, POST /api/runner/repo, POST /api/runner/repo/sync (workspace owner only)."""
+        if path not in ('/api/runner/repo', '/api/runner/repo/sync'):
+            return False
+        if not owner:
+            self.error(403, 'Only the workspace owner can connect this computer to a private user repo.')
+            return True
+        try:
+            if path == '/api/runner/repo' and self.command == 'GET':
+                self.json(user_repo.status(state.APPLY))
+                return True
+            if self.command != 'POST':
+                self.error(405, 'Use GET to read the repo status or POST to connect it.')
+                return True
+            if not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
+                self.error(403, 'Only this dashboard can change the private user repo.')
+                return True
+            data = self.body()
+            if path == '/api/runner/repo':
+                if self.server.runner.running:
+                    raise user_repo.RepoError(409, 'A workflow is running. Connect the repo after it stops.')
+                self.json(user_repo.connect(state.APPLY, data.get('repo') or None))
+                return True
+            if bridge is None:
+                raise user_repo.RepoError(404, 'Accounts are disabled in the free beta; edit user/inputs directly.')
+            if not user_repo.status(state.APPLY)['is_repo']:
+                raise user_repo.RepoError(409, 'Connect your private user repo before copying your saved details into it.')
+            setup = bridge.json_request(self, '/api/v1/onboarding')
+            if data.get('version') != setup.get('version') or data.get('profile_version') != setup.get('profile', {}).get('version'):
+                raise user_repo.RepoError(409, 'Your saved setup changed. Reload it before copying it into your repo.')
+            content = b''
+            resume = setup.get('resume')
+            if resume:
+                code, _, content = bridge.request(self, '/api/v1/artifacts/' + str(resume['id']) + '/content')
+                if code != 200:
+                    raise user_repo.RepoError(409, 'The selected resume is no longer available in your account.')
+            with self.server.file_lock:
+                self.json(user_repo.sync_account_inputs(state.APPLY, setup, content))
+        except user_repo.RepoError as exc:
+            self.error(exc.status, str(exc))
+        return True
+
     def account_request(self):
         """Account APIs and tenant adapters run before legacy file/bot handlers."""
         if not self.host_ok():
@@ -291,6 +334,9 @@ class DashboardHandler(server.Handler):
             if url.path == "/api/session":
                 self.json({"mode": "local", "user": None, "legacy_access": True})
                 return True
+            if url.path.startswith('/api/runner/repo'):
+                # The free beta has no account to copy from; connecting the repo still works.
+                return self.repo_request(url.path, owner=True, bridge=None)
             if self.connection_request(owner=True):
                 return True
             return False
@@ -306,6 +352,8 @@ class DashboardHandler(server.Handler):
                 self.error(401, "Sign in to your Morrow account first.")
                 return True
             owner = bridge.is_owner(self, user)
+            if url.path.startswith('/api/runner/repo'):
+                return self.repo_request(url.path, owner, bridge)
             if url.path == '/api/runner/setup':
                 if self.command != 'POST':
                     self.error(405, 'Use POST to prepare this computer.')

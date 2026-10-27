@@ -7,6 +7,7 @@ import { icon } from '../icons.js';
 import { field } from '../forms.js';
 import { panel, loadingState, errorState } from '../components/panel.js';
 import { connectionPanel, PROVIDERS } from '../components/connections.js';
+import { repoPanel } from '../components/user-repo.js';
 
 const steps = ['Your profile', 'Your resume', 'Connect accounts', 'Review setup'];
 let disposeCurrent;
@@ -25,7 +26,7 @@ export function renderOnboarding() {
   const signal = accountRequestSignal();
   let disposed = false, data, step = 0, busy = false, connections, mainConnections, activeConnection, profileDraft, completionDirty = false;
   let focusAfterTask;
-  let selectedPlatforms = [], hints = {}, resumeId = null, artifacts = [];
+  let selectedPlatforms = [], hints = {}, resumeId = null, artifacts = [], repoStatus = null;
   let artifactOffset = 0, moreArtifacts = false;
   const rail = h('nav', { class: 'onboarding-steps', 'aria-label': 'Setup steps' });
   const savedSummary = h('div', { class: 'onboarding-saved-summary', hidden: true });
@@ -289,8 +290,12 @@ export function renderOnboarding() {
         !value.automation_available ? h('p', { class: 'onboarding-runtime-note', text: 'Your account’s setup and browser sessions are private. Workflow execution for this account is not connected to the local runner yet; shared owner workflows remain restricted.' }) : h('p', { class: 'onboarding-runtime-note', text: 'Your local runner is available. Check that your own Claude or Kiro CLI is signed in before running AI-assisted work.' }));
     } });
     const browserDetails = h('details', { class: 'onboarding-review-connections' }, h('summary', { text: 'Review browser connections' }), activeConnection);
+    // The workspace owner also keeps a private git repo (user/) that the CLI bots
+    // read; saved account details are copied into it when setup finishes.
+    const repo = S.legacyAccess ? h('div', { class: 'onboarding-repo' }, h('h3', { text: 'Your private data repo' }),
+      repoPanel({ onChange: value => { repoStatus = value; }, sync: () => api('/api/runner/repo/sync', { version: data.version, profile_version: data.profile.version }) })) : null;
     return panel('04 · Review your setup', { sub: 'Saved setup makes runs easier. Sites can still require a new sign-in, OTP or CAPTCHA.' }, checks, live,
-      browserDetails,
+      browserDetails, repo,
       actions('Finish setup', () => {
         if (profileDirty() || !profileReady()) { profileCheck.setError(profileDirty() ? 'Save your unsaved profile changes before finishing setup.' : 'Complete and save the required profile fields before finishing setup.'); return; }
         if (!selectedResume()) { resumeCheck.setError('Choose and save a resume before finishing setup.'); return; }
@@ -303,6 +308,8 @@ export function renderOnboarding() {
         Object.assign(hints, activeConnection?.getHints()); await savePreferences(false, true);
         if (!current()) return;
         await api('/api/runner/setup', { version: data.version, profile_version: data.profile.version });
+        if (!current()) return;
+        if (S.legacyAccess && repoStatus?.is_repo) await api('/api/runner/repo/sync', { version: data.version, profile_version: data.profile.version });
         if (!current()) return;
         await savePreferences(true);
         if (!current()) return;
