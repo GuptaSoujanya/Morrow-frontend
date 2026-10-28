@@ -329,9 +329,18 @@ class ConnectionService:
             if part in ("..", "."):
                 raise ConnectionError(409, "Use a dedicated automation profile inside this workspace.")
             current /= part
-            if current.is_symlink():
+            if current.is_symlink() and not self._morrow_browser_link(current):
                 raise ConnectionError(409, "Automation profiles cannot link to another browser profile.")
         return path
+
+    def _morrow_browser_link(self, link):
+        home = paths.browser_dir()
+        if not home.is_absolute():
+            home = self.root / home
+        try:
+            return link == home and link.resolve() == paths.private_browser_home(self.root).resolve()
+        except OSError:
+            return False
 
     def record(self, base, provider):
         with self.lock:

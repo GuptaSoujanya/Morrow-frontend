@@ -18,6 +18,7 @@ spec = importlib.util.spec_from_file_location("dashboard_connections", ROOT / "f
 service_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(service_module)
 from common import connections as browser
+from common import paths
 from common.models import Settings
 from web.state import Command
 
@@ -367,6 +368,30 @@ def test_symlink_cannot_import_personal_chrome(manager, tmp_path):
     linked = service.root / "user/browser/naukri"
     linked.parent.mkdir(parents=True)
     linked.symlink_to(target, target_is_directory=True)
+    with pytest.raises(service_module.ConnectionError, match="link"):
+        service.action(USER, True, "google", "open")
+    assert opened == []
+
+
+def test_the_browser_folder_morrow_moved_out_of_a_protected_folder_is_accepted(manager, monkeypatch):
+    service, opened = manager
+    library = service.root / "Library" / "Morrow" / "browser"
+    library.mkdir(parents=True)
+    monkeypatch.setattr(paths, "private_browser_home", lambda root: library)
+    (service.root / "user").mkdir()
+    (service.root / "user/browser").symlink_to(library, target_is_directory=True)
+    service.action(USER, True, "google", "open")
+    wait(service)
+    assert [Path(folder) for folder, _ in opened] == [service.root / "user/browser/naukri"]
+
+
+def test_a_browser_folder_linked_anywhere_else_is_still_refused(manager, monkeypatch):
+    service, opened = manager
+    monkeypatch.setattr(paths, "private_browser_home", lambda root: service.root / "Library" / "Morrow" / "browser")
+    elsewhere = service.root / "elsewhere"
+    elsewhere.mkdir()
+    (service.root / "user").mkdir()
+    (service.root / "user/browser").symlink_to(elsewhere, target_is_directory=True)
     with pytest.raises(service_module.ConnectionError, match="link"):
         service.action(USER, True, "google", "open")
     assert opened == []

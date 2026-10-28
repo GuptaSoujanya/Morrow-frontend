@@ -671,6 +671,7 @@ class DashboardServer(server.ControlServer):
         self.code_slots = threading.BoundedSemaphore(2)
         self.practice_root, self.practice_course = state.APPLY, state.COURSE
         self.practice_stop = threading.Event()
+        paths.browser_home(state.APPLY)
         self.connections = ConnectionService(state.APPLY, self.runner)
         self.local_setup = LocalSetup(state.APPLY, self.runner)
         self.runner.start_guard = self.connections.blocks_command
