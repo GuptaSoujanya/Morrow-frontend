@@ -1,0 +1,19 @@
+.local-onboarding .onboarding-guide { position: sticky; top: 24px; align-self: start; }
+.local-onboarding .onboarding-step { cursor: default; }
+.local-setup-details { border-top: 1px solid var(--border); margin-top: 22px; padding-top: 12px; }
+.local-setup-details summary { cursor: pointer; padding: 12px 0; font-weight: 600; line-height: 1.6; }
+.local-setup-details p { line-height: 1.7; }
+.local-ai-readiness { padding: 20px; border: 1px solid var(--border); border-radius: 16px; margin: 16px 0; }
+.local-ai-readiness p { line-height: 1.7; color: var(--text-600); }
+.local-ai-readiness summary { cursor: pointer; font-weight: 600; line-height: 1.6; }
+.local-ai-readiness code { display: block; padding: 12px; background: var(--canvas); border-radius: 8px; overflow-wrap: anywhere; }
+.local-storage-path { overflow-wrap: anywhere; }
+.local-edit-profile { margin-top: 14px; }
+.local-resume-note { padding: 16px; background: var(--canvas); border: 1px solid var(--border); border-radius: 12px; line-height: 1.7; }
+.local-onboarding .onboarding-content .state-loading { min-height: 140px; }
+@media (max-width: 760px) {
+  .local-onboarding .onboarding-guide { position: static; }
+  .local-onboarding .onboarding-field-grid { grid-template-columns: 1fr; }
+  .local-onboarding .onboarding-content > .panel { padding: 20px; }
+  .local-onboarding .onboarding-actions > .btn { width: 100%; justify-content: center; }
+}

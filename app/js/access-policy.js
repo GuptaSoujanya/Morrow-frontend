@@ -26,7 +26,7 @@ const ROUTES = {
   analytics: { module: 'analytics' },
   reports: { module: 'analytics', runtime: true },
   setup: {},
-  onboarding: { account: true },
+  onboarding: {},
   connections: {},
   plans: { account: true },
   account: { account: true },
@@ -44,7 +44,7 @@ export function routeAccess(route, context = {}) {
   const name = typeof route === 'string' ? route : route.name;
   if (name === 'not-found') return { kind: 'not-found' };
   if (!context.accountMode) return { kind: 'loading' };
-  if (context.accountMode === 'local' && context.legacyAccess && (ACCOUNT_ROUTES.has(name) || name === 'onboarding')) {
+  if (context.accountMode === 'local' && context.legacyAccess && ACCOUNT_ROUTES.has(name)) {
     return { kind: 'redirect', route: ['account', 'onboarding'].includes(name)
       ? { name: 'files', arg: 'profile' } : { name: 'overview', arg: '' } };
   }

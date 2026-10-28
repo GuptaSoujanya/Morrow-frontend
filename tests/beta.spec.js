@@ -4,6 +4,7 @@ test.beforeEach(async ({ page }) => {
   // Exercise the real beta session and routing; never edit personal files or run bots.
   await page.route('**/api/**', route => {
     const request = route.request(), path = new URL(request.url()).pathname;
+    if (path === '/api/local-setup') return route.fulfill({ json: { needs_setup: false } });
     if (path === '/api/file' && request.method() === 'GET') {
       return route.fulfill({ json: { name: 'profile', exists: true, path: 'profile.yaml',
         text: 'first_name: Beta\nlocation: Bengaluru\n', revision: 'beta-fixture' } });
@@ -24,7 +25,7 @@ test('beta opens directly with all workspace navigation and no account links', a
   for (const route of ['bots', 'pipeline', 'todo', 'research', 'analytics', 'reports', 'study', 'files', 'records', 'data', 'connections', 'setup']) {
     await expect(nav.locator(`a[href="#/${route}"]`)).toHaveCount(1);
   }
-  await expect(nav.getByText(/Plans & billing|My account|Administration|Setup checklist/)).toHaveCount(0);
+  await expect(nav.getByText(/Plans & billing|My account|Administration/)).toHaveCount(0);
   await expect(page.locator('body')).not.toHaveClass(/auth-screen/);
   await expect(page.locator('#console-dock')).toBeVisible();
 });
@@ -34,7 +35,7 @@ test('old account links open useful beta pages without requesting authentication
   const accountRequests = [], errors = [];
   page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/v1/')) accountRequests.push(request.url()); });
   page.on('pageerror', error => errors.push(error.message));
-  for (const route of ['login', 'signup', 'forgot', 'reset', 'verify', 'resend', 'plans', 'admin', 'account', 'onboarding']) {
+  for (const route of ['login', 'signup', 'forgot', 'reset', 'verify', 'resend', 'plans', 'admin', 'account']) {
     await page.goto(`/#/${route}?token=old-link`);
     await expect(page).toHaveURL(new RegExp(['account', 'onboarding'].includes(route) ? '#/files/profile$' : '#/overview$'));
     await expect(page.locator('main h1')).toBeVisible();

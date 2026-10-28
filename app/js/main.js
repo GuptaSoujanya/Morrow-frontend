@@ -336,6 +336,10 @@ async function boot(preserveIdentity=false) {
     }
     S.user=context.user;S.accountMode=context.mode;S.legacyAccess=context.legacy_access;
     S.route=resolveCurrentRoute();
+    if(S.accountMode==='local' && S.route.name==='overview'){
+      const setup=await api('/api/local-setup',undefined,{fresh:true});scope.throwIfAborted();
+      if(setup.needs_setup)history.replaceState(null,'','#/onboarding');
+    }
     if(S.user&&['login','signup'].includes(parseRoute().name)){
       let destination='overview';
       try{

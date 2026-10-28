@@ -4,6 +4,30 @@ Morrow starts in **free beta** mode. It opens directly into your workspace with 
 tools available, no Morrow login, no plan restrictions, and no billing or access
 administration screens. Each person runs their own copy on their computer.
 
+## Local open-source setup
+
+From the parent Morrow folder, run `bash setup.sh`. It installs this dashboard,
+configures Claude or Kiro, and opens `http://127.0.0.1:8100/#/onboarding`.
+Local onboarding starts with resume upload. Claude or Kiro extracts a draft of
+your details and skills, then suggests target roles and work locations. Review
+and edit these before saving your profile and preparing `user/inputs/answers.txt`
+automatically in a background job. Drafts, the resume, and settings stay in the
+parent workspace; extraction and answer preparation send text to your assistant. No account
+API or Morrow login is needed. See the parent README for installation and privacy.
+
+Run the isolated onboarding UI test with:
+
+```bash
+npm run build
+DASHBOARD_PYTHON=../venv/bin/python npx playwright test --config playwright.local-setup.config.js
+```
+
+Install the test browser first with `npx playwright install chromium`, or set
+`CHROMIUM_PATH` to your Chrome executable. The test uses temporary files and a
+synthetic AI response; it does not call a paid provider or apply to jobs.
+
+Dashboard code is licensed under MIT; see [LICENSE](LICENSE).
+
 ## Start
 
 Use Node.js 22.19 or newer, zsh, and the parent project's Python requirements. From the parent
@@ -51,7 +75,7 @@ overrides that environment setting. Stop a manually started server with Ctrl+C i
 The launcher does not take ownership of it.
 
 Old login, signup, recovery, plans, and administration links open the workspace.
-Account and onboarding links open **My profile & files**. The beta does not call
+Account links open **My profile & files**; onboarding opens the local setup flow. The beta does not call
 the account or payment APIs, and `/api/v1/*` is disabled on the dashboard.
 Profile files, browser sessions, and job history stay on this computer; the server
 continues listening only on `127.0.0.1`. This is a local beta distribution, not a

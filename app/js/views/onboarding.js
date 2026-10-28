@@ -8,6 +8,7 @@ import { field } from '../forms.js';
 import { panel, loadingState, errorState } from '../components/panel.js';
 import { connectionPanel, PROVIDERS } from '../components/connections.js';
 import { repoPanel } from '../components/user-repo.js';
+import { renderLocalOnboarding } from './local-onboarding.js';
 
 const steps = ['Your profile', 'Your resume', 'Connect accounts', 'Review setup'];
 let disposeCurrent;
@@ -22,6 +23,7 @@ const cleanHints = values => Object.fromEntries(Object.entries(values).map(([key
 const savedTime = value => value && !Number.isNaN(new Date(value).valueOf()) ? new Date(value).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 
 export function renderOnboarding() {
+  if (S.accountMode === 'local') return renderLocalOnboarding();
   disposeCurrent?.();
   const signal = accountRequestSignal();
   let disposed = false, data, step = 0, busy = false, connections, mainConnections, activeConnection, profileDraft, completionDirty = false;

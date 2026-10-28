@@ -32,6 +32,7 @@ import local_code_runner
 import learning_scores
 import learning_workspace
 from common import learning_activity, learning_memory, paths
+from common.local_setup import LocalSetup, SetupError as LocalSetupError
 import pipeline_status as flow_status
 from connections import ConnectionService, ConnectionError
 import runner_setup
@@ -326,6 +327,36 @@ class DashboardHandler(server.Handler):
             return True
         bridge = getattr(self.server, "account_bridge", None)
         url = urlsplit(self.path)
+        if url.path == '/api/local-health' and self.command in ('GET', 'HEAD'):
+            self.json({'service': 'morrow', 'workspace': hashlib.sha256(str(state.APPLY).encode()).hexdigest()[:16],
+                       'mode': 'accounts' if bridge else 'beta'})
+            return True
+        if url.path.startswith('/api/local-setup'):
+            if bridge:
+                self.error(404, 'Local setup is available in local mode only.')
+                return True
+            try:
+                setup = self.server.local_setup
+                if self.command in ('GET', 'HEAD') and url.path == '/api/local-setup':
+                    self.json(setup.status())
+                elif self.command == 'POST':
+                    if not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
+                        self.error(403, 'Only this dashboard can save your local setup.')
+                        return True
+                    actions = {'/api/local-setup': setup.save, '/api/local-setup/resume': setup.upload_resume,
+                               '/api/local-setup/extract': setup.extract_resume, '/api/local-setup/draft': setup.save_draft,
+                               '/api/local-setup/finish': setup.start}
+                    if url.path not in actions:
+                        self.error(404, 'Setup action not found.')
+                    else:
+                        self.json(actions[url.path](self.body()))
+                else:
+                    self.error(405, 'Use GET to read setup or POST to save it.')
+            except (LocalSetupError, server.ApiError) as exc:
+                self.error(exc.status, str(exc))
+            except (OSError, UnicodeError):
+                self.error(503, 'Your setup could not be read or saved. Check free disk space and folder permissions, then retry.')
+            return True
         if self.missing_document(url.path):
             return True
         if not bridge:
@@ -641,10 +672,12 @@ class DashboardServer(server.ControlServer):
         self.practice_root, self.practice_course = state.APPLY, state.COURSE
         self.practice_stop = threading.Event()
         self.connections = ConnectionService(state.APPLY, self.runner)
+        self.local_setup = LocalSetup(state.APPLY, self.runner)
         self.runner.start_guard = self.connections.blocks_command
         self.account_bridge = None
         self.workspace_owner_email = os.getenv("MORROW_WORKSPACE_OWNER_EMAIL", "") if account_url else ""
-        self.runner.environment_provider = lambda command, action: runner_setup.runtime_environment(state.APPLY, self.workspace_owner_email)
+        self.runner.environment_provider = lambda command, action: (runner_setup.runtime_environment(state.APPLY, self.workspace_owner_email)
+                                                                   if account_url else self.local_setup.runtime_environment())
         if account_url:
             from auth_bridge import AccountBridge
             self.account_bridge = AccountBridge(account_url)
@@ -698,6 +731,8 @@ class DashboardServer(server.ControlServer):
             self.practice_stop.wait(60)
 
     def server_close(self):
+        if getattr(self, 'local_setup', None) is not None:
+            self.local_setup.close()
         if getattr(self, 'practice_stop', None) is not None:
             self.practice_stop.set()
             self.practice_thread.join(timeout=2)

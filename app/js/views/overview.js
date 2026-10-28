@@ -71,12 +71,17 @@ function kpis(d) {
       change: changeFrom(d.sent.total, d.sent.before, d.days),
       extra: sparkline(d.daily.map((r) => r.naukri + r.boards + r.company)),
     }),
-    kpiCard({
+    kpiCard(quota.limit ? {
       label: "Daily application quota",
       value: num(quota.used),
       unit: `of ${num(quota.limit)}`,
       sub: `Used in the last 24 hours; ${num(Math.max(0, quota.limit - quota.used))} left`,
-      extra: meter(quota.limit ? quota.used / quota.limit : 0, quota.used >= quota.limit ? "meter-full" : ""),
+      extra: meter(quota.used / quota.limit, quota.used >= quota.limit ? "meter-full" : ""),
+    } : {
+      label: "Naukri applications",
+      value: num(quota.used),
+      unit: "in 24 hours",
+      sub: "No daily ceiling; every run goes for its own limit",
     }),
     kpiCard({
       label: 'Opportunities found',
@@ -343,7 +348,9 @@ function orbitMetrics(d){
   return h('div',{class:'orbit-metrics'},[
     ['Jobs discovered',num(d.found.total),'Unique jobs found','#/records/jobs','mint'],
     ['Above match threshold',num(d.found.over),`Match score ≥ ${d.min_score}`,'#/records/jobs/matched','peach'],
-    ['Naukri daily quota',`${num(d.quota.used)} / ${num(d.quota.limit)}`,'Used in the last 24 hours','#/naukri','lilac'],
+    d.quota.limit
+      ? ['Naukri daily quota',`${num(d.quota.used)} / ${num(d.quota.limit)}`,'Used in the last 24 hours','#/naukri','lilac']
+      : ['Naukri applications',num(d.quota.used),'Sent in the last 24 hours; no daily ceiling','#/naukri','lilac'],
   ].map(([title,value,sub,href,tone])=>h('a',{class:`kpi orbit-metric metric-${tone}`,href},h('div',{class:'metric-top'},h('span',{class:'kpi-label',text:title})),h('strong',{class:'kpi-value',text:value}),h('p',{class:'kpi-sub',text:sub}))));
 }
 function crewShortcuts(){

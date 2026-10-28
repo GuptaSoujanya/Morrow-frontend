@@ -715,7 +715,7 @@ def test_managed_profile_configuration_accepts_session_only_without_password(tmp
     assert "NAUKRI_EMAIL is not set" not in settings.validate()
     linkedin = LinkedInSettings(naukri=settings)
     assert "LINKEDIN_PASSWORD is not set" not in linkedin.validate(True)
-    assert "NAUKRI_PASSWORD is not set" in Settings().validate()
+    assert any("NAUKRI_PASSWORD" in problem and "connected browser session" in problem for problem in Settings().validate())
 
 
 def test_signed_out_managed_naukri_session_never_attempts_password_login(tmp_path, monkeypatch):

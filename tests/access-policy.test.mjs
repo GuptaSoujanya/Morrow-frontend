@@ -119,18 +119,18 @@ test('legacy access requires an explicit local server context and does not expos
 
 test('free beta unlocks all workspace routes without an account or module grants', () => {
   const beta = { accountMode: 'local', legacyAccess: true, user: null };
-  for (const route of [...runtime, 'learning', 'overview', 'research', 'analytics', 'records', 'files', 'data', 'setup', 'connections']) {
+  for (const route of [...runtime, 'learning', 'overview', 'research', 'analytics', 'records', 'files', 'data', 'setup', 'connections', 'onboarding']) {
     assert.equal(routeAccess(route, beta).kind, 'allowed', route);
     assert.equal(preloadRoute(route, beta), route, route);
   }
-  for (const route of ['plans', 'account', 'admin', 'onboarding', 'login', 'signup']) {
+  for (const route of ['plans', 'account', 'admin', 'login', 'signup']) {
     assert.ok(!links(beta).includes(route), route);
   }
 });
 
 test('free beta redirects old account links without loading account screens', () => {
   const beta = { accountMode: 'local', legacyAccess: true, user: null };
-  for (const name of ['login', 'signup', 'forgot', 'reset', 'verify', 'resend', 'plans', 'admin', 'account', 'onboarding']) {
+  for (const name of ['login', 'signup', 'forgot', 'reset', 'verify', 'resend', 'plans', 'admin', 'account']) {
     assert.deepEqual(routeAccess(name, beta), { kind: 'redirect', route: ['account', 'onboarding'].includes(name)
       ? { name: 'files', arg: 'profile' } : { name: 'overview', arg: '' } });
     assert.equal(preloadRoute(name, beta), null);

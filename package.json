@@ -2,6 +2,7 @@
   "name": "froned-dashbord",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "description": "A local dashboard for the job-hunt workspace, using the existing Python API and real data.",
   "type": "module",
   "scripts": {
