@@ -9,6 +9,7 @@ import { num } from '../format.js';
 import {avatar} from '../components/identity.js';
 import {crewRunSpec} from '../crew-options.js';
 import {launchCrew} from '../crew-launch.js';
+import { applicationAgentPanel } from '../components/application-agent.js';
 
 export const BOTS = [
   { id:'naukri', name:'Naukri', mark:'n', color:'blue', group:'applications', description:'Find, rank and apply to matching roles.', route:'naukri', action:'naukri' },
@@ -24,7 +25,8 @@ export const BOTS = [
   { id:'resume', name:'Resume tailor', icon:'file', color:'coral', group:'career', description:'Shape your resume around a specific role.', route:'resume' },
   { id:'learn', name:'Learning assistant', icon:'book', color:'teal', group:'career', description:'Prepare your daily learning material.', route:'pipeline', action:'pipeline', pipeline:'learn' },
   { id:'brief', name:'Daily briefing', icon:'sun', color:'violet', group:'career', description:'Research papers, technology, companies and useful repositories.', route:'pipeline', action:'pipeline', pipeline:'brief' },
-  { id:'research', name:'Resume researcher', icon:'search', color:'indigo', group:'career', description:'Research the skills behind your experience.', route:'pipeline', action:'pipeline', pipeline:'research' },
+  { id:'research', name:'Resume researcher', icon:'search', color:'indigo', group:'career', description:'Research the skills behind your experience.', route:'pipeline', action:'pipeline', pipeline:'research:resume' },
+  { id:'company_research', name:'Company researcher', icon:'globe', color:'teal', group:'career', description:'Find public company details, contacts and careers pages, with sources.', route:'companies', action:'company_research', image:23 },
   ...['hirist','instahyre','cutshort','wellfound'].map((board,i)=>({id:board+'_profile',board,name:({hirist:'Hirist',instahyre:'Instahyre',cutshort:'Cutshort',wellfound:'Wellfound'})[board]+' profile',group:'profiles',description:'Create or refresh your profile using your saved facts and resume.',route:'boards',action:'boards',mode:'profile',image:16+i})),
 ];
 let loading = null;
@@ -176,5 +178,5 @@ export function renderBots() {
     h('div',{class:'bot-toolbar'},tabs,search,count),
     S.bots?.error ? h('div',{class:'inline-notice',role:'alert'},'Bot status is unavailable. ',h('button',{class:'text-link',type:'button',text:'Try again',onclick:async()=>{await refreshBots();hooks.requestRender();}})) : null,
     S.bots?.data?.history_error ? h('p',{class:'inline-notice',text:S.bots.data.history_error}) : null,
-    grid,h('p',{class:'fleet-footnote',text:'Status reflects runs started here. Platform sign-in is checked when a bot starts.'}));
+    grid,h('p',{class:'fleet-footnote',text:'Status reflects runs started here. Platform sign-in is checked when a bot starts.'}),applicationAgentPanel());
 }

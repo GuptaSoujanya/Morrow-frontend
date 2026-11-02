@@ -25,6 +25,7 @@ function CommittedView({children,onCommit}){
 const imports={
   overview:()=>import('./views/overview.js').then(m=>m.renderOverview),analytics:()=>import('./views/overview.js').then(m=>m.renderAnalytics),
   bots:()=>import('./views/bots.js').then(m=>m.renderBots),records:()=>import('./views/records.js').then(m=>m.renderRecords),
+  companies:()=>import('./views/companies.js').then(m=>m.renderCompanies),
   research:()=>import('./views/research.js').then(m=>m.renderResearch),data:()=>import('./views/data.js').then(m=>m.renderData),
   reports:()=>import('./views/reports.js').then(m=>m.renderReports),study:()=>import('./views/study.js').then(m=>m.renderStudy),
   learning:()=>import('./views/daily-learning.js').then(m=>m.renderDailyLearning),

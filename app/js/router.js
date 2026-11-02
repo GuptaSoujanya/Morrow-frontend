@@ -14,6 +14,7 @@ export const SECTIONS = [
   ["resume", "Tailor resume", "file"],
   ["reports", "Reports", "chart"],
   ["learning", "Learning", "book"],
+  ["companies", "Companies", "globe"],
   ["todo", "Action inbox", "check"],
   ["setup", "Preferences", "sliders"],
   ["onboarding", "Setup checklist", "check"],

@@ -40,7 +40,7 @@ import runner_setup
 import user_repo
 
 BOARDS = ("hirist", "instahyre", "cutshort", "wellfound")
-BOT_IDS = ("naukri", *BOARDS, "external", "profile", "linkedin", "linkedin_profile", "cold_email", "resume", "learn", "brief", "research", *(board + '_profile' for board in BOARDS))
+BOT_IDS = ("naukri", *BOARDS, "external", "profile", "linkedin", "linkedin_profile", "cold_email", "resume", "learn", "brief", "research", 'company_research', *(board + '_profile' for board in BOARDS))
 
 
 def board_command(options, save=False):
@@ -155,6 +155,8 @@ def bots_status(runner):
                     selected.append('profile' if name == 'naukri' else name + '_profile')
                 elif group == 'apply':
                     selected.append(name)
+                elif stage == 'research:companies':
+                    selected.append('company_research')
                 else:
                     selected.append(group)
         elif action in BOT_IDS:
@@ -435,7 +437,9 @@ class DashboardHandler(server.Handler):
                 self.json({"mode": "accounts", "user": user, "legacy_access": owner})
                 return True
             query = {key: values[-1] for key, values in parse_qs(url.query).items()}
-            required = {"/api/library": "research", "/api/document": "research", "/api/research/learning": "learning", "/api/research/read": "learning"}.get(url.path)
+            required = {"/api/library": "research", "/api/document": "research", '/api/companies':'research',
+                        '/api/application-agent':'automations', '/api/application-agent/resolve':'automations',
+                        "/api/research/learning": "learning", "/api/research/read": "learning"}.get(url.path)
             if url.path == '/api/document' and re.fullmatch(r'interview/day-\d{1,2}', query.get('id', '')):
                 required = 'learning'
             if required and user["role"] != "admin" and required not in user.get("modules", []):
@@ -556,6 +560,16 @@ class DashboardHandler(server.Handler):
             if url.path == "/api/library":
                 return self.json(dashboard_data.artifacts(query if query else None))
             if url.path == "/api/research/learning":
+            if url.path == '/api/companies':
+                from common.company_store import summary
+                return self.json(summary(state.database(), query))
+            if url.path == '/api/application-agent':
+                from common.config import load_settings
+                from sites_bot.application_brain import history
+                settings = load_settings()
+                return self.json(dict(enabled=settings.browser_agent, limit=settings.browser_agent_limit,
+                                      timeout=settings.browser_agent_timeout_s, budget=settings.browser_agent_budget_usd,
+                                      attempts=history(settings)))
                 return self.json(research_learning.summary(query, environment=runner_setup.runtime_environment(state.APPLY, getattr(self.server, 'workspace_owner_email', ''))))
             if url.path == "/api/data":
                 return self.json(dashboard_data.inventory(server.files(), query if query else None))
@@ -619,6 +633,21 @@ class DashboardHandler(server.Handler):
         if path in ('/api/learning/feed', '/api/learning/feed/run'):
             return self.learning_feed_request(path)
         if path == '/api/learning/collection':
+        if path == '/api/application-agent/resolve':
+            if not self.host_ok() or not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
+                return self.error(HTTPStatus.FORBIDDEN, 'Only this dashboard can review an attempt.')
+            try:
+                from common.config import load_settings
+                from sites_bot.application_brain import resolve
+                data = self.body()
+                # A running browser must stop before the user can release its reservation.
+                snapshot = self.server.runner.snapshot()
+                if snapshot.get('running') or any(r.get('running') for r in snapshot.get('runs', [])):
+                    return self.error(409, 'Stop active runs before reviewing a submission outcome.')
+                resolve(load_settings(), str(data.get('job_id', '')), str(data.get('outcome', '')))
+                return self.json({'ok': True})
+            except ValueError as exc:
+                return self.error(400, str(exc))
             if not self.host_ok() or not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
                 return self.error(403, 'Only this dashboard can update your learning workspace.')
             try:
@@ -805,6 +834,7 @@ def register_actions():
     server.ACTIONS.update(naukri=commands.naukri_command, profile=commands.profile_command,
                          linkedin_profile=commands.linkedin_profile_command,
                          cold_email=commands.cold_email_command)
+    server.ACTIONS.update(company_research=commands.company_research_command)
     for key in ("profile", "linkedin"):
         server.ACTIONS[key + "_install"] = lambda o, save, key=key: schedule_command(key, "enable")
         server.ACTIONS[key + "_disable"] = lambda o, save, key=key: schedule_command(key, "disable")

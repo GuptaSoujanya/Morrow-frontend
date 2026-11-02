@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 from web import server, state
 
 BOARDS = ('naukri', 'hirist', 'instahyre', 'cutshort', 'wellfound')
-STAGES = ('learn', 'research:resume', 'profile:linkedin',
+STAGES = ('learn', 'research:resume', 'research:companies', 'profile:linkedin',
           *(f'{group}:{board}' for group in ('profile', 'apply') for board in BOARDS),
           *(f'brief:{key}' for key in ('goal','system-design','papers','tech-news','companies','repositories')))
 GROUPS = ('', 'learn', 'study', 'profile', 'apply', 'brief', 'research', *STAGES)
@@ -114,6 +114,20 @@ def pipeline_command(o, save=False):
                        'brief:repositories': 'GitHub discoveries',
                        'brief:tech-news': 'Tech radar', 'brief:companies': 'Company radar',
                        'brief:goal': 'Learning goal', 'brief:system-design': 'System design research',
-                       'learn': 'Learning material', 'study': 'Daily course & discoveries', 'research:resume': 'Resume learning'}
+                       'learn': 'Learning material', 'study': 'Daily course & discoveries', 'research:resume': 'Resume learning',
+                       'research:companies': 'Company intelligence'}
     label = research_labels.get(group, 'Daily pipeline')
     return state.py(label + ' · ' + (day if day and group in research_labels else command),*args)
+
+
+def company_research_command(o, save=False):
+    args = ['-m', 'common.company_research', '--limit', number(o, 'limit', 1, 50) or '10']
+    company = server._text(o, 'company')
+    if company:
+        if not re.fullmatch(r'[a-f0-9]{24}', company):
+            raise ValueError('Choose a company from the database.')
+        args += ['--company', company]
+    for key in ('retry', 'dry_run'):
+        if server._on(o, key):
+            args += ['--' + key.replace('_', '-')]
+    return state.py('Company intelligence · ' + ('refresh selected' if company else 'research pending'), *args)

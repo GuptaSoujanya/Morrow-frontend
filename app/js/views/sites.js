@@ -4,6 +4,7 @@ import { S } from "../state.js";
 import { panel, empty } from "../components/panel.js";
 import { field, toggle, textInput, previewBox, runButton, liveRunConfirm, form, schedulePreview } from "../forms.js";
 import { toast } from "../components/toast.js";
+import { applicationAgentPanel } from '../components/application-agent.js';
 
 const LINK_KEYS = [["site", "Site"], ["naukri", "Naukri listing"]];
 
@@ -75,6 +76,7 @@ export function renderSites() {
     "div",
     { class: "page" },
     h("header", { class: "page-head" }, h("div", {}, h("h1", { text: "Company sites" }), h("p", { class: "lead", text: "Applications the bot started on a company’s own site and could not finish." }))),
+    applicationAgentPanel(),
     h(
       "div",
       { class: "dash" },

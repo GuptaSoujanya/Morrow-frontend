@@ -7,6 +7,7 @@ import { num } from '../format.js';
 import {pagination} from '../components/pagination.js';
 import {readQuery,writeQuery,pageNumber,choice} from '../url-state.js';
 import { selectControl } from '../components/controls.js';
+import { researchPill } from './companies.js';
 
 const boardNames={naukri:'Naukri',hirist:'Hirist',instahyre:'Instahyre',cutshort:'Cutshort',wellfound:'Wellfound',external:'Company site'};
 export function outcomePill(row) {return h('span',{class:`result-pill result-${row.kind}`,text:row.label});}
@@ -14,7 +15,9 @@ export function recordTable(rows, compact=false) {
   return dataTable(compact ? [['Role / company'],['Platform'],['Outcome'],['When']] : [['Role / company'],['Platform'],['Outcome'],['Match score','num'],['When']],
     rows.map(row=>h('tr',{},
       h('td',{},h('div',{class:'record-role'},row.url ? h('a',{href:row.url,target:'_blank',rel:'noopener noreferrer',text:row.title || `Job ${row.job_id}`},icon('arrow-up-right','icon icon-sm')) : h('strong',{text:row.title || `Job ${row.job_id}`})),
-        h('span',{class:'record-company',text:row.company || 'Company not recorded'}),row.detail ? h('details',{class:'record-detail'},h('summary',{text:'Outcome details'}),h('p',{text:row.detail})) : null),
+        h('span',{class:'record-company',text:row.company || 'Company not recorded'}),
+        row.company_research?.id ? h('a',{class:'record-research', href:`#/companies/${row.company_research.id}`, 'aria-label':`Company research for ${row.company}: ${row.company_research.status.replaceAll('_',' ')}`}, researchPill(row.company_research.status)) : null,
+        row.detail ? h('details',{class:'record-detail'},h('summary',{text:'Outcome details'}),h('p',{text:row.detail})) : null),
       h('td',{text:boardNames[row.board] || row.board}),h('td',{},outcomePill(row)),
       compact ? null : h('td',{class:'num tabular',text:row.score==null ? 'Not scored' : `${Math.round(row.score)}/100`}),
       h('td',{class:'record-date'},h('time',{dateTime:row.at,text:new Date(row.at).toLocaleDateString(undefined,{day:'numeric',month:'short'})}),h('small',{text:new Date(row.at).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})})))));

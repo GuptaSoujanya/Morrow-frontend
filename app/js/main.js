@@ -242,7 +242,7 @@ function queueRunRefresh(finished){
       await hooks.refreshStatus({refreshRun:false});scope.throwIfAborted();
       if(['overview','bots'].includes(S.route.name)&&routeAccess('bots',S).kind==='allowed')await refreshBots();
       scope.throwIfAborted();
-      if(completed&&['overview','analytics','bots','pipeline','reports','research','records','data'].includes(S.route.name))render();
+      if(completed&&['overview','analytics','bots','pipeline','reports','research','records','companies','sites','data'].includes(S.route.name))render();
       if(completed&&S.route.name==='learning')window.dispatchEvent(new Event('learning-refresh'));
     }catch(error){if(error.name!=='AbortError')online(false);}
   },180);

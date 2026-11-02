@@ -8,6 +8,7 @@ const ROUTES = {
   overview: {},
   files: { module: 'profile' },
   records: { module: 'applications' },
+  companies: { module: 'research', runtime: true },
   data: { module: 'files' },
   bots: { module: 'automations', runtime: true },
   pipeline: { module: 'automations', runtime: true },
@@ -34,7 +35,7 @@ const ROUTES = {
 };
 const GROUPS = [
   ['WORKSPACE', ['overview', 'bots', 'pipeline', 'todo', 'records']],
-  ['KNOWLEDGE & DATA', ['learning', 'data', 'analytics', 'reports']],
+  ['KNOWLEDGE & DATA', ['learning', 'companies', 'data', 'analytics', 'reports']],
   ['PERSONAL', ['files', 'connections', 'onboarding', 'setup']],
   ['ACCOUNT', ['plans', 'account', 'admin']],
 ];

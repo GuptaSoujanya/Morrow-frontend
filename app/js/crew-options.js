@@ -8,7 +8,10 @@ export function crewRunSpec(bot, forms = {}, browserMode = 'visible') {
   let options = {dry_run: false}, effect = '', reason = '', label = 'Run now';
   if (bot.pipeline) {
     options = {...pick(values, ['agents', 'bots', 'cli', 'date', 'containers']), group: bot.pipeline, dry_run: false};
-    effect = {learn: 'Generate and save your learning material.', brief: 'Research and save your daily briefing.', research: 'Research your resume skills and save the notes.'}[bot.pipeline];
+    effect = {learn: 'Generate and save your learning material.', brief: 'Research and save your daily briefing.', research: 'Research your resume skills and save the notes.', 'research:resume':'Research your resume skills and save the notes.'}[bot.pipeline];
+  } else if (action === 'company_research') {
+    options = {limit:10};
+    effect = 'Research up to 10 pending employers from saved jobs. Save public details and sources without sending messages.';
   } else if (action === 'boards') {
     options = {...pick(values, ['limit']), board: bot.board || bot.id, ...(bot.mode ? {mode: bot.mode} : {}), dry_run: false};
     effect = bot.mode === 'profile' ? `Create or update your ${bot.name.replace(/ profile$/, '')} profile using saved facts.` : `Submit matching job applications on ${bot.name}, using your configured limits.`;

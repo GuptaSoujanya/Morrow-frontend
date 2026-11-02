@@ -10,6 +10,7 @@ const sectionDescriptions = {
   overview: 'Your career at a glance', bots: 'Choose your specialists', pipeline: 'Build and follow a workflow',
   todo: 'Questions and next steps', records: 'Find applications and opportunities', learning: 'Practice, read, and keep growing',
   data: 'Your saved workspace files', analytics: 'Explore your application results', reports: 'Read your daily summaries',
+  companies: 'Company research, contacts, careers and public sources',
   files: 'Your profile, resume, and answers', connections: 'Manage connected platforms', setup: 'Make Morrow work for you',
 };
 let installed = false;

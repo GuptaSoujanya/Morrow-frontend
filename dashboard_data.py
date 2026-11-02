@@ -134,6 +134,8 @@ def records(params, db=None, today=None):
     sort=params.get('sort','recent')
     if sort not in ('recent','score'): raise ValueError('Choose recent or score sorting.')
     db=db or state.database()
+    from common.company_store import catalog, company_key
+    companies = {row['company_id']: row for row in catalog(db)}
     if kind=='applications':
         raw=state._query(db,'''SELECT a.id,a.job_id,COALESCE(NULLIF(a.url,''),j.url) AS url,
             COALESCE(NULLIF(a.title,''),j.title) AS title,COALESCE(NULLIF(a.company,''),j.company) AS company,a.status,a.detail,
@@ -147,6 +149,11 @@ def records(params, db=None, today=None):
     eligible=[]
     options=set()
     for row in raw:
+        company_id = company_key(row.get('company'))
+        research = companies.get(company_id, {})
+        row['company_research'] = dict(id=company_id, status=research.get('status', 'pending'),
+                                      researched=research.get('researched', False),
+                                      information_found=research.get('information_found', False)) if company_id else None
         moment=state._moment(row['at'])
         if moment is None or moment.date()>today or (start and moment.date()<start): continue
         row['board']=state._board_of_job(row['job_id']) if kind=='applications' else state.source_parts(row.get('source') or '')[0]
