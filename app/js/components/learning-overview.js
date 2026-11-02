@@ -2,6 +2,20 @@ import { h } from '../dom.js';
 import { api, accountRequestSignal } from '../api.js';
 import { S } from '../state.js';
 
+export function lessonFlow() {
+  return h('ol', { class: 'learn-session-flow', 'aria-label': 'How to study each lesson' },
+    [['Read', 'Learn one small idea.'], ['See an example', 'Follow each step.'],
+      ['Try it', 'Do one small task.'], ['Check', 'Open the answer and compare.']]
+      .map(([title, description], index) => h('li', {}, h('span', { 'aria-hidden': 'true', text: String(index + 1).padStart(2, '0') }),
+        h('div', {}, h('strong', { text: title }), h('p', { text: description })))));
+}
+
+export function courseSubjects(course) {
+  return h('div', { class: 'learn-skill-chips learn-course-subjects', 'aria-label': 'Course subjects' },
+    (course?.subjects || ['AI & machine learning', 'System design', 'Full-stack development', 'DSA & interviews'])
+      .map(subject => h('span', { text: subject })));
+}
+
 export function learningHeader(view) {
   const scope = accountRequestSignal();
   const root = h('div', { class: 'learn-header-context', 'aria-label': 'Learning overview' });
@@ -12,11 +26,11 @@ export function learningHeader(view) {
     try {
       const data = await api('/api/learning/overview', undefined, { fresh: true });
       if (disposed || scope.aborted || !root.isConnected || request !== ticket) return;
-      const focus = data.profile?.target_roles?.[0] || data.profile?.focus || data.profile?.skills?.slice(0, 2).join(' · ');
-      const showPlan = data.generation_available !== false && data.profile?.resume_available && data.current_day;
+      const focus = data.course?.title || '90-day interview course';
+      const showPlan = data.current_day;
       root.replaceChildren(...[
         focus ? h('span', { class: 'learn-header-focus', title: focus },
-          h('span', { class: 'learn-header-label', text: 'Focus' }), h('strong', { text: focus })) : null,
+          h('span', { class: 'learn-header-label', text: 'Your course' }), h('strong', { text: focus })) : null,
         h('time', { dateTime: data.date, text: new Date(data.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) }),
         showPlan ? h('span', { class: 'learn-header-plan', text: `Day ${data.current_day} · Week ${data.current_week}` }) : null,
         h('a', { href: view === 'progress' ? '#/learning' : '#/learning/progress', text: view === 'progress' ? 'Back to learning →' : 'View progress →' })].filter(Boolean));

@@ -2,7 +2,7 @@
 import datetime as dt
 import re
 
-from common import learning_memory as memory
+from common import learning_memory as memory, interview_course, interview_lessons
 from pipeline.learning import split_days, week_of
 from web import state
 from common import paths
@@ -10,6 +10,10 @@ from common import paths
 
 def saved():
     return memory.transact(state.APPLY, studied=state.STUDIED)
+
+
+def interview_document(day):
+    return interview_lessons.saved_lesson(day, state.APPLY / paths.research_dir() / 'learning', state.COURSE)
 
 
 def plan_document(day):
@@ -28,6 +32,9 @@ def plan_document(day):
 
 
 def document_info(identifier, items=None):
+    match = re.fullmatch(r'interview/day-(\d{1,2})', identifier)
+    if match:
+        return interview_document(int(match[1]))
     match = re.fullmatch(r"plan/day-(\d{1,2})", identifier)
     if match:
         return plan_document(int(match[1]))
@@ -38,7 +45,13 @@ def document_info(identifier, items=None):
     if item is None:
         raise ValueError("This document is not available in the library.")
     info = {**item, "key": identifier, "day": None}
-    if identifier.startswith("research/learning/daily/") or identifier == "research/learning/today.md":
+    if identifier.startswith('research/learning/interview-90/daily/') or identifier == 'research/learning/interview-90/today.md':
+        text = (state.APPLY / paths.research_dir() / item['path']).read_text(encoding='utf-8')
+        match = re.search(r'^#{1,2} .*?\bDay (\d+)\b', text[:1500], re.M)
+        if match and 1 <= int(match[1]) <= 90:
+            info['day'] = int(match[1])
+            info['key'] = f"interview/day-{info['day']}"
+    elif identifier.startswith("research/learning/daily/") or identifier == "research/learning/today.md":
         text = (state.APPLY/paths.user_dir()/"research" / item["path"]).read_text(encoding="utf-8")
         match = re.search(r"^#{1,2} .*?\bDay (\d+)\b", text[:1500], re.M)
         if match and 1 <= int(match[1]) <= 90:
@@ -48,6 +61,8 @@ def document_info(identifier, items=None):
 
 
 def completion(info, data):
+    if info['key'].startswith('interview/day-'):
+        return info.get('day') in interview_course.completed_days(data)
     return bool(data["documents"].get(info["key"], {}).get("done") or
                 (info.get("day") is not None and info["day"] in data["plan"].get("done", [])))
 
@@ -56,6 +71,9 @@ def mark(identifier, done):
     if not isinstance(done, bool):
         raise ValueError("read must be true or false")
     info = document_info(identifier)
+    if info['key'].startswith('interview/day-'):
+        memory.transact(state.APPLY, lambda data: interview_course.record_completion(data, info['day'], done), studied=state.STUDIED)
+        return {'ok': True, 'read': done, 'storage': 'user/memory/learning.json'}
     if re.fullmatch(r'research/daily/\d{4}-\d{2}-\d{2}/(?:03-papers|04-tech-news|05-companies|06-repositories)\.md', identifier):
         import learning_workspace
         learning_workspace.mark_discovery_document(info, done)

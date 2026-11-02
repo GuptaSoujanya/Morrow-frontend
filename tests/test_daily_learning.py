@@ -34,6 +34,9 @@ def finish(root, day=DAY):
 def test_all_topics_have_concepts_example_and_practice(topic):
     lesson = daily_dsa.lesson(COURSE, topic)
     assert lesson['concept_html'] and lesson['example']['prompt_html'] and lesson['example']['solution_html']
+    assert 'Words you need' in lesson['concept_html']
+    assert '<summary>Check your answer</summary>' in lesson['simple_example_html']
+    assert '###' not in lesson['simple_example_html']
     assert lesson['practice']
     assert lesson['example']['id'] not in [problem['id'] for problem in lesson['practice']]
     assert all(problem['prompt_html'] and '<pre><code' in problem['solution_html'] for problem in lesson['practice'])

@@ -495,33 +495,57 @@ for an unused Firestore transitive dependency pulled in by the umbrella SDK.
 
 ## Learning workspace and daily progress
 
-Open **Learning** (`#/learning`) for one workspace with **Today**, **Your curriculum**, **DSA practice**,
+Open **Learning** (`#/learning`) for one workspace with **Today**, **90-day course**, **DSA practice**,
 **Discover**, **Saved library**, and **Progress**. Desktop navigation
 groups these destinations under Learning; smaller screens use one section selector.
-Today comes first: DSA practice,
-your saved learning-plan day, research papers, daily goals, system-design topics,
-tech news, GitHub repositories, and companies to explore. Each available task has its own reading or
-practice view and explicit completion state. The daily count includes available
-tasks; missing material is listed separately with an action to prepare it. Company
-research completion records learning, while job applications remain in Applications.
+Today has one primary next action and a compact two-task checklist. Papers, news,
+and GitHub previews are secondary; other reading and tools open on request.
+Today gives two core tasks: the next course lesson and DSA practice. Its completion
+count includes only those tasks. Papers, tech news, GitHub projects, and other
+research remain visible as additional learning. Company research records reading;
+job applications remain in Applications.
 
-The learning-plan reading uses the existing saved week files and completion history.
-Completing it keeps today's reading visible; the next local date selects your next
-unfinished day. Daily research only uses material saved for the selected local date;
-older briefings remain in the dated Saved library. No readings or progress are invented.
-Your curriculum brings the weekly roadmap, resume topics, and course tracks together.
-The header and curriculum show supported skills and saved target roles from the
-selected learning profile. Generated lessons record the resume fingerprint:
-changing resumes refreshes unfinished material while preserving completed days,
-previous topic files, and notes. Older material without provenance is labeled as
-unverified rather than claimed to match the current resume.
-New weekly material uses the selected resume and target roles for system design,
-full-stack exercises, and AI-agent projects. Existing saved weeks remain available.
-The compact header shows your focus, date and learning day/week. Today has one
-completion count for its available activities, avoiding a conflicting event count.
-Its next-lesson action comes first, followed by a short study list and optional
-discoveries. Unprepared material is grouped in one setup section; individual
-preparation controls are available on expansion.
+The same versioned syllabus applies to every learner. It covers AI/ML and GenAI,
+system design, full-stack development, DSA, weekly projects, revision, and mock
+interviews in 90 study days across 13 weeks. The suggested session is about two
+hours. Each lesson uses very simple English and follows **Read → See an example → Try it → Check**.
+All 90 days include short explanations, word meanings, small worked examples,
+tasks and answers. Answers open on request; full reference chapters are optional.
+The daily and saved course readers share the same subject-by-subject layout, with
+Back/Next controls and an optional **Read all parts** view. The selected part stays
+in the URL when refreshing. Navigation does not record completion; the Review
+part contains the explicit completion action. The roadmap opens the current week,
+with short day rows and optional subject details for every week.
+These public lessons are available without a resume or AI generation. The 22 DSA
+topics also start with a small example before the full coding exercises.
+Generated lessons must include the same teaching steps. A separate teaching
+version retires old dense text from the lesson reader without resetting progress
+or deleting the original saved files.
+The course progresses from foundations (days 1–28), through connected systems
+(29–56), to production projects and interview practice (57–84), then final review
+(85–90). The syllabus is an interview preparation target, not a job guarantee.
+
+Completion keeps today's lesson visible until the next local date. The next
+unfinished day stays in the queue across missed dates. Course state lives under
+`interview_course` in learning memory; document IDs are `interview/day-N`.
+Earlier `plan/day-N` completions and saved resume material remain separate and
+unchanged in the library. A resume change never resets or changes this syllabus.
+
+**Daily fetch** offers manual preparation and an optional automatic setting.
+Automatic fetching defaults off and runs once per local date while the dashboard
+is running. It prepares the next unfinished course day plus papers, tech news,
+and GitHub discoveries. Failed or interrupted runs pause automatic retries until
+an explicit retry. This uses the configured Claude/Kiro CLI and its usage limits.
+The equivalent command is `venv/bin/python -m pipeline study`; it never selects
+profile updates, applications, or resume research. Existing full-pipeline runs
+still include the learning stage.
+
+Generated lessons are saved under `user/research/learning/interview-90/` with course
+version, content, and prior-reading fingerprints. Only completed earlier course
+material enters the recap context. Unread/future lessons are never described as
+completed, and reading completion is not treated as proof of mastery. Completed
+lessons are preserved. Daily research uses the selected date; older briefings
+remain in the dated library.
 
 Discover separates research papers, technology news, companies, and GitHub repositories.
 The paper researcher must return exactly two distinct original sources, prioritizing AI,
@@ -541,13 +565,13 @@ editing and deletion; conflicting revisions are rejected and unsaved drafts rema
 available while navigating within the current account session. Notes and bookmarks
 use the same locked `user/memory/learning.json` store as progress.
 
-In optional accounts mode, users with Learning access have private notes,
-bookmarks, resume-focus summaries and library-reading progress. Notes and bookmarks
-use versioned account storage, isolated from the local owner's files; combined
-storage is limited to 1 MB. Account activity reflects currently completed private
-documents, because account records do not yet retain completion-event history.
-Per-account AI generation and DSA execution still need a connected tenant runner;
-those actions are unavailable explicitly rather than falling back to owner data.
+In accounts mode, users with Learning access can read all public course guides,
+complete lessons, and use DSA explanations, checklists, and the practice sheet.
+Course completion, DSA state, notes, and bookmarks use versioned private account
+storage, isolated from the local owner's files; combined storage is limited to
+1 MB. Course/DSA events contribute to that account's activity history. Per-account
+live AI fetching and code execution still need a connected tenant runner; these
+capabilities are explicitly unavailable rather than using the owner's runner.
 
 The DSA practice provides one topic per local calendar day: a concept explanation,
 a worked Python example, and practice questions with revealable solutions. The path
@@ -639,9 +663,10 @@ input** accepts JSON; **Submit solution** checks all four cases and records the
 result. Input/output contracts and comparison rules appear beside the editor.
 Tests verify returned values, not algorithmic complexity or object identity.
 
-DSA has a direct sidebar shortcut and a **Practice DSA** button on Launchpad.
-Both open `#/learning/dsa?step=practice` at today's first unfinished practice
-question with its editor ready. Today's **Practice now** action opens the same view.
+The Learning navigation and Today open `#/learning/dsa`: a new topic starts at
+Learn, while a topic whose reading is complete resumes at Practice. Launchpad's
+**Practice DSA** shortcut and the sheet's **Today’s question** link keep the explicit
+`#/learning/dsa?step=practice` jump to the first unfinished coding question.
 Learn and Worked example remain available as tabs; the selected tab survives reload.
 The practice sheet also offers **Start coding** / **Continue coding** above the topic
 list, so finding a table row is optional. Editor input details open on demand.
@@ -682,7 +707,7 @@ screens using a temporary workspace; it does not change personal learning progre
 In the free local beta (and for the original workspace owner in accounts mode), course lessons, research notes, daily DSA and 90-day learning completions save to **`user/memory/learning.json`** in your private user repo. The server imports prior `user/reports/studied.json` and `user/research/learning/progress.json` once, preserving the originals. Writes use a process lock, fsync and atomic replacement. Invalid storage is reported rather than silently reset. `scripts/sync_data.sh` pushes `user/` with the rest of your private data. Other accounts use their own stored reading progress and cannot read or change this shared progress file.
 
 - **Learning → Today**: follow the daily checklist. Fetch a whole briefing or one missing section after reviewing its exact command. **Saved library** provides dated archives, category filters and search.
-- **Your curriculum**: follow the daily/weekly plan, continue resume topics, and browse course tracks in one view. Detailed readers keep the same saved completion state.
+- **90-day course**: follow the shared daily/weekly syllabus and project milestones. Earlier resume topics and reference tracks remain under **Earlier learning & extra practice**.
 - **Discover**: read two AI-priority papers, explore new technology and companies, and find GitHub projects. **Saved library** includes categorized bookmarks and editable personal notes.
 - Fetch actions use your configured AI agents and persist their output in `user/research/`; they are not simulated feeds. The Activity panel follows each run, and its output views refresh when that agent finishes, even while another agent is still working. Independent research stages can run in parallel.
 - Open a read → **Mark complete**. **Reopen reading** reverses it. Opening alone never completes an item.

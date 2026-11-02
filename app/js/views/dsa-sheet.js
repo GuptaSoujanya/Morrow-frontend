@@ -88,8 +88,8 @@ export function renderDsaSheet(arg = 'sheet') {
     const next = problems.find(problem => problem.status === 'attempted') || problems.find(problem => problem.status === 'todo') || problems[0];
     const quickStart = next ? h('section', { class: 'dsa-quick-start', 'aria-label': 'Continue coding' },
       h('div', {}, h('p', { class: 'eyebrow', text: next.status === 'solved' ? 'READY FOR REVISION' : 'YOUR NEXT QUESTION' }),
-        h('h2', { text: next.title }), h('p', { text: 'Open the question and editor together. Your saved code will be waiting.' })),
-      h('div', { class: 'dsa-quick-actions' }, h('a', { class: 'btn btn-primary', href: href(next.id), text: next.status === 'attempted' ? 'Continue coding' : 'Start coding' }),
+        h('h2', { text: next.title }), h('p', { text: data.execution_available === false ? 'Work through the question in your own editor, then save your approach and practice progress.' : 'Open the question and editor together. Your saved code will be waiting.' })),
+      h('div', { class: 'dsa-quick-actions' }, h('a', { class: 'btn btn-primary', href: href(next.id), text: data.execution_available === false ? 'Open question' : next.status === 'attempted' ? 'Continue coding' : 'Start coding' }),
         h('a', { class: 'text-link', href: DSA_PRACTICE_PATH, text: 'Today’s question →' }))) : null;
     const list = h('div', { class: 'dsa-topic-list' });
     const searchInput = h('input', { type: 'search', class: 'input', value: search, placeholder: 'Find a problem or topic', 'aria-label': 'Search DSA problems', oninput: event => { search = event.target.value; rememberFilters(); drawList(); } });
@@ -118,7 +118,7 @@ export function renderDsaSheet(arg = 'sheet') {
     drawList();
   }
   function drawProblem() {
-    coding ||= codeEditor({ key: 'dsa/' + problemId, showProblemTitle: false, compact: true, onSubmitted: result => {
+    if (data.execution_available !== false) coding ||= codeEditor({ key: 'dsa/' + problemId, showProblemTitle: false, compact: true, onSubmitted: result => {
       if (!current()) return;
       if (result.passed === result.total) data.status = 'solved';
       else if (data.status === 'todo') data.status = 'attempted';
@@ -151,7 +151,7 @@ export function renderDsaSheet(arg = 'sheet') {
         h('header', { class: 'daily-workspace-head' }, h('div', {}, h('p', { class: 'eyebrow', text: data.level }), h('h2', { text: data.title })), badge),
         h('div', { class: 'daily-reading' }, savedActions, reading(data.prompt_html), coding,
           h('details', { class: 'daily-solution' }, h('summary', { text: 'Review the approach & solution' }), reading(data.solution_html)),
-          h('section', { class: 'dsa-work-notes' }, h('h3', { text: 'Approach & notes' }), h('p', { class: 'learning-library-note', text: 'Keep your reasoning and complexity notes here. Passing the full test suite marks the problem solved.' }), notes,
+          h('section', { class: 'dsa-work-notes' }, h('h3', { text: 'Approach & notes' }), h('p', { class: 'learning-library-note', text: data.execution_available === false ? 'Keep your reasoning and complexity notes here. The status records your own assessment of the solution.' : 'Keep your reasoning and complexity notes here. Passing the full test suite marks the problem solved.' }), notes,
             h('div', { class: 'dsa-notes-actions' }, status, button), feedback))));
   }
   root.refresh = load;

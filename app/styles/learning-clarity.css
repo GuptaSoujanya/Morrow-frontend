@@ -45,6 +45,43 @@
 /* Idle activity remains available in the tools row without covering lesson actions. */
 body:has(.daily-today-clear) .activity-console[data-size="collapsed"][data-launch-state="idle"] .activity-launch-control { display: none; }
 .daily-today-clear .daily-archive { border: 0; }
+.daily-discovery-links { margin-top: 12px; gap: 8px 22px; font-size: 14px; }
+.learn-course-subjects { margin: 18px 0; }
+.learn-session-flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); list-style: none; padding: 0; margin: 20px 0; gap: 20px; }
+.learn-session-flow li { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.learn-session-flow li > span { color: var(--accent); font-size: 13px; font-weight: 650; line-height: 1.8; }
+.learn-session-flow strong { display: block; font-size: 15px; color: var(--text-900); }
+.learn-session-flow p { margin: 5px 0 0; font-size: 14px; line-height: 1.5; color: var(--text-600); }
+.learn-course-routine { padding: 8px 0; }
+.learn-course-routine .learn-section-heading h2 { font-size: 21px; }
+.learn-course-routine > p, .learn-roadmap-note { margin: 0; font-size: 14px; line-height: 1.6; }
+.learn-week-project { margin: 0; padding: 16px 22px; color: var(--text-600); font-size: 14px; border-top: 1px solid var(--border); }
+.learn-week-project strong { color: var(--text-900); font-weight: 600; }
+.learn-week .learn-material-source { max-width: 80ch; font-size: 13px; line-height: 1.6; }
+.learn-course-archive { border-top: 1px solid var(--border); padding-top: 10px; }
+.learn-course-archive > summary { min-height: 44px; padding: 12px 0; cursor: pointer; font-size: 15px; color: var(--text-600); }
+.learn-course-archive p { font-size: 14px; margin: 4px 0 10px; }
+.daily-lesson-flow { padding: 0 24px; border-bottom: 1px solid var(--border); background: var(--canvas); }
+.daily-lesson-source { margin: 0; padding: 16px 24px; font-size: 14px; line-height: 1.6; color: var(--text-600); border-bottom: 1px solid var(--border); }
+.daily-lesson-source strong { font-weight: 600; color: var(--text-900); }
+.daily-prose details { margin: 18px 0 30px; padding: 14px 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface, #fff); }
+.daily-prose summary { cursor: pointer; color: var(--text-900); font-weight: 600; line-height: 1.6; }
+.daily-prose summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; border-radius: 2px; }
+.daily-prose details[open] summary { margin-bottom: 14px; }
+.daily-prose details > :last-child { margin-bottom: 0; }
+.daily-feed { margin-top: 22px; border: 1px solid var(--border); border-radius: 10px; background: var(--canvas-raised); }
+.daily-feed > summary { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 18px; min-height: 52px; cursor: pointer; color: var(--text-900); font-size: 15px; font-weight: 600; }
+.daily-feed > summary::after { content: '+'; color: var(--text-600); }
+.daily-feed[open] > summary::after { content: '−'; }
+.daily-feed-state { margin-left: auto; color: var(--text-600); font-size: 13px; font-weight: 400; }
+.daily-feed-body { padding: 0 18px 18px; font-size: 14px; line-height: 1.6; }
+.daily-feed-body > p { margin: 0 0 14px; max-width: 80ch; }
+.daily-feed-toggle { display: flex; align-items: flex-start; gap: 12px; min-height: 44px; padding: 12px 0 18px; cursor: pointer; }
+.daily-feed-toggle input { margin: 3px 0 0; width: 18px; height: 18px; accent-color: var(--accent); }
+.daily-feed-toggle span { min-width: 0; }
+.daily-feed-toggle strong, .daily-feed-toggle small { display: block; }
+.daily-feed-toggle small { margin-top: 4px; color: var(--text-600); font-size: 13px; font-weight: 400; line-height: 1.6; }
+.daily-feed-feedback { color: var(--text-600); }
 @media (max-width: 1100px) {
   .daily-page .learning-switcher { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; margin-bottom: 18px; }
   .daily-today-clear .daily-today-overview { grid-template-columns: minmax(0, 1fr) 205px; }
@@ -52,6 +89,11 @@ body:has(.daily-today-clear) .activity-console[data-size="collapsed"][data-launc
   .daily-today-clear .daily-optional-group > ol { gap: 0 18px; }
 }
 @media (max-width: 650px) {
+  .learn-session-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 14px; }
+  .learn-session-flow p { font-size: 14px; }
+  .learn-course-routine .learn-section-heading { flex-wrap: wrap; gap: 8px; }
+  .learn-week-project { padding: 14px 16px; }
+  .daily-lesson-flow { padding: 0 18px; }
   .daily-page .daily-head { margin-bottom: 10px; }
   .daily-today-clear .daily-today-overview { grid-template-columns: 1fr; margin-bottom: 20px; }
   .daily-today-clear .daily-agenda-summary { padding: 19px; }

@@ -10,7 +10,7 @@ import threading
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from common import learning_activity, learning_memory as memory
+from common import learning_activity, learning_memory as memory, interview_course
 from web import state
 import daily_learning
 import dashboard_data
@@ -42,19 +42,26 @@ Read the first topic. [External reference](https://example.test/reference).
 
 Read the second topic.
 ''')
+    shared = weeks.parent / 'interview-90/weeks'
+    shared.mkdir(parents=True)
+    (shared / 'week-01.md').write_text((weeks / 'week-01.md').read_text())
+    (shared / 'week-01.meta.json').write_text(json.dumps({'course_id': 'interview-90', 'course_version': 1,
+        'day_sources': {str(day): {'source': 'generated', 'teaching_version': interview_course.TEACHING_VERSION}
+                        for day in (1, 2)}}))
     return tmp_path
 
 
 def complete(root, day=1, date=DAY):
-    return memory.transact(root, lambda data: memory.record(data, 'research', f'plan/day-{day}',
-        f'Learning day {day}', True, at=f'{date}T12:00:00+05:30', day=day))
+    return memory.transact(root, lambda data: interview_course.record_completion(data, day, True,
+        at=f'{date}T12:00:00+05:30'))
 
 
 def test_saved_plan_and_course_are_available_without_fabricated_progress(workspace):
     result = daily_learning.daily(today=DAY)
     plan = result['plan']
     assert result['date'] == DAY.isoformat() and plan['available']
-    assert plan['title'] == 'Client and server' and plan['day'] == 1 and plan['total'] == 90
+    assert plan['title'] == 'What is machine learning?' and plan['day'] == 1 and plan['total'] == 90
+    assert result['course_plan']['shared'] and plan['source'] == 'generated'
     assert not plan['read'] and plan['completed'] == 0
     assert result['course']['title'] == 'Introduction' and not result['course']['read']
     assert result['course']['route'] == '01-system-design/intro'
@@ -83,7 +90,7 @@ def test_completed_reading_stays_today_then_advances_tomorrow(workspace):
 
 def test_dated_document_fallback_preserves_completed_today(workspace):
     complete(workspace)
-    memory.transact(workspace, lambda data: data['plan'].pop('marked'))
+    memory.transact(workspace, lambda data: data['interview_course'].pop('marked'))
     assert daily_learning.daily(today=DAY)['plan']['day'] == 1
     assert daily_learning.daily(today=DAY)['plan']['read']
     assert daily_learning.daily(today=DAY + dt.timedelta(days=1))['plan']['day'] == 2
@@ -91,7 +98,7 @@ def test_dated_document_fallback_preserves_completed_today(workspace):
 
 def test_reopened_day_is_available_to_finish_again(workspace):
     complete(workspace)
-    research_learning.mark('plan/day-1', False)
+    research_learning.mark('interview/day-1', False)
     result = daily_learning.daily(today=DAY)
     assert result['plan']['day'] == 1 and not result['plan']['read']
     assert result['plan']['completed'] == 0
@@ -104,37 +111,39 @@ def test_stored_legacy_progress_and_course_status_are_preserved(workspace):
     state.STUDIED.parent.mkdir(parents=True)
     state.STUDIED.write_text('["01-system-design/intro.md"]')
     result = daily_learning.daily(today=DAY)
-    assert result['plan']['day'] == 2 and result['plan']['completed'] == 1
+    assert result['plan']['day'] == 1 and result['plan']['completed'] == 0
+    assert memory.transact(workspace)['plan']['done'] == [1]
     assert result['course']['read']
     assert not memory.transact(workspace)['history']
     assert progress.read_text() == '{"done":[1],"start":"2026-10-20"}'
 
 
-def test_missing_plan_is_explicit_and_course_still_works(workspace):
-    path = workspace / 'user/research/learning/weeks/week-01.md'
+def test_missing_generated_plan_uses_a_self_contained_public_lesson(workspace):
+    path = workspace / 'user/research/learning/interview-90/weeks/week-01.md'
     path.unlink()
     result = daily_learning.daily(today=DAY)
-    assert not result['plan']['available'] and not result['plan']['content_html']
-    assert 'no saved reading' in result['plan']['reason']
-    assert result['plan']['route'] == '#/learning/library?category=Learning'
+    assert result['plan']['available'] and 'Start here' in result['plan']['content_html']
+    assert result['plan']['source'] == 'bundled' and not result['plan']['read']
+    assert result['plan']['route'] == '#/learning/plan'
     assert result['course']['title'] == 'Introduction'
     assert not memory.transact(workspace)['history']
 
 
-def test_unavailable_selected_day_does_not_substitute_a_different_reading(workspace):
+def test_missing_generated_day_uses_its_own_public_reading(workspace):
     complete(workspace, day=1, date=DAY - dt.timedelta(days=1))
     complete(workspace, day=2, date=DAY - dt.timedelta(days=1))
     result = daily_learning.daily(today=DAY)
-    assert result['plan']['day'] == 3 and not result['plan']['available']
-    assert 'not in the saved' in result['plan']['reason']
+    assert result['plan']['day'] == 3 and result['plan']['available']
+    assert result['plan']['title'] == interview_course.day_spec(3)['title']
+    assert result['plan']['source'] == 'bundled' and 'Learning a pattern and using it' in result['plan']['content_html']
 
 
 def test_missing_completed_reading_preserves_its_known_completion(workspace):
     complete(workspace)
-    (workspace / 'user/research/learning/weeks/week-01.md').unlink()
+    (workspace / 'user/research/learning/interview-90/weeks/week-01.md').unlink()
     result = daily_learning.daily(today=DAY)['plan']
     assert result['day'] == 1 and result['read'] and result['completed'] == 1
-    assert not result['available'] and result['content_html'] == ''
+    assert result['available'] and 'Start here' in result['content_html']
 
 
 def test_extras_only_include_the_selected_local_date(workspace):
@@ -211,7 +220,8 @@ def test_saved_goal_is_distinct_from_plan_aliases_and_shares_existing_completion
     research_learning.mark('research/learning/today.md', True)
     research_learning.mark(f'research/learning/daily/{DAY}.md', True)
     result = daily_learning.daily(today=DAY)
-    assert result['plan']['read'] and result['plan']['completed'] == 1
+    assert not result['plan']['read'] and result['plan']['completed'] == 0
+    assert memory.transact(workspace)['plan']['done'] == [1]
     assert len(result['readings']) == 6 and not result['readings'][1]['read']
     goal = result['readings'][1]['id']
     research_learning.mark(goal, True)
@@ -281,7 +291,7 @@ def test_archive_dates_include_legacy_notes_but_ignore_invalid_calendar_folders(
 
 
 def test_completed_plan_is_explicit_without_a_fake_next_day(workspace):
-    memory.transact(workspace, lambda data: data['plan'].update(done=list(range(1, 91))))
+    memory.transact(workspace, lambda data: interview_course.ensure_course_state(data).update(done=list(range(1, 91))))
     result = daily_learning.daily(today=DAY)['plan']
     assert result['completed'] == 90 and not result['available']
     assert result['id'] is None and result['day'] is None
@@ -318,6 +328,31 @@ def test_http_reading_completion_uses_existing_history_and_stays_visible(http_ap
     assert request('GET', '/api/learning/daily', headers={'Host': 'other.example'})[0] == 403
 
 
+def test_daily_fetch_api_claims_one_learning_only_run_and_tracks_its_result(http_app, monkeypatch):
+    import learning_feed
+    request, app = http_app
+    monkeypatch.setattr(learning_feed.ai_cli, 'chosen_cli', lambda: 'claude')
+    runs, commands = [], []
+    monkeypatch.setattr(app.runner, 'snapshot', lambda **kwargs: {'epoch': 'feed-test', 'runs': runs})
+    def start(command, *, action, day):
+        commands.append(command.argv)
+        runs.append({'id': 'feed-test-run', 'action': action, 'day': day, 'running': True,
+                     'status': 'running', 'started_at': learning_feed._now().isoformat()})
+        return 'feed-test-run'
+    monkeypatch.setattr(app.runner, 'start', start)
+    assert request('GET', '/api/learning/feed')[1]['automatic'] is False
+    assert request('POST', '/api/learning/feed', {'automatic': True}, {'Origin': 'https://other.test'})[0] == 403
+    assert request('POST', '/api/learning/feed', {'automatic': 'true'})[0] == 400
+    assert request('POST', '/api/learning/feed/run', {})[0] == 202
+    assert request('POST', '/api/learning/feed/run', {})[1]['started'] is False
+    assert len(commands) == 1
+    argv = list(commands[0])
+    assert argv[argv.index('-m') + 1:argv.index('-m') + 3] == ['pipeline', 'study']
+    assert request('GET', '/api/learning/feed')[1]['running']
+    runs[0].update(running=False, status='completed', exit=0)
+    assert request('GET', '/api/learning/feed')[1]['last_attempt']['status'] == 'completed'
+
+
 def test_account_guard_blocks_other_users_local_learning(http_app):
     request, app = http_app
     from auth_bridge import Unavailable
@@ -329,7 +364,7 @@ def test_account_guard_blocks_other_users_local_learning(http_app):
         def request(self, *args, **kwargs):
             raise Unavailable('Account backend unavailable in this test.')
     app.account_bridge = Bridge()
-    assert request('GET', '/api/learning/daily')[0] == 403
+    assert request('GET', '/api/learning/daily')[0] == 503
     for path in ('collection', 'curriculum', 'overview'):
         assert request('GET', '/api/learning/' + path)[0] == 503
     status, result = request('GET', '/api/learning/discovery')

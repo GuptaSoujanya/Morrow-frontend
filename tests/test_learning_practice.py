@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from common import learning_memory as memory
+from common import learning_memory as memory, interview_course
 import learning_practice as practice
 
 REAL_ASK = practice.ai_cli.ask
@@ -63,6 +63,9 @@ def submit(root, value, day=DAY):
 
 
 def mark(root, identifier, date=DAY, day=None):
+    if identifier.startswith('interview/day-'):
+        return memory.transact(root, lambda data: interview_course.record_completion(data, int(identifier.split('-')[-1]), True,
+            at=f'{date}T12:00:00+05:30'))
     memory.transact(root, lambda data: memory.record(data, 'research', identifier, identifier, True,
         at=f'{date}T12:00:00+05:30', day=day))
 
@@ -90,7 +93,7 @@ def test_daily_sources_are_current_dsa_first_unfinished_plan_and_oldest_unread_p
     saved = papers(result)
     assert len(calls) == len(saved) == 3 and result['daily']['status'] == 'ready'
     assert saved['dsa']['source_ids'] == ['dsa/hashing']
-    assert saved['learning']['source_ids'] == ['plan/day-1']
+    assert saved['learning']['source_ids'] == ['interview/day-1']
     assert saved['research']['source_ids'] == [f'research/daily/{DAY - dt.timedelta(days=2)}/03-papers.md']
     assert all(len(value['questions']) == 3 and value['goal'] and value['reason'] for value in saved.values())
     assert all(value['questions'][0]['reference_answer'] for value in saved.values())
@@ -121,14 +124,14 @@ def test_completed_papers_wait_until_tomorrow_and_respect_source_completion(work
     assert same['daily']['status'] == 'completed'
     # Submitting practice never silently completes the actual source lesson.
     assert not memory.transact(workspace)['documents']
-    mark(workspace, 'plan/day-1', day=1)
+    mark(workspace, 'interview/day-1', day=1)
     mark(workspace, papers(initial)['research']['source_ids'][0])
     def finish_dsa(data):
         data['dsa'] = {'days': {str(DAY): {'topic': 'hashing', 'read': True, 'practiced': ['2', '3'], 'completed_at': f'{DAY}T12:00:00+05:30'}}}
     memory.transact(workspace, finish_dsa)
     result = practice.generate(workspace, COURSE, 'daily', today=DAY + dt.timedelta(days=1), ask=response)
     next_papers = papers(result)
-    assert next_papers['learning']['source_ids'] == ['plan/day-2']
+    assert next_papers['learning']['source_ids'] == ['interview/day-2']
     assert next_papers['dsa']['source_ids'] == ['dsa/array-patterns']
     assert next_papers['research']['source_ids'] == [f'research/daily/{DAY}/03-papers.md']
     assert all(next_papers[kind]['id'] != papers(initial)[kind]['id'] for kind in next_papers)
@@ -206,12 +209,12 @@ def test_missing_research_is_blocked_and_never_fabricated(workspace):
     assert 'No unread research' in slot['reason']
 
 
-def test_missing_first_learning_day_does_not_jump_to_day_two(workspace):
+def test_missing_generated_learning_day_uses_bundled_day_one_without_jumping(workspace):
     path = workspace / 'user/research/learning/weeks/week-01.md'
     path.write_text('## Day 2: Caching\nA real second lesson.\n')
     result = practice.generate(workspace, COURSE, 'daily', today=DAY + dt.timedelta(days=20), ask=response)
-    assert result['daily']['papers'][1]['status'] == 'blocked'
-    assert 'day 1' in result['daily']['papers'][1]['reason']
+    assert result['daily']['papers'][1]['status'] == 'ready'
+    assert papers(result)['learning']['source_ids'] == ['interview/day-1']
 
 
 @pytest.mark.parametrize('invalid', ['not json', '{}', 'foreign-source', 'html', 'wrong-count', 'wrong-duration', 'duplicate-fields'])
@@ -311,7 +314,11 @@ def test_superseded_worker_cannot_overwrite_recovered_generation(workspace):
 
 
 def test_source_context_is_bounded_and_omits_contact_details(workspace):
-    path = workspace / 'user/research/learning/weeks/week-01.md'
+    path = workspace / 'user/research/learning/interview-90/weeks/week-01.md'
+    path.parent.mkdir(parents=True)
+    from common.interview_course import TEACHING_VERSION
+    path.with_suffix('.meta.json').write_text(json.dumps({'course_id': 'interview-90', 'course_version': 1,
+        'day_sources': {'1': {'source': 'generated', 'teaching_version': TEACHING_VERSION}}}))
     path.write_text('## Day 1: Learning\nContact someone@example.test or +91 9876543210.\n' + 'A saved concept. ' * 2000)
     seen = []
     def ask(prompt):

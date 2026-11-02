@@ -150,7 +150,7 @@ test('missing permissions and unknown routes fail closed', () => {
   assert.equal(routeAccess({ name: 'files', arg: 'resume' }, { ...free, user: { role: 'user', modules: ['profile'] } }).kind, 'upgrade');
 });
 
-test('one Learning entry preserves private research access and protects shared runtime lessons', () => {
+test('one Learning entry opens the public course and protects private runtime execution', () => {
   const beta = { accountMode: 'local', legacyAccess: true, user: null };
   assert.deepEqual(mobileRoutes(beta), ['overview', 'learning', 'bots', 'todo']);
   for (const context of [beta, paid, admin]) {
@@ -159,11 +159,12 @@ test('one Learning entry preserves private research access and protects shared r
     assert.ok(!links(context).includes('study'));
   }
   for (const context of [paid, admin]) {
-    assert.deepEqual(routeAccess('learning', context), { kind: 'redirect', route: { name: 'learning', arg: 'library' } });
-    for (const arg of ['library', 'read/daily/example.md', 'resume', 'weekly', 'discover', 'bookmarks', 'notes', 'progress']) {
+    assert.deepEqual(routeAccess('learning', context), { kind: 'allowed', module: 'learning' });
+    for (const arg of ['library', 'read/daily/example.md', 'read/interview%2Fday-1', 'resume', 'weekly', 'discover', 'bookmarks', 'notes', 'progress',
+      'plan', 'dsa', 'dsa/sheet', 'dsa/problem/example']) {
       assert.equal(routeAccess({ name: 'learning', arg }, context).kind, 'allowed');
     }
-    for (const arg of ['plan', 'dsa', 'courses']) {
+    for (const arg of ['courses', 'practice']) {
       assert.equal(routeAccess({ name: 'learning', arg }, context).kind, 'runtime');
       assert.equal(preloadRoute({ name: 'learning', arg }, context), null);
     }
@@ -172,4 +173,16 @@ test('one Learning entry preserves private research access and protects shared r
     assert.equal(routeAccess({ name: 'learning', arg }, beta).kind, 'allowed');
     assert.equal(routeAccess({ name: 'learning', arg }, free).kind, 'upgrade');
   }
+});
+
+test('course-only accounts can study without research access or a local runner', () => {
+  const learner = { ...free, user: { role: 'user', modules: [...core, 'learning'] } };
+  for (const arg of ['', 'plan', 'weekly', 'dsa', 'dsa/sheet', 'read/interview%2Fday-1', 'read/interview/day-90']) {
+    assert.deepEqual(routeAccess({ name: 'learning', arg }, learner), { kind: 'allowed', module: 'learning' });
+    assert.equal(preloadRoute({ name: 'learning', arg }, learner), 'learning');
+  }
+  assert.equal(routeAccess({ name: 'learning', arg: 'library' }, learner).kind, 'upgrade');
+  const researcher = { ...free, user: { role: 'user', modules: [...core, 'research'] } };
+  assert.deepEqual(routeAccess('learning', researcher), { kind: 'redirect', route: { name: 'learning', arg: 'library' } });
+  assert.equal(routeAccess({ name: 'learning', arg: 'read/interview%2Fday-1' }, researcher).kind, 'upgrade');
 });

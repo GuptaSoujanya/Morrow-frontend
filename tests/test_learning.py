@@ -80,12 +80,15 @@ def test_daily_direction_aliases_and_history_are_consistent(workspace):
 
 
 def test_cli_and_dashboard_use_the_same_locked_progress(workspace):
+    from common import interview_course
+    import learning_workspace
     root = workspace / 'user/research/learning'
     assert learning.mark_done(root) == 1
-    assert research_learning.summary()['focus']['day'] == 2
+    assert learning_workspace.curriculum()['next_day'] == 2
     assert learning.mark_done(root) == 1  # same-day CLI retry remains idempotent
     stale = learning.load_progress(root)
-    research_learning.mark('plan/day-2',True)
+    # The legacy plan remains separate from the common interview course.
+    memory.transact(workspace, lambda data: interview_course.record_completion(data, 2, True))
     learning.save_progress(stale,root)
     assert learning.load_progress(root)['done'] == [1,2]
     assert state.studied() == set()

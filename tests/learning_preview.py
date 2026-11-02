@@ -40,7 +40,7 @@ class Handler(dashboard.DashboardHandler):
     def do_GET(self):
         path = urlsplit(self.path).path
         if path.startswith('/api/') and path not in ('/api/learning/dsa', '/api/learning/activity', '/api/learning/daily',
-                '/api/learning/collection', '/api/learning/discovery', '/api/learning/curriculum', '/api/learning/overview',
+                '/api/learning/collection', '/api/learning/discovery', '/api/learning/curriculum', '/api/learning/overview', '/api/learning/feed',
                 '/api/learning/dsa/sheet', '/api/learning/dsa/problem', '/api/learning/practice', '/api/learning/practice/paper',
                 '/api/learning/code/capabilities', '/api/learning/code/problem', '/api/learning/code/progress',
                 '/api/research/learning', '/api/document', '/api/library', '/api/course'):
@@ -61,7 +61,7 @@ class Handler(dashboard.DashboardHandler):
             except ValueError as exc:
                 return self.error(400, str(exc))
         if path not in ('/api/learning/dsa', '/api/learning/dsa/problem', '/api/learning/practice/settings',
-                         '/api/learning/collection',
+                         '/api/learning/collection', '/api/learning/feed',
                          '/api/learning/practice/answer', '/api/research/read', '/api/course/read',
                          '/api/learning/code/draft', '/api/learning/code/execute'):
             return self.error(403, 'Only temporary learning progress can change in this preview.')

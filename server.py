@@ -31,6 +31,7 @@ import coding_practice
 import local_code_runner
 import learning_scores
 import learning_workspace
+import learning_feed
 from common import learning_activity, learning_memory, paths
 from common.local_setup import LocalSetup, SetupError as LocalSetupError
 import pipeline_status as flow_status
@@ -130,17 +131,19 @@ def bots_status(runner):
                 selected = [key + '_profile' for key in selected]
             elif '--update-profile' in tokens:
                 selected += [key + '_profile' for key in selected]
-        elif action == "pipeline":
+        elif action in ("pipeline", learning_feed.ACTION):
             def values(flag):
                 return [tokens[index + 1] for index, token in enumerate(tokens[:-1]) if token == flag]
 
             command_index = tokens.index('pipeline') + 1 if 'pipeline' in tokens else len(tokens)
             command = tokens[command_index] if command_index < len(tokens) else ''
-            only = ['learn'] if command == 'learn' else values('--only')
+            only = [command] if command in ('learn', 'study') else values('--only')
             skipped = values('--skip')
 
             def matches(stage, choices):
-                return any(stage == choice or stage.startswith(choice + ':') for choice in choices)
+                return any(stage == choice or stage.startswith(choice + ':') or
+                           choice == 'study' and stage in ('learn', 'brief:papers', 'brief:tech-news', 'brief:repositories')
+                           for choice in choices)
 
             stages = [] if command in ('status', 'check') or '--done' in tokens else [
                 stage for stage in commands.STAGES
@@ -190,6 +193,26 @@ class DashboardHandler(server.Handler):
 
     def practice_status(self):
         return self.server.practice_status()
+
+    def learning_feed_request(self, path):
+        if not self.host_ok() or not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
+            return self.error(403, 'Only this dashboard can prepare daily learning.')
+        try:
+            body = self.body()
+            if path == '/api/learning/feed':
+                return self.json(learning_feed.update_settings(self.server.practice_root, body))
+            if path != '/api/learning/feed/run' or not isinstance(body, dict) or body:
+                raise ValueError('Send an empty object to prepare today’s learning.')
+            result = self.server.start_learning_feed()
+            return self.json(result, HTTPStatus.ACCEPTED if result['started'] else HTTPStatus.OK)
+        except LookupError as exc:
+            return self.error(503, str(exc))
+        except (ValueError, server.ApiError) as exc:
+            return self.error(400, str(exc))
+        except RuntimeError as exc:
+            return self.error(409, str(exc))
+        except OSError:
+            return self.error(503, 'Daily learning settings could not be saved. Please retry.')
 
     def practice_request(self, path):
         if not self.host_ok() or not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
@@ -413,6 +436,8 @@ class DashboardHandler(server.Handler):
                 return True
             query = {key: values[-1] for key, values in parse_qs(url.query).items()}
             required = {"/api/library": "research", "/api/document": "research", "/api/research/learning": "learning", "/api/research/read": "learning"}.get(url.path)
+            if url.path == '/api/document' and re.fullmatch(r'interview/day-\d{1,2}', query.get('id', '')):
+                required = 'learning'
             if required and user["role"] != "admin" and required not in user.get("modules", []):
                 self.error(403, "Your plan does not include this module.")
                 return True
@@ -485,14 +510,16 @@ class DashboardHandler(server.Handler):
         url = urlsplit(self.path)
         try:
             query = {key: values[-1] for key, values in parse_qs(url.query).items()}
+            if url.path == '/api/learning/feed':
+                return self.json(self.server.learning_feed_status())
             if url.path == '/api/learning/collection':
                 return self.json(learning_workspace.collection())
             if url.path == '/api/learning/discovery':
                 return self.json(learning_workspace.discovery(query.get('date')))
             if url.path == '/api/learning/curriculum':
-                return self.json(learning_workspace.curriculum(runner_setup.runtime_environment(state.APPLY, getattr(self.server, 'workspace_owner_email', ''))))
+                return self.json(learning_workspace.curriculum())
             if url.path == '/api/learning/overview':
-                return self.json(learning_workspace.overview(runner_setup.runtime_environment(state.APPLY, getattr(self.server, 'workspace_owner_email', ''))))
+                return self.json(learning_workspace.overview())
             if url.path == '/api/learning/activity':
                 return self.json(learning_activity.summary(learning_memory.transact(state.APPLY, studied=state.STUDIED)))
             if url.path == '/api/learning/code/capabilities':
@@ -589,6 +616,8 @@ class DashboardHandler(server.Handler):
         if self.account_request():
             return
         path = urlsplit(self.path).path
+        if path in ('/api/learning/feed', '/api/learning/feed/run'):
+            return self.learning_feed_request(path)
         if path == '/api/learning/collection':
             if not self.host_ok() or not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
                 return self.error(403, 'Only this dashboard can update your learning workspace.')
@@ -697,6 +726,28 @@ class DashboardServer(server.ControlServer):
                 result[mode]['job'] = {**(result[mode].get('job') or {}), 'status': 'running', 'run_id': active.get('id')}
         return result
 
+    def learning_feed_status(self):
+        return learning_feed.status(self.practice_root, self.runner.snapshot())
+
+    def start_learning_feed(self, automatic=False):
+        with self.practice_lock:
+            if self.practice_stop.is_set():
+                return {'started': False, 'status': self.learning_feed_status()}
+            snapshot = self.runner.snapshot()
+            if automatic and any(run.get('running') for run in snapshot.get('runs', [])):
+                return {'started': False, 'status': learning_feed.status(self.practice_root, snapshot)}
+            attempt = learning_feed.claim(self.practice_root, automatic=automatic, snapshot=snapshot)
+            if attempt is None:
+                return {'started': False, 'status': self.learning_feed_status()}
+            command = state.py('Daily course & discoveries', '-m', 'pipeline', 'study', '--date', attempt['date'])
+            try:
+                run_id = self.runner.start(command, action=learning_feed.ACTION, day=attempt['date'])
+                learning_feed.started(self.practice_root, attempt['id'], run_id, runner_epoch=snapshot.get('epoch'))
+            except Exception:
+                learning_feed.finish(self.practice_root, attempt['id'], success=False)
+                raise
+            return {'started': True, 'run_id': run_id, 'status': self.learning_feed_status()}
+
     def start_practice(self, mode, automatic=False):
         if mode not in ('daily', 'weekly'):
             raise ValueError('Choose daily practice or the weekly exam.')
@@ -722,6 +773,13 @@ class DashboardServer(server.ControlServer):
     def _prepare_daily_practice(self):
         # Opt-in persists locally. No timers or agents run after this server closes.
         while not self.practice_stop.is_set():
+            try:
+                if learning_feed.automatic_enabled(self.practice_root):
+                    self.start_learning_feed(automatic=True)
+            except (ValueError, OSError, RuntimeError, LookupError):
+                # Durable attempt state pauses failed generation for explicit retry.
+                # API status exposes configuration/storage errors to the learner.
+                pass
             try:
                 if learning_practice.automatic_enabled(self.practice_root):
                     self.start_practice('daily', automatic=True)

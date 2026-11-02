@@ -5,10 +5,10 @@ import { selectControl } from './components/controls.js';
 
 export const DSA_PRACTICE_PATH = '#/learning/dsa?step=practice';
 export const LEARNING_SECTIONS = [
-  { key: 'today', label: 'Today', path: '#/learning', icon: 'sun', title: 'Today’s learning', description: 'Your daily practice, reading, and career research in one place.' },
-  { key: 'weekly', label: 'Your curriculum', path: '#/learning/weekly', icon: 'calendar', title: 'Your curriculum', description: 'Daily lessons and weekly projects shaped by your resume.' },
-  { key: 'dsa', label: 'DSA practice', path: DSA_PRACTICE_PATH, icon: 'code', title: 'DSA practice', description: 'Open today’s question and code editor directly.' },
-  { key: 'discover', label: 'Discover', path: '#/learning/discover', icon: 'globe', title: 'Discover', description: 'Two AI papers, new technology, companies and GitHub repositories.' },
+  { key: 'today', label: 'Today', path: '#/learning', icon: 'sun', title: 'Today’s learning', description: 'Continue your interview course, practice DSA, and explore today’s discoveries.' },
+  { key: 'weekly', label: '90-day course', path: '#/learning/weekly', icon: 'calendar', title: '90-day interview course', description: 'One shared path through AI, machine learning, system design, full-stack development, and DSA.' },
+  { key: 'dsa', label: 'DSA practice', path: '#/learning/dsa', icon: 'code', title: 'DSA practice', description: 'Learn the idea, follow an example, then try a question.' },
+  { key: 'discover', label: 'Discover', path: '#/learning/discover', icon: 'globe', title: 'Discover', description: 'Keep up with research papers, tech news, and GitHub projects alongside your course.' },
   { key: 'practice', label: 'Practice & exams', path: '#/learning/practice', icon: 'pen', title: 'Practice & exams', description: 'AI papers shaped by your saved learning and progress.' },
   { key: 'resume', label: 'Resume topics', path: '#/learning/resume', icon: 'person', title: 'Resume topics', description: 'Study topics selected from your résumé and career goals.' },
   { key: 'courses', label: 'Courses', path: '#/learning/courses', icon: 'book', title: 'Courses', description: 'Build your skills with a complete, structured curriculum.' },

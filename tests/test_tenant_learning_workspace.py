@@ -1,5 +1,6 @@
 """Learning account adapters must preserve isolation and concurrent edits."""
 import copy
+import datetime as dt
 import json
 from pathlib import Path
 import sys
@@ -10,6 +11,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from test_tenant_api import Bridge, Handler, adapter, artifact
 from tenant_api import TenantAPI, now
+from common import interview_course, learning_memory
 
 
 class LearningBridge(Bridge):
@@ -148,7 +150,7 @@ def test_invalid_links_do_not_write_profile(kind, url):
     assert result.status == 400 and bridge.profile == before
 
 
-def test_empty_generation_is_truthful_and_focus_uses_only_account_inputs():
+def test_bundled_course_is_ready_and_web_generation_remains_truthful():
     bridge = LearningBridge()
     bridge.profile['data'].update(skills=['Python', 'FastAPI', 'private@example.com'], titles=['Backend Engineer'],
                                   email='private@example.com', full_name='Private Person', _dashboard_files={'answers': 'Private answer'})
@@ -158,7 +160,10 @@ def test_empty_generation_is_truthful_and_focus_uses_only_account_inputs():
     assert result.status == 200
     data = result.result
     assert len(data['weeks']) == 13 and sum(len(week['days']) for week in data['weeks']) == 90
-    assert not any(day['available'] for week in data['weeks'] for day in week['days'])
+    assert data['course']['id'] == 'interview-90' and data['course']['shared']
+    assert all(day['title'] != f"Day {day['day']}" for week in data['weeks'] for day in week['days'])
+    assert all(day['course_status'] == 'current' for week in data['weeks'] for day in week['days'])
+    assert all(day['available'] and day['source'] == 'bundled' for week in data['weeks'] for day in week['days'])
     assert not data['generation_available'] and data['completed'] == 0
     assert data['profile']['skills'] == ['Python', 'FastAPI']
     assert data['profile']['target_roles'] == ['Backend Engineer']
@@ -171,6 +176,145 @@ def test_empty_generation_is_truthful_and_focus_uses_only_account_inputs():
     assert request(bridge, 'GET', '/api/learning/discovery', query={'date': '../../secrets'}).status == 400
 
 
+def test_shared_course_outline_is_the_same_without_a_resume_and_for_different_roles():
+    beginner = LearningBridge()
+    expert = LearningBridge()
+    expert.profile['data'].update(skills=['Python', 'PyTorch'], titles=['ML Engineer'],
+                                   learning_focus='Advanced recommender systems')
+    expert.setup = {'resume': {'sha256': 'b' * 64, 'created_at': now().isoformat()},
+                    'readiness': {'resume_ready': True}}
+    first = request(beginner, 'GET', '/api/learning/curriculum').result
+    second = request(expert, 'GET', '/api/learning/curriculum').result
+    assert first['course'] == second['course']
+    assert first['weeks'] == second['weeks']
+    assert first['next_day'] == second['next_day'] == 1
+    assert all(day['resume_status'] == 'not_required' for week in first['weeks'] for day in week['days'])
+    assert 'resume is not required' in first['profile']['guidance']
+    assert first['generation_available'] is False
+    assert 'lessons are ready' in first['generation_message']
+    assert 'not connected' in first['generation_message']
+    # Only account profile/onboarding context is consulted. No artifacts,
+    # owner's progress, or runner material are used to construct the syllabus.
+    assert {path for path, _method, _body in beginner.calls} <= {'/api/v1/profile', '/api/v1/onboarding'}
+    assert '_learning_workspace' not in beginner.profile['data']
+
+
+def test_public_course_reader_and_private_completion_never_use_owner_progress(monkeypatch):
+    def forbidden(*_args, **_kwargs):
+        pytest.fail('Account learning must never open local owner progress.')
+    monkeypatch.setattr(learning_memory, 'transact', forbidden)
+    bridge = LearningBridge()
+    course = request(bridge, 'GET', '/api/learning/daily')
+    assert course.status == 200
+    assert course.result['plan']['id'] == 'interview/day-1'
+    assert course.result['plan']['source'] == 'bundled'
+    assert course.result['plan']['available'] and not course.result['plan']['read']
+    reader = request(bridge, 'GET', '/api/document', query={'id': 'interview/day-1'})
+    assert reader.status == 200 and reader.result['html']
+    assert 'href="/course/' not in reader.result['html']
+    assert reader.result['read'] is False
+    saved = request(bridge, 'POST', '/api/research/read', {'id': 'interview/day-1', 'read': True})
+    assert saved.status == 200 and saved.result['read']
+    retry = request(bridge, 'POST', '/api/research/read', {'id': 'interview/day-1', 'read': True})
+    assert retry.status == 200
+    private = bridge.profile['data']['_learning_workspace']
+    assert private['interview_course']['done'] == [1]
+    assert len(private['course_history']) == 1
+    assert 'plan' not in private
+    assert request(bridge, 'GET', '/api/document', query={'id': 'interview/day-1'}).result['read']
+    # Keep today's completed lesson visible. The roadmap still identifies the
+    # first unfinished day, independent of the wall-clock start date.
+    today = request(bridge, 'GET', '/api/learning/daily').result
+    assert today['plan']['day'] == 1 and today['plan']['read']
+    curriculum = request(bridge, 'GET', '/api/learning/curriculum').result
+    assert curriculum['completed'] == 1 and curriculum['next_day'] == 2
+    assert request(bridge, 'GET', '/api/learning/activity').result['total_completions'] == 1
+    reopened = request(bridge, 'POST', '/api/research/read', {'id': 'interview/day-1', 'read': False})
+    assert reopened.status == 200
+    assert request(bridge, 'GET', '/api/learning/curriculum').result['next_day'] == 1
+
+
+def test_course_queue_keeps_missed_days_and_completed_days_do_not_skip_holes():
+    bridge = LearningBridge()
+    saved = {'notes': {}, 'bookmarks': {}}
+    data = {'documents': {}, 'history': []}
+    interview_course.record_completion(data, 1, True, '2025-01-01T12:00:00+05:30')
+    interview_course.record_completion(data, 3, True, '2025-01-02T12:00:00+05:30')
+    saved.update(interview_course=data['interview_course'], course_documents=data['documents'], course_history=data['history'])
+    bridge.profile['data']['_learning_workspace'] = saved
+    daily = request(bridge, 'GET', '/api/learning/daily').result
+    assert daily['plan']['day'] == 2 and daily['plan']['completed'] == 2
+    assert not daily['plan']['read']
+
+
+def test_course_completion_cas_preserves_an_independent_note():
+    bridge = LearningBridge()
+    bridge.before_save = lambda: save(bridge, {'action': 'note', 'title': 'Keep me', 'body': 'From another tab'})
+    result = request(bridge, 'POST', '/api/research/read', {'id': 'interview/day-1', 'read': True})
+    assert result.status == 200
+    private = bridge.profile['data']['_learning_workspace']
+    assert len(private['notes']) == 1
+    assert private['interview_course']['done'] == [1]
+    assert len(private['course_history']) == 1
+
+
+@pytest.mark.parametrize('identifier', ['interview/day-0', 'interview/day-91', 'interview/day-01', 'interview/../../user/secrets', 'interview/day-1/extra'])
+def test_invalid_public_lesson_identifiers_never_write_progress(identifier):
+    bridge = LearningBridge()
+    original = copy.deepcopy(bridge.profile)
+    assert request(bridge, 'GET', '/api/document', query={'id': identifier}).status == 404
+    assert request(bridge, 'POST', '/api/research/read', {'id': identifier, 'read': True}).status == 404
+    assert bridge.profile == original
+
+
+def test_course_progress_and_daily_dsa_are_private_between_accounts():
+    alice, bob = LearningBridge(), LearningBridge()
+    request(alice, 'POST', '/api/research/read', {'id': 'interview/day-1', 'read': True})
+    lesson = request(alice, 'GET', '/api/learning/dsa').result
+    result = request(alice, 'POST', '/api/learning/dsa', {'date': lesson['date'], 'topic': lesson['lesson']['id'], 'task': 'read', 'done': True})
+    assert result.status == 200 and result.result['progress']['read']
+    assert request(bob, 'GET', '/api/learning/curriculum').result['completed'] == 0
+    bob_lesson = request(bob, 'GET', '/api/learning/dsa').result
+    assert bob_lesson['lesson'] == lesson['lesson']
+    assert not bob_lesson['progress']['read']
+    assert request(bob, 'GET', '/api/learning/activity').result['total_completions'] == 0
+
+
+def test_tenant_dsa_checks_save_and_completion_is_idempotent_without_code_execution():
+    bridge = LearningBridge()
+    lesson = request(bridge, 'GET', '/api/learning/dsa').result
+    assert lesson['execution_available'] is False
+    body = {'date': lesson['date'], 'topic': lesson['lesson']['id'], 'done': True}
+    assert request(bridge, 'POST', '/api/learning/dsa', {**body, 'task': 'complete'}).status == 400
+    assert request(bridge, 'POST', '/api/learning/dsa', {**body, 'task': 'read'}).status == 200
+    for problem in lesson['lesson']['practice']:
+        assert request(bridge, 'POST', '/api/learning/dsa', {**body, 'task': 'practice', 'problem': str(problem['id'])}).status == 200
+    first = request(bridge, 'POST', '/api/learning/dsa', {**body, 'task': 'complete'})
+    second = request(bridge, 'POST', '/api/learning/dsa', {**body, 'task': 'complete'})
+    assert first.status == second.status == 200
+    assert first.result['progress']['completed_at'] == second.result['progress']['completed_at']
+    assert second.result['activity']['total_completions'] == 1
+    assert second.result['activity']['xp'] == 50
+    stale = request(bridge, 'POST', '/api/learning/dsa', {**body, 'task': 'read', 'date': '2020-01-01'})
+    assert stale.status == 409
+    solved = request(bridge, 'GET', '/api/learning/overview').result
+    assert next(track for track in solved['tracks'] if track['key'] == 'dsa')['completed'] == 1
+
+
+def test_tenant_dsa_sheet_and_notes_use_only_private_saved_problem_state():
+    bridge = LearningBridge()
+    sheet = request(bridge, 'GET', '/api/learning/dsa/sheet').result
+    assert sheet['total'] > 50 and sheet['execution_available'] is False
+    identifier = sheet['groups'][0]['problems'][0]['id']
+    first = request(bridge, 'GET', '/api/learning/dsa/problem', query={'id': identifier}).result
+    assert first['status'] == 'todo' and first['execution_available'] is False
+    result = request(bridge, 'POST', '/api/learning/dsa/problem', {'id': identifier, 'status': 'solved', 'notes': 'My own explanation'})
+    assert result.status == 200 and result.result['status'] == 'solved'
+    assert request(bridge, 'GET', '/api/learning/dsa/sheet').result['solved'] == 1
+    assert request(bridge, 'GET', '/api/learning/dsa/problem', query={'id': identifier}).result['notes'] == 'My own explanation'
+    assert request(bridge, 'GET', '/api/learning/overview').result['solved_problems'] == 1
+
+
 def test_overview_and_activity_count_only_owned_existing_read_documents():
     bridge = LearningBridge()
     identifier = artifact(bridge, 'Study.md', b'# Study')
@@ -180,6 +324,9 @@ def test_overview_and_activity_count_only_owned_existing_read_documents():
         'id': 'artifact/deleted-file', 'done': True, 'completed_at': now().isoformat()}})
     result = request(bridge, 'GET', '/api/learning/overview').result
     library = next(track for track in result['tracks'] if track['key'] == 'library')
+    course = next(track for track in result['tracks'] if track['key'] == 'curriculum')
+    assert course['total'] == 90 and course['completed'] == 0 and course['percent'] == 0
+    assert result['course']['shared'] and result['course']['id'] == 'interview-90'
     assert library['completed'] == library['total'] == 1
     assert library['percent'] == 100 and result['notes'] == 1
     assert result['total_completions'] == result['today_completed'] == 1
@@ -201,7 +348,8 @@ def test_profile_editor_hides_and_preserves_learning_data():
     assert bridge.profile['data']['name'] == 'Alice Updated'
 
 
-@pytest.mark.parametrize('path', ['/api/learning/collection', '/api/learning/curriculum', '/api/learning/discovery', '/api/learning/overview', '/api/learning/activity'])
+@pytest.mark.parametrize('path', ['/api/learning/collection', '/api/learning/curriculum', '/api/learning/discovery', '/api/learning/overview', '/api/learning/activity',
+                                  '/api/learning/daily', '/api/learning/dsa', '/api/learning/dsa/sheet', '/api/learning/dsa/problem'])
 def test_learning_entitlements_are_checked_before_backend_reads(path):
     bridge = LearningBridge()
     result = request(bridge, 'GET', path, modules=['profile', 'files'])

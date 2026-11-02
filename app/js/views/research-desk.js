@@ -24,7 +24,8 @@ export function fetchButton(label,group,day,refresh,{existing=false}={}){
     try{
       const options={group,date:day,redo:true},preview=await api('/api/preview',{action:'pipeline',options});
       if(preview.needed)throw new Error(preview.needed);
-      if(!await confirmDialog({title:`${label}?`,body:group==='research:resume'?'Generate missing topics from your saved resume and rebuild its overview. Existing topic files are kept.':`Use your configured research agents for ${dateLabel(day)}. ${existing?'Existing files in this selected section will be refreshed.':'New material will be saved to your workspace.'} You can follow progress in Activity.`,code:preview.shown,ok:group==='research:resume'?'Update resume library':'Fetch research'}))return;
+      const courseFetch=group==='learn'||group==='study';
+      if(!await confirmDialog({title:`${label}?`,body:group==='research:resume'?'Generate missing topics from your saved resume and rebuild its overview. Existing topic files are kept.':courseFetch?`Prepare your next unfinished course lesson using completed lessons for context.${group==='study'?' Also fetch today’s research papers, tech news, and GitHub projects.':''} Your saved progress and course order stay the same. Follow progress in Activity.`:`Use your configured research agents for ${dateLabel(day)}. ${existing?'Existing files in this selected section will be refreshed.':'New material will be saved to your workspace.'} You can follow progress in Activity.`,code:preview.shown,ok:group==='research:resume'?'Update resume library':courseFetch?'Prepare learning':'Fetch research'}))return;
       await api('/api/run',{action:'pipeline',options});
       setConsoleSize('normal');
       try{await hooks.refreshStatus();await refresh();}catch(error){feedback.textContent=`Research started. Refresh the view to check new files. ${error.message}`;feedback.hidden=false;}

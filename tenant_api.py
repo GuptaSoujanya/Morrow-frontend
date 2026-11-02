@@ -201,6 +201,10 @@ class TenantAPI:
             "/api/learning/discovery": self.learning_workspace.discovery,
             "/api/learning/overview": self.learning_workspace.overview,
             "/api/learning/activity": self.learning_workspace.activity,
+            "/api/learning/daily": self.learning_workspace.daily,
+            "/api/learning/dsa": self.learning_workspace.dsa,
+            "/api/learning/dsa/sheet": self.learning_workspace.dsa_sheet,
+            "/api/learning/dsa/problem": self.learning_workspace.dsa_problem,
         }
         if method == "GET" and path == "/api/resume-file":
             try:
@@ -214,14 +218,18 @@ class TenantAPI:
             except TenantError as exc:
                 self.handler.error(exc.status, str(exc))
             return True
-        if method == "POST" and path in ("/api/file", "/api/research/read", "/api/learning/collection"):
+        if method == "POST" and path in ("/api/file", "/api/research/read", "/api/learning/collection",
+                                         "/api/learning/dsa", "/api/learning/dsa/problem"):
             try:
                 if data is None:
                     data = self.handler.body()
                 if not isinstance(data, dict):
                     raise TenantError(400, "Send a JSON object.")
-                result = self.learning_workspace.update(data) if path == "/api/learning/collection" else (
-                    self.save_file(data) if path == "/api/file" else self.mark_read(data))
+                changes = {"/api/learning/collection": self.learning_workspace.update,
+                           "/api/learning/dsa": self.learning_workspace.update_dsa,
+                           "/api/learning/dsa/problem": self.learning_workspace.update_dsa_problem,
+                           "/api/file": self.save_file, "/api/research/read": self.mark_read}
+                result = changes[path](data)
                 self.handler.json(result)
             except TenantError as exc:
                 self.handler.error(exc.status, str(exc))
@@ -781,6 +789,8 @@ class TenantAPI:
 
     def document(self, query):
         identifier = str(query.get("id", ""))
+        if identifier.startswith("interview/"):
+            return self.learning_workspace.document(identifier)
         if not identifier.startswith("artifact/"):
             raise TenantError(404, "Choose a document from your private library.")
         item = self.selected_artifact(identifier.removeprefix("artifact/"))
@@ -848,6 +858,8 @@ class TenantAPI:
 
     def mark_read(self, data):
         identifier = str(data.get("id", ""))
+        if identifier.startswith("interview/"):
+            return self.learning_workspace.mark_course_read(data)
         if not isinstance(data.get("read"), bool):
             raise TenantError(400, "read must be true or false.")
         doc = next((r for r in self.documents() if r["id"] == identifier), None)

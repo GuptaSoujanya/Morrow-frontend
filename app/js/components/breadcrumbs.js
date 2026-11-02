@@ -2,7 +2,7 @@ import { SECTIONS, routeHref } from '../router.js';
 
 const labels = Object.fromEntries(SECTIONS.map(([key, label]) => [key, label]));
 const botRoutes = new Set(['naukri', 'boards', 'sites', 'profile', 'linkedin', 'linkedin-profile', 'outreach', 'resume']);
-const learning = { weekly: 'Your curriculum', discover: 'Discover', bookmarks: 'Bookmarks', notes: 'My notes', practice: 'Practice & exams', resume: 'Resume topics', courses: 'Courses', library: 'Saved library', progress: 'Progress', plan: 'Daily learning', dsa: 'DSA practice' };
+const learning = { weekly: '90-day course', discover: 'Discover', bookmarks: 'Bookmarks', notes: 'My notes', practice: 'Practice & exams', resume: 'Resume topics', courses: 'Courses', library: 'Saved library', progress: 'Progress', plan: 'Daily learning', dsa: 'DSA practice' };
 const files = { profile: 'Your profile', answers: 'Screening answers', automation_answers: 'Agent answer sheet', company_sites: 'Company follow-ups', env: 'Settings' };
 const boards = { naukri: 'Naukri', hirist: 'Hirist', instahyre: 'Instahyre', cutshort: 'Cutshort', wellfound: 'Wellfound', external: 'Company site' };
 const outcomes = { submitted: 'Confirmed submissions', matched: 'Above match threshold', not_attempted: 'Not attempted' };

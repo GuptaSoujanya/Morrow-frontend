@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 import dashboard_data
 import research_learning
-from common import learning_memory as memory
+from common import learning_memory as memory, interview_course
 from web import state
 
 
@@ -51,40 +51,39 @@ def _daily_readings(items, data, date):
 
 def _plan_day(data, date):
     """Keep today's completed reading on screen until the next local date."""
-    done = set(data['plan'].get('done', []))
-    marked = data['plan'].get('marked', {}).get(date)
+    done = set(interview_course.completed_days(data))
+    marked = interview_course.state_for(data).get('marked', {}).get(date)
     if type(marked) is int and 1 <= marked <= 90 and research_learning.completion(
-            {'key': f'plan/day-{marked}', 'day': marked}, data):
+            {'key': f'interview/day-{marked}', 'day': marked}, data):
         return marked
     # Older or externally imported state can have a dated document completion
     # without the CLI's day-to-reading lookup.
     completed = []
     for identifier, value in data['documents'].items():
-        match = re.fullmatch(r'plan/day-(\d{1,2})', identifier)
+        match = re.fullmatch(r'interview/day-(\d{1,2})', identifier)
         if (match and 1 <= int(match[1]) <= 90 and value.get('done')
                 and str(value.get('completed_at') or '')[:10] == date):
             completed.append((value['completed_at'], int(match[1])))
     if completed:
         return max(completed)[1]
-    return next((day for day in range(1, 91) if day not in done and not
-                 data['documents'].get(f'plan/day-{day}', {}).get('done')), None)
+    return next((day for day in range(1, 91) if day not in done), None)
 
 
 def _plan(data, date):
     day = _plan_day(data, date)
-    result = {'available': False, 'id': f'plan/day-{day}' if day else None,
-              'title': f'Learning day {day}' if day else '90-day plan complete',
+    result = {'available': False, 'id': f'interview/day-{day}' if day else None,
+              'title': interview_course.day_spec(day)['title'] if day else '90-day course complete',
               'day': day, 'total': 90,
-              'read': bool(day and research_learning.completion({'key': f'plan/day-{day}', 'day': day}, data)),
+              'read': bool(day and day in interview_course.completed_days(data)),
               'content_html': '',
               'reason': '', 'route': '#/learning/library?category=Learning',
-              'completed': sum(research_learning.completion({'key': f'plan/day-{n}', 'day': n}, data)
-                               for n in range(1, 91))}
+              'completed': len(interview_course.completed_days(data)),
+              'lesson': interview_course.day_spec(day) if day else None}
     if day is None:
         result['reason'] = 'You have completed all 90 days. Revisit a saved reading in your learning library.'
         return result
     try:
-        info = research_learning.plan_document(day)
+        info = research_learning.interview_document(day)
         # Share the research reader's HTML escaping, image removal and safe
         # local-link handling instead of creating another Markdown renderer.
         rendered = dashboard_data.artifact(info['id'])['html']
@@ -93,7 +92,7 @@ def _plan(data, date):
         return result
     result.update(available=True, title=info['title'] or result['title'],
                   read=research_learning.completion(info, data), content_html=rendered,
-                  route='#/learning/plan')
+                  source=info['source'], route='#/learning/plan')
     return result
 
 
@@ -125,4 +124,5 @@ def daily(*, today=None):
                            'caption': caption,
                            'route': '#/learning/read/' + quote(identifier, safe='') + '?from=today'})
     return {'date': date, 'plan': _plan(data, date), 'course': course, 'extras': extras,
+            'course_plan': interview_course.course_info(), 'generation_available': True,
             'readings': readings, 'briefing': briefing}

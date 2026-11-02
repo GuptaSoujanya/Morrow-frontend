@@ -244,6 +244,11 @@ def artifacts(params=None):
 def artifact(identifier):
     import research_learning
     info = research_learning.document_info(identifier)
+    if str(identifier).startswith('interview/day-'):
+        from common.interview_lessons import render
+        return {'id': identifier, 'title': info['title'], 'html': render(info['text']),
+                'read': research_learning.completion(info, research_learning.saved()),
+                'day': info['day'], 'source': info['source']}
     prefix,sep,relative=str(identifier).partition('/')
     if not sep or prefix not in ('research','email','plan'): raise ValueError('Choose a generated document.')
     root=(state.APPLY/paths.user_dir()/'research') if prefix=='research' else state.REPORTS

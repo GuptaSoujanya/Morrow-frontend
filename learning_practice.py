@@ -22,7 +22,7 @@ import uuid
 if __name__ == '__main__':
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from common import ai_cli, learning_memory as memory
+from common import ai_cli, learning_memory as memory, interview_course, interview_lessons, paths
 from pipeline.learning import split_days, week_of
 import daily_dsa
 
@@ -175,11 +175,19 @@ def _plan_source(root, day, data):
                    '#/learning/read/' + quote(identifier, safe='') + '?from=practice', record.get('completed_at'))
 
 
+def _interview_source(root, course, day, data):
+    info = interview_lessons.saved_lesson(day, Path(root) / paths.research_dir() / 'learning', course)
+    record = data['documents'].get(info['id'], {})
+    return _source(info['id'], info['title'], info['text'], day in interview_course.completed_days(data),
+                   '#/learning/read/' + quote(info['id'], safe='') + '?from=practice', record.get('completed_at'))
+
+
 def _dsa_source(course, topic, data, as_of):
     content = daily_dsa.lesson(course, topic)
     entries = [entry for date, entry in sorted(data.get('dsa', {}).get('days', {}).items()) if entry['topic'] == topic and date <= as_of]
     completed = max((entry['completed_at'] for entry in entries if entry.get('completed_at') and entry['completed_at'][:10] <= as_of), default=None)
-    text = content['concept_html'] + '\n' + content['example']['prompt_html'] + '\n' + content['example']['solution_html']
+    text = (content['concept_html'] + '\n' + content.get('simple_example_html', '') + '\n'
+            + content['example']['prompt_html'] + '\n' + content['example']['solution_html'])
     return _source('dsa/' + topic, content['title'], text, bool(completed or (entries and entries[-1].get('read'))), '/course/#/' + content['course_route'], completed)
 
 
@@ -214,12 +222,11 @@ def _contexts(root, course, day, mode, window_start=None, window_end=None):
             sources['dsa'] = [_dsa_source(course, topic, assigned, day.isoformat())]
         except (ValueError, OSError, KeyError) as exc:
             reasons['dsa'] = str(exc)
-        day_number = next((number for number in range(1, 91) if number not in data['plan'].get('done', [])
-                           and not data['documents'].get(f'plan/day-{number}', {}).get('done')), None)
+        day_number = interview_course.next_day(data)
         try:
             if day_number is None:
                 raise ValueError('All saved plan days are complete. Use the weekly exam to review your learning.')
-            sources['learning'] = [_plan_source(root, day_number, data)]
+            sources['learning'] = [_interview_source(root, course, day_number, data)]
         except (ValueError, OSError) as exc:
             reasons['learning'] = str(exc)
         sources['research'] = next(([item] for item in research if not item['read']), [])
@@ -239,8 +246,11 @@ def _contexts(root, course, day, mode, window_start=None, window_end=None):
             if not record.get('done') or not recent(record.get('completed_at')):
                 continue
             match = re.fullmatch(r'plan/day-(\d{1,2})', identifier)
+            interview = re.fullmatch(r'interview/day-(\d{1,2})', identifier)
             try:
-                if match:
+                if interview:
+                    sources['learning'].append(_interview_source(root, course, int(interview[1]), data))
+                elif match:
                     sources['learning'].append(_plan_source(root, int(match[1]), data))
                 elif identifier.startswith(('research/learning/', 'research/resume-learning/')):
                     relative = identifier.removeprefix('research/')
@@ -535,6 +545,9 @@ def _prompt(kind, mode, sources, existing, answers):
             'invent papers, claim unstated results, or include personal information. '
             'For daily practice, keep unfinished material first and adapt difficulty to read states and previous attempts; '
             'use fresh examples and questions. For a weekly exam test ONLY these completed sources from its review window. '
+            'Use VERY SIMPLE ENGLISH. Keep sentences short. Explain each technical word before using it. '
+            'Start each question with a small concrete situation. Ask one clear task at a time. '
+            'Give a useful first-step hint and explain the reference answer step by step. '
             'Write plain text, no HTML. Do not claim a score or grade. Return exactly one JSON object with keys '
             'title (short string), goal (specific source-grounded learning objective), reason (why this follows the supplied progress), '
             'questions (exactly question_count objects). Each question has exactly: prompt (string), hint (string), '

@@ -7,11 +7,13 @@ import copy
 import datetime as dt
 import hashlib
 import json
+from pathlib import Path
 import re
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import quote, urlsplit, urlunsplit
 from uuid import uuid4
 
-from common import learning_activity
+from common import interview_course, learning_activity, learning_memory
+import daily_dsa
 
 
 KINDS = ('paper', 'dsa', 'repo', 'resource')
@@ -22,6 +24,11 @@ SECTIONS = (
     ('repos', 'GitHub discoveries', 'brief:repositories'),
 )
 GENERATION_MESSAGE = 'Learning generation is not connected to this account yet. You can save notes, bookmarks and private research now.'
+COURSE_GENERATION_MESSAGE = (
+    'The shared 90-day lessons are ready to study. Daily web research is not connected '
+    'to this account yet. Your course progress, notes and saved research stay in your account.'
+)
+PUBLIC_COURSE = Path(__file__).resolve().parents[1] / 'database' / 'course'
 
 
 def _text(value, name, limit, required=True):
@@ -104,18 +111,25 @@ class LearningWorkspace:
             raise self.error(400, 'Send a learning workspace object.')
         # The same new ID is reused if another independent save wins the CAS.
         created_id = uuid4().hex
+        return self._mutate(lambda saved: self._change(saved, body, created_id))
+
+    def _mutate(self, change):
+        """Rebase independent edits against the requesting account's profile."""
+        self.require_access()
         for attempt in range(3):
             saved_profile = self.api.profile()
             payload = copy.deepcopy(saved_profile['data'])
             saved = copy.deepcopy(self._saved(saved_profile))
             try:
-                result = self._change(saved, body, created_id)
+                result = change(saved)
             except self.error:
                 raise
             except ValueError as exc:
                 raise self.error(400, str(exc)) from None
+            if saved == self._saved(saved_profile):
+                return result
             if len(json.dumps(saved, ensure_ascii=False).encode()) > 1024 * 1024:
-                raise self.error(413, 'Your learning notes and bookmarks have reached 1 MB. Shorten or remove an item before saving more.')
+                raise self.error(413, 'Your learning workspace has reached 1 MB. Shorten or remove a note or bookmark before saving more.')
             payload['_learning_workspace'] = saved
             try:
                 updated = self.api.json('/api/v1/profile', 'PUT', {
@@ -130,6 +144,218 @@ class LearningWorkspace:
                 continue
             self.api._cache['profile'] = updated
             return result
+
+    def _progress(self, saved=None):
+        """Adapt private profile values to pure progress helpers, without disk IO."""
+        saved = self._saved(self.api.profile()) if saved is None else saved
+        data = {'version': 1, 'course': {}, 'plan': {},
+                'documents': copy.deepcopy(saved.get('course_documents', {})),
+                'history': copy.deepcopy(saved.get('course_history', [])),
+                'dsa': copy.deepcopy(saved.get('dsa', {'days': {}}))}
+        if 'interview_course' in saved:
+            data['interview_course'] = copy.deepcopy(saved['interview_course'])
+        try:
+            learning_memory._validate(data)
+            interview_course.ensure_course_state(data)
+            interview_course.completed_days(data)
+            daily_dsa._problem_progress(data)
+        except (ValueError, TypeError, KeyError) as exc:
+            raise self.error(409, 'Your saved course progress is invalid. It has not been reset.') from exc
+        return data
+
+    @staticmethod
+    def _store_progress(saved, data):
+        for target, source in (('interview_course', 'interview_course'), ('course_documents', 'documents'),
+                               ('course_history', 'history'), ('dsa', 'dsa')):
+            saved[target] = data[source]
+
+    @staticmethod
+    def _course_day(data, today):
+        done = set(interview_course.completed_days(data))
+        marked = data['interview_course'].get('marked', {}).get(today)
+        if type(marked) is int and marked in done:
+            return marked
+        return next((day for day in range(1, 91) if day not in done), None)
+
+    def _lesson(self, day):
+        from common import interview_lessons
+        try:
+            return interview_lessons.lesson(day, PUBLIC_COURSE)
+        except (ValueError, OSError) as exc:
+            raise self.error(404, 'This shared course lesson is unavailable. Please retry after the course files are restored.') from exc
+
+    def document(self, identifier):
+        self.require_access()
+        from common.interview_lessons import render
+        match = re.fullmatch(r'interview/day-([1-9][0-9]?)', str(identifier))
+        if not match or int(match[1]) > 90:
+            raise self.error(404, 'Choose a lesson from the 90-day course.')
+        content = self._lesson(int(match[1]))
+        data = self._progress()
+        # The complete reference viewer is a local-runner route. Its relevant
+        # reading is already embedded in the public lesson for account users.
+        text = re.sub(r'\[([^\]]+)\]\(/course/[^)]+\)', r'\1', content['text'])
+        return {'id': content['id'], 'day': content['day'], 'title': content['title'],
+                'html': render(text),
+                'read': content['day'] in interview_course.completed_days(data),
+                'source': 'bundled', 'lesson': content['lesson']}
+
+    def mark_course_read(self, body):
+        self.require_access()
+        if not isinstance(body, dict) or type(body.get('read')) is not bool:
+            raise self.error(400, 'read must be true or false.')
+        document = self.document(body.get('id'))
+        stamp = dt.datetime.now().astimezone().isoformat(timespec='microseconds')
+        def change(saved):
+            data = self._progress(saved)
+            interview_course.record_completion(data, document['day'], body['read'], stamp)
+            self._store_progress(saved, data)
+            return {'ok': True, 'read': body['read'], 'storage': 'your private account'}
+        return self._mutate(change)
+
+    def daily(self, query=None):
+        self.require_access()
+        today = dt.date.today().isoformat()
+        data = self._progress()
+        day = self._course_day(data, today)
+        completed = len(interview_course.completed_days(data))
+        plan = {'id': f'interview/day-{day}' if day else None, 'day': day, 'total': 90,
+                'title': '90-day interview course complete', 'available': False, 'read': False,
+                'completed': completed, 'content_html': '', 'route': '#/learning/weekly',
+                'reason': 'You have completed all 90 days. Revisit a lesson in the course roadmap.'}
+        if day:
+            document = self.document(f'interview/day-{day}')
+            plan.update(title=document['title'], available=True, read=document['read'],
+                        content_html=document['html'], route='#/learning/plan', reason='',
+                        lesson=document['lesson'], source='bundled')
+        return {'date': today, 'plan': plan, 'course': None, 'extras': [], 'readings': [],
+                'course_plan': interview_course.course_info(),
+                'briefing': {'latest': None, 'available_dates': [], 'digest': None},
+                'generation_available': False, 'generation_message': COURSE_GENERATION_MESSAGE}
+
+    def dsa(self, query=None):
+        self.require_access()
+        today = dt.date.today().isoformat()
+        def change(saved):
+            data = self._progress(saved)
+            entry = daily_dsa._assign(data, today)
+            daily_dsa.lesson(PUBLIC_COURSE, entry['topic'])
+            self._store_progress(saved, data)
+            return {**daily_dsa._response(data, PUBLIC_COURSE, today), 'execution_available': False}
+        return self._mutate(change)
+
+    def update_dsa(self, body):
+        self.require_access()
+        today = dt.date.today().isoformat()
+        if not isinstance(body, dict) or body.get('date') != today:
+            raise self.error(409, 'A new learning day has started. Refresh today’s lesson before saving.')
+        if body.get('task') not in ('read', 'practice', 'complete') or type(body.get('done')) is not bool:
+            raise self.error(400, 'Choose a learning task and send done as true or false.')
+        def change(saved):
+            data = self._progress(saved)
+            entry = daily_dsa._assign(data, today)
+            if body.get('topic') != entry['topic']:
+                raise self.error(409, 'Today’s topic has changed. Refresh the lesson before saving.')
+            content = daily_dsa.lesson(PUBLIC_COURSE, entry['topic'])
+            practices = {str(problem['id']) for problem in content['practice']}
+            task, done = body['task'], body['done']
+            if task == 'practice' and (not isinstance(body.get('problem'), str) or body['problem'] not in practices):
+                raise ValueError('Choose a practice question from today’s lesson.')
+            if task == 'complete' and not done:
+                raise ValueError('A completed daily lesson stays saved. Return tomorrow to keep learning.')
+            if entry['completed_at']:
+                if task != 'complete':
+                    raise self.error(409, 'Today’s lesson is complete. Your progress is already saved.')
+            elif task == 'read':
+                entry['read'] = done
+            elif task == 'practice':
+                checks = set(entry['practiced'])
+                checks.add(body['problem']) if done else checks.discard(body['problem'])
+                entry['practiced'] = sorted(checks)
+                identifier = f"{daily_dsa.CATALOG[entry['topic']][2]}/problem-{body['problem']}"
+                progress = daily_dsa._problem_progress(data)
+                prior = progress.get(identifier, {'status': 'todo', 'notes': ''})
+                progress[identifier] = {**prior, 'status': 'solved' if prior['status'] == 'solved' else 'attempted' if done else 'todo',
+                                        'updated_at': dt.datetime.now().astimezone().isoformat(timespec='microseconds')}
+            else:
+                if not entry['read'] or not practices.issubset(entry['practiced']):
+                    raise ValueError('Finish the reading and practice checklist before completing today’s topic.')
+                stamp = dt.datetime.now().astimezone().isoformat(timespec='microseconds')
+                entry['completed_at'] = stamp
+                data['history'].append({'at': stamp, 'kind': 'dsa', 'id': entry['topic'],
+                                        'title': content['title'], 'action': 'completed'})
+            self._store_progress(saved, data)
+            return {**daily_dsa._response(data, PUBLIC_COURSE, today), 'execution_available': False}
+        return self._mutate(change)
+
+    def dsa_sheet(self, query=None):
+        self.require_access()
+        search = (query or {}).get('q', '')
+        if not isinstance(search, str) or len(search) > 500:
+            raise self.error(400, 'Search the DSA sheet using up to 500 characters.')
+        search = search.strip().casefold()
+        data = self._progress()
+        progress = daily_dsa._seed_problem_progress(data, dt.date.today().isoformat())
+        groups, total, solved, attempted, matched = [], 0, 0, 0, 0
+        for index, chapter in enumerate(daily_dsa.CHAPTERS):
+            title, _, problems = daily_dsa._group_content(PUBLIC_COURSE, chapter)
+            rows = [{'id': f'{chapter}/problem-{number}', 'number': number, 'title': item['title'],
+                     'level': daily_dsa._level(i, len(problems)),
+                     'route': '#/learning/dsa/problem/' + quote(f'{chapter}/problem-{number}', safe=''),
+                     'status': progress.get(f'{chapter}/problem-{number}', {}).get('status', 'todo')}
+                    for i, (number, item) in enumerate(sorted(problems.items()))]
+            completed = sum(row['status'] == 'solved' for row in rows)
+            total += len(rows)
+            solved += completed
+            attempted += sum(row['status'] == 'attempted' for row in rows)
+            visible = [row for row in rows if not search or search in (title + ' ' + row['title']).casefold()]
+            matched += len(visible)
+            if visible:
+                groups.append({'id': chapter, 'title': title, 'number': index + 1,
+                               'total': len(rows), 'completed': completed, 'problems': visible})
+        return {'groups': groups, 'total': total, 'solved': solved, 'attempted': attempted, 'matched': matched,
+                'execution_available': False,
+                'level_note': 'Foundation, Practice, and Challenge follow chapter order. Progress is self-reported; code is not executed in this account.'}
+
+    def dsa_problem(self, query=None):
+        self.require_access()
+        try:
+            content = daily_dsa._problem_content(PUBLIC_COURSE, (query or {}).get('id'))
+        except ValueError as exc:
+            raise self.error(400, str(exc)) from None
+        data = self._progress()
+        progress = daily_dsa._seed_problem_progress(data, dt.date.today().isoformat())
+        return {**daily_dsa._saved_problem(content, progress), 'execution_available': False}
+
+    def update_dsa_problem(self, body):
+        self.require_access()
+        if not isinstance(body, dict) or body.get('status') not in daily_dsa.PROBLEM_STATUSES:
+            raise self.error(400, 'Choose a problem status: todo, attempted, or solved.')
+        if 'notes' in body and (not isinstance(body['notes'], str) or len(body['notes']) > daily_dsa.MAX_NOTES):
+            raise self.error(400, 'Keep problem notes to 20,000 characters or fewer.')
+        try:
+            content = daily_dsa._problem_content(PUBLIC_COURSE, body.get('id'))
+        except ValueError as exc:
+            raise self.error(400, str(exc)) from None
+        today = dt.date.today().isoformat()
+        def change(saved):
+            data = self._progress(saved)
+            progress = daily_dsa._seed_problem_progress(data, today)
+            prior = progress.get(content['id'], {'status': 'todo', 'notes': ''})
+            status, notes = body['status'], body.get('notes', prior.get('notes', ''))
+            if prior['status'] != status or prior.get('notes', '') != notes or content['id'] not in progress:
+                progress[content['id']] = {**prior, 'status': status, 'notes': notes,
+                    'updated_at': dt.datetime.now().astimezone().isoformat(timespec='microseconds')}
+            entry = data['dsa']['days'].get(today)
+            if entry and not entry.get('completed_at') and entry['topic'] in daily_dsa.CATALOG:
+                _, _, chapter, _, practices = daily_dsa.CATALOG[entry['topic']]
+                if chapter == content['group_id'] and content['number'] in practices:
+                    checks = set(entry['practiced'])
+                    checks.discard(str(content['number'])) if status == 'todo' else checks.add(str(content['number']))
+                    entry['practiced'] = sorted(checks)
+            self._store_progress(saved, data)
+            return {**daily_dsa._saved_problem(content, progress), 'execution_available': False}
+        return self._mutate(change)
 
     def _change(self, saved, body, created_id):
         action = body.get('action')
@@ -212,17 +438,26 @@ class LearningWorkspace:
                            (('skills', skills), ('topics', topics), ('target_roles', roles), ('focus', focus), ('goal', goal))},
             'resume_fingerprint': fingerprint if available and re.fullmatch(r'[a-f0-9]{64}', fingerprint) else '',
             'resume_updated_at': resume.get('created_at', '') if available else '',
-            'guidance': ('Your saved skills and target roles are shown. Your selected resume is ready for a connected learning workflow.'
-                         if available else 'Choose your resume in account setup to prepare for learning based on your own skills and target roles.'),
+            'guidance': ('Your saved skills and target roles can guide optional career research. '
+                         'Everyone follows the same interview course; a resume is not required.'),
         }
 
     def curriculum(self, query=None):
         self.require_access()
-        weeks = [{'number': week, 'title': f'Week {week}', 'completed': 0, 'days': [
-            {'day': day, 'title': f'Day {day}', 'available': False, 'read': False, 'resume_status': 'missing', 'route': '#/learning/weekly'}
-            for day in range((week - 1) * 7 + 1, min(week * 7, 90) + 1)]} for week in range(1, 14)]
-        return {'weeks': weeks, 'completed': 0, 'total': 90, 'next_day': 1, 'current_week': 1,
-                'profile': self.focus(), 'generation_available': False, 'generation_message': GENERATION_MESSAGE}
+        data = self._progress()
+        done = set(interview_course.completed_days(data))
+        next_day = interview_course.next_day(data)
+        # This syllabus is public application content. Generated files from the
+        # workspace owner are deliberately never a tenant lesson source.
+        weeks = [{**week, 'completed': sum(day['day'] in done for day in week['days']), 'days': [
+            {**day, 'available': True, 'read': day['day'] in done, 'resume_status': 'not_required',
+             'course_status': 'current', 'source': 'bundled',
+             'route': '#/learning/read/' + quote(f"interview/day-{day['day']}", safe='') + '?from=weekly'}
+            for day in week['days']]} for week in interview_course.syllabus()]
+        return {'weeks': weeks, 'completed': len(done), 'total': 90, 'next_day': next_day,
+                'current_week': (next_day - 1) // 7 + 1 if next_day else 13,
+                'course': interview_course.course_info(), 'profile': self.focus(),
+                'generation_available': False, 'generation_message': COURSE_GENERATION_MESSAGE}
 
     def discovery(self, query=None):
         self.require_access()
@@ -236,7 +471,7 @@ class LearningWorkspace:
 
     def activity(self, query=None):
         self.require_access()
-        history = []
+        history = list(self._progress()['history'])
         docs = {item['id']: item for item in self.api.documents()}
         for identifier, value in self.api.reading_progress().items():
             if identifier not in docs or not value.get('done'):
@@ -248,23 +483,35 @@ class LearningWorkspace:
             history.append({'id': identifier, 'title': docs[identifier]['title'],
                             'action': 'completed', 'kind': 'research', 'at': stamp})
         return {**learning_activity.summary({'history': history}),
-                'scope': 'Currently completed items in your private library'}
+                'scope': 'Your course, DSA practice and private library activity'}
 
     def overview(self, query=None):
         self.require_access()
         saved, activity = self.collection(), self.activity()
+        course_progress = self._progress()
+        course_completed = len(interview_course.completed_days(course_progress))
+        current_day = self._course_day(course_progress, dt.date.today().isoformat())
+        dsa_completed = {entry['topic'] for entry in course_progress['dsa']['days'].values()
+                         if entry.get('completed_at') and entry['topic'] in daily_dsa.CATALOG}
+        problem_progress = daily_dsa._problem_progress(course_progress)
         docs, progress = self.api.documents(), self.api.reading_progress()
         tracks = [{'key': 'library', 'title': 'Private research library', 'completed': sum(bool(progress.get(item['id'], {}).get('done')) for item in docs),
                    'total': len(docs), 'unit': 'documents read', 'route': '#/learning/library'}]
-        for key, title, route in (('curriculum', 'Job-ready curriculum', 'weekly'), ('resume', 'Resume learning', 'resume'),
+        for key, title, route in (('curriculum', '90-day interview course', 'weekly'), ('resume', 'Resume learning', 'resume'),
                                  ('dsa', 'DSA practice', 'dsa'), ('courses', 'Course library', 'courses')):
-            tracks.append({'key': key, 'title': title, 'completed': 0, 'total': 0, 'unit': 'activities complete', 'route': '#/learning/' + route})
+            tracks.append({'key': key, 'title': title,
+                           'completed': course_completed if key == 'curriculum' else len(dsa_completed) if key == 'dsa' else 0,
+                           'total': 90 if key == 'curriculum' else len(daily_dsa.TOPICS) if key == 'dsa' else 0,
+                           'unit': 'course days complete' if key == 'curriculum' else 'activities complete', 'route': '#/learning/' + route})
         for key, title, _group in SECTIONS:
             tracks.append({'key': key, 'title': title, 'completed': 0, 'total': 0, 'unit': 'items read', 'route': '#/learning/discover?tab=' + key})
         for track in tracks:
             track['percent'] = round(100 * track['completed'] / track['total']) if track['total'] else 0
-        return {'date': activity['date'], 'profile': self.focus(), 'today_completed': activity['today_count'],
-                'current_day': 1, 'current_week': 1, 'tracks': tracks, 'course_tracks': [],
-                'week': activity['days'][-7:], 'activity': activity, 'total_completions': activity['total_completions'], 'solved_problems': 0,
+        return {'date': activity['date'], 'profile': self.focus(), 'course': interview_course.course_info(),
+                'today_completed': activity['today_count'],
+                'current_day': current_day, 'current_week': (current_day - 1) // 7 + 1 if current_day else 13,
+                'tracks': tracks, 'course_tracks': [],
+                'week': activity['days'][-7:], 'activity': activity, 'total_completions': activity['total_completions'],
+                'solved_problems': sum(value['status'] == 'solved' for value in problem_progress.values()),
                 'notes': len(saved['notes']), 'bookmarks': len(saved['bookmarks']),
                 'generation_available': False, 'generation_message': GENERATION_MESSAGE}

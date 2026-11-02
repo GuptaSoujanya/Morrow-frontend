@@ -1,4 +1,5 @@
 import { h } from '../dom.js';
+import { lessonReader } from '../components/lesson-reader.js';
 import { api, accountRequestSignal } from '../api.js';
 import { S } from '../state.js';
 import { icon } from '../icons.js';
@@ -287,7 +288,7 @@ function libraryView() {
 }
 
 function safeReading(html, title) {
-  const allowed = new Set(['p', 'strong', 'em', 'code', 'pre', 'ul', 'ol', 'li', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'br', 's', 'a']);
+  const allowed = new Set(['p', 'strong', 'em', 'code', 'pre', 'ul', 'ol', 'li', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'br', 's', 'a', 'details', 'summary']);
   function copy(node) {
     if (node.nodeType === Node.TEXT_NODE) return document.createTextNode(node.textContent);
     if (node.nodeType !== Node.ELEMENT_NODE) return null;
@@ -353,11 +354,16 @@ function readView(id) {
       }
     } });
     const status = h('span', {}, completionPill(data.read));
-    return [h('article', { class: 'learning-library-reading' },
+    const courseLesson = id.startsWith('interview/day-');
+    const savedAction = hasModule('learning') ? h('div', { class: 'learn-reader-save' }, learningSave({ kind: 'resource', title: data.title || 'Saved reading', url: '#/learning/read/' + encodeURIComponent(id) })) : null;
+    const completion = h('footer', { class: 'learning-library-reading-footer' + (courseLesson ? ' course-completion' : '') }, feedback, toggle);
+    const safe = safeReading(data.html, data.title);
+    const reading = courseLesson ? lessonReader({ reading: safe, onChange: ({ last, all }) => { completion.hidden = !last && !all; } }) : safe;
+    return [h('article', { class: 'learning-library-reading' + (courseLesson ? ' course-reading' : '') },
         h('header', { class: 'learning-library-reading-head' }, h('div', {}, h('p', { class: 'eyebrow', text: data.day ? `LEARNING DAY ${data.day} OF 90` : data.category || 'SAVED READING' }), h('h2', { text: data.title || 'Saved reading' })), status),
-        hasModule('learning') ? h('div', { class: 'learn-reader-save' }, learningSave({ kind: 'resource', title: data.title || 'Saved reading', url: '#/learning/read/' + encodeURIComponent(id) })) : null,
-        safeReading(data.html, data.title),
-        h('footer', { class: 'learning-library-reading-footer' }, feedback, toggle)),
+        courseLesson ? h('p', { class: 'daily-lesson-source' }, h('strong', { text: 'Very simple English. ' }),
+          'One idea, one example, one small task. Take it at your own pace.') : savedAction,
+        reading, completion, courseLesson ? savedAction : null),
       h('a', { class: 'learning-library-back', href: '#/learning', text: 'Continue today’s priorities →' })];
   });
 }

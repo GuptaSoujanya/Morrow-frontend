@@ -8,7 +8,7 @@ import re
 import uuid
 from urllib.parse import urlsplit, urlunsplit, quote
 
-from common import learning_memory as memory, learning_activity, paths
+from common import learning_memory as memory, learning_activity, paths, interview_course, interview_lessons
 from pipeline.learning import split_days, days_of, week_of
 from web import state
 import learning_profile
@@ -339,25 +339,27 @@ def material_resume_status(path, fingerprint, day=None):
 
 def curriculum(environment=None):
     data = memory.transact(state.APPLY, studied=state.STUDIED)
-    profile = learning_profile.profile(environment)
     root = state.APPLY / paths.research_dir() / 'learning'
-    done = set(data['plan'].get('done', []))
-    done.update(n for n in range(1, 91) if data['documents'].get(f'plan/day-{n}', {}).get('done'))
+    done = set(interview_course.completed_days(data))
     next_day = next((n for n in range(1, 91) if n not in done), None)
     weeks = []
-    for number in range(1, 14):
-        path = root / 'weeks' / f'week-{number:02d}.md'
-        text = path.read_text(encoding='utf-8') if path.is_file() and path.resolve().is_relative_to(root.resolve()) else ''
-        days = split_days(text)
+    for spec in interview_course.syllabus():
+        number = spec['number']
         lessons = []
-        for day in days_of(number):
-            title = re.sub(r'^## Day \d+\s*[:—-]?\s*', '', days.get(day, '').split('\n')[0]).strip()
-            lessons.append({'day': day, 'title': title or f'Day {day}', 'available': day in days, 'read': day in done,
-                            'resume_status': material_resume_status(path, profile['resume_fingerprint'], day) if day in days else 'missing',
-                            'route': '#/learning/read/' + quote(f'plan/day-{day}', safe='') + '?from=weekly'})
-        weeks.append({'number': number, 'title': _plain(text.split('\n')[0]) or f'Week {number}',
+        for lesson in spec['days']:
+            day = lesson['day']
+            try:
+                source = interview_lessons.saved_source(day, root)
+                available, reason = True, ''
+            except (OSError, ValueError) as exc:
+                available, source, reason = False, 'missing', str(exc)
+            lessons.append({**lesson, 'available': available, 'read': day in done,
+                            'source': source, 'reason': reason,
+                            'route': '#/learning/read/' + quote(f'interview/day-{day}', safe='') + '?from=weekly'})
+        weeks.append({**spec,
                       'days': lessons, 'completed': sum(lesson['read'] for lesson in lessons)})
-    return {'weeks': weeks, 'completed': len(done), 'total': 90, 'next_day': next_day, 'profile': profile,
+    return {'weeks': weeks, 'completed': len(done), 'total': 90, 'next_day': next_day,
+            'course': interview_course.course_info(), 'profile': {}, 'generation_available': True,
             'current_week': week_of(next_day) if next_day else 13}
 
 
@@ -382,7 +384,10 @@ def overview(environment=None):
     data, _ = sync_discovery_progress()
     collection_data = _collection(data)
     activity = learning_activity.summary(data)
-    plan = curriculum(environment)
+    # This header needs progress counts, not all ninety lesson bodies or their
+    # optional reference chapters. Use the same progress snapshot as the rest.
+    course = interview_course.course_info()
+    course_completed = len(interview_course.completed_days(data))
     documents = dashboard_data.artifacts()['items']
     resume = [item for item in documents if re.match(r'research/resume-learning/\d{2}-', item['id'])]
     modules = state.course_modules(state.COURSE)
@@ -393,7 +398,7 @@ def overview(environment=None):
         track['completed'] += bool(data['course'].get(module.path, {}).get('done'))
     topics = {item['topic'] for item in data.get('dsa', {}).get('days', {}).values() if item.get('completed_at') and item['topic'] in daily_dsa.CATALOG}
     tracks = [
-        {'key': 'curriculum', 'title': 'Job-ready curriculum', 'completed': plan['completed'], 'total': plan['total'], 'unit': 'days complete', 'route': '#/learning/weekly'},
+        {'key': 'curriculum', 'title': '90-day interview course', 'completed': course_completed, 'total': interview_course.TOTAL_DAYS, 'unit': 'days complete', 'route': '#/learning/weekly'},
         {'key': 'resume', 'title': 'Resume learning', 'completed': sum(bool(data['documents'].get(item['id'], {}).get('done')) for item in resume), 'total': len(resume), 'unit': 'topics complete', 'route': '#/learning/resume'},
         {'key': 'dsa', 'title': 'DSA practice', 'completed': len(topics), 'total': len(daily_dsa.TOPICS), 'unit': 'daily topics complete', 'route': '#/learning/dsa'},
         {'key': 'courses', 'title': 'Course library', 'completed': sum(track['completed'] for track in course_tracks.values()), 'total': len(modules), 'unit': 'lessons complete', 'route': '#/learning/courses'},
@@ -420,7 +425,7 @@ def overview(environment=None):
     for track in tracks:
         track['percent'] = round(100 * track['completed'] / track['total']) if track['total'] else 0
     today_day = daily_learning._plan_day(data, activity['date'])
-    return {'date': activity['date'], 'profile': plan['profile'], 'today_completed': activity['today_count'], 'current_day': today_day,
+    return {'date': activity['date'], 'profile': {}, 'course': course, 'today_completed': activity['today_count'], 'current_day': today_day,
             'current_week': week_of(today_day) if today_day else 13, 'tracks': tracks, 'course_tracks': list(course_tracks.values()),
             'week': activity['days'][-7:], 'total_completions': activity['total_completions'], 'solved_problems': solved,
             'notes': len(collection_data['notes']), 'bookmarks': len(collection_data['bookmarks'])}

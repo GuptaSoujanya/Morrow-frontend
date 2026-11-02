@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 import learning_workspace as workspace
-from common import learning_memory as memory
+from common import learning_memory as memory, interview_course
 from web import state
 
 
@@ -125,12 +125,13 @@ def test_curriculum_shares_progress_and_does_not_invent_missing_days(isolated):
     root = isolated / 'user/research/learning/weeks'
     root.mkdir(parents=True)
     (root / 'week-01.md').write_text('# Week 1: Reliable APIs\n\n## Day 1: Requests\nLearn.\n\n## Day 2: Caching\nTry.\n')
-    memory.transact(state.APPLY, lambda data: memory.record(data, 'research', 'plan/day-1', 'Requests', True, day=1))
+    memory.transact(state.APPLY, lambda data: interview_course.record_completion(data, 1, True))
     data = workspace.curriculum()
     assert data['completed'] == 1 and data['next_day'] == 2
     assert len(data['weeks']) == 13 and sum(len(week['days']) for week in data['weeks']) == 90
     assert data['weeks'][0]['days'][0]['read'] and data['weeks'][0]['days'][1]['available']
-    assert not data['weeks'][0]['days'][2]['available']
+    assert data['weeks'][0]['days'][2]['available']
+    assert data['course']['shared'] and data['weeks'][0]['days'][2]['source'] == 'bundled'
 
 
 def test_paper_progress_is_individual_and_completes_daily_reading_once(isolated, monkeypatch):
@@ -169,7 +170,7 @@ def test_progress_area_counts_use_real_totals_and_keep_resume_separate(isolated,
     assert tracks['curriculum']['completed'] == 0 and tracks['curriculum']['total'] == 90
     assert tracks['papers']['total'] == 0 and tracks['courses']['total'] == 0
     assert len(data['week']) == 7
-    memory.transact(isolated, lambda data: memory.record(data, 'research', 'plan/day-1', 'Today', True, day=1))
+    memory.transact(isolated, lambda data: interview_course.record_completion(data, 1, True))
     assert workspace.overview()['current_day'] == 1
     assert workspace.curriculum()['next_day'] == 2
 

@@ -9,7 +9,7 @@ BOARDS = ('naukri', 'hirist', 'instahyre', 'cutshort', 'wellfound')
 STAGES = ('learn', 'research:resume', 'profile:linkedin',
           *(f'{group}:{board}' for group in ('profile', 'apply') for board in BOARDS),
           *(f'brief:{key}' for key in ('goal','system-design','papers','tech-news','companies','repositories')))
-GROUPS = ('', 'learn', 'profile', 'apply', 'brief', 'research', *STAGES)
+GROUPS = ('', 'learn', 'study', 'profile', 'apply', 'brief', 'research', *STAGES)
 
 
 def number(options, key, low, high, integer=True):
@@ -69,7 +69,7 @@ def cold_email_command(o, save=False):
 
 def pipeline_command(o, save=False):
     command=str(o.get('command') or 'continue')
-    if command not in ('continue','run','status','check','learn'): raise ValueError('Choose a supported pipeline command.')
+    if command not in ('continue','run','status','check','learn','study'): raise ValueError('Choose a supported pipeline command.')
     args=['-m','pipeline',command]
     group=str(o.get('group') or '')
     if group not in GROUPS: raise ValueError('Choose a supported pipeline group or stage.')
@@ -114,6 +114,6 @@ def pipeline_command(o, save=False):
                        'brief:repositories': 'GitHub discoveries',
                        'brief:tech-news': 'Tech radar', 'brief:companies': 'Company radar',
                        'brief:goal': 'Learning goal', 'brief:system-design': 'System design research',
-                       'learn': 'Learning material', 'research:resume': 'Resume learning'}
+                       'learn': 'Learning material', 'study': 'Daily course & discoveries', 'research:resume': 'Resume learning'}
     label = research_labels.get(group, 'Daily pipeline')
     return state.py(label + ' · ' + (day if day and group in research_labels else command),*args)

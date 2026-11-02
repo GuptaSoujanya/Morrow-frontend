@@ -50,15 +50,17 @@ export function routeAccess(route, context = {}) {
   }
   if (AUTH_ROUTES.has(name)) return { kind: 'allowed' };
   const part = typeof route === 'object' ? route.arg?.split('/')[0] : '';
-  const rule = name === 'learning' && ['library', 'read', 'resume'].includes(part)
-    ? { module: 'research' } : name === 'learning' && ['weekly', 'discover', 'bookmarks', 'notes', 'progress'].includes(part)
+  const courseReader = typeof route === 'object' && /^read\/interview(?:%2f|\/)day-/i.test(route.arg || '');
+  const rule = name === 'learning' && ['library', 'read', 'resume'].includes(part) && !courseReader
+    ? { module: 'research' } : name === 'learning' && (courseReader || ['', 'plan', 'dsa', 'weekly', 'discover', 'bookmarks', 'notes', 'progress'].includes(part))
       ? { module: 'learning' } : ROUTES[name];
   if (!rule) return { kind: 'forbidden' };
   if (context.accountMode === 'local') {
     return { kind: context.legacyAccess && !rule.account ? 'allowed' : 'forbidden', module: rule.module };
   }
   if (context.accountMode !== 'accounts' || !context.user) return { kind: 'login' };
-  if (name === 'learning' && !part && !context.legacyAccess && (context.user.role === 'admin' || context.user.modules?.includes('research'))) {
+  if (name === 'learning' && !part && !context.legacyAccess && context.user.role !== 'admin'
+      && !context.user.modules?.includes('learning') && context.user.modules?.includes('research')) {
     return { kind: 'redirect', route: { name: 'learning', arg: 'library' } };
   }
   if (rule.admin && context.user.role !== 'admin') return { kind: 'forbidden' };
