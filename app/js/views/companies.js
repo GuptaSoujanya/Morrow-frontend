@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import { panel, loadingState, errorState, empty, dataTable } from '../components/panel.js';
 import { pagination } from '../components/pagination.js';
 import { quickButton } from '../forms.js';
-import { readQuery, writeQuery } from '../url-state.js';
+import { readQuery, writeQuery, pageNumber, choice } from '../url-state.js';
 import { selectControl } from '../components/controls.js';
 import { navigationArt } from '../components/navigation-art.js';
 
@@ -43,7 +43,9 @@ function detail(item) {
 
 export function renderCompanies(id='') {
   const query = readQuery();
-  const filters = {q:query.get('q') || '', status:query.get('status') || 'all', page:1, size:20};
+  const filters = {q:query.get('q') || '', status:choice(query.get('status'), ['all', ...Object.keys(researchLabels)], 'all'),
+    page:pageNumber(query.get('page')), size:choice(Number(query.get('size')), [20,50,100], 20)};
+  const companyHref = item => `#/companies/${item.company_id}?${new URLSearchParams(filters)}`;
   const body = h('div', {class:'company-body'}, loadingState('Loading your company knowledge…'));
   const stats = h('div', {class:'company-stats', 'aria-label':'Research totals'});
   const title = h('h1', {text:id ? 'Company details' : 'Company knowledge'});
@@ -75,20 +77,22 @@ export function renderCompanies(id='') {
         actions.replaceChildren(run, refresh);
         body.replaceChildren(detail(item));
       } else {
+        const focusedStatus = stats.contains(document.activeElement) ? document.activeElement.dataset.status : null;
         stats.replaceChildren(...[['pending','To research'],['researching','In progress'],['found','All fields found'],['partial','Partial findings'],['not_found','Not found'],['failed','Needs retry']].map(([status,label]) =>
-          h('button', {type:'button', class:`company-stat${filters.status === status ? ' is-active' : ''}`, 'aria-pressed':filters.status === status, onclick:()=>{filters.status=status;statusSelect.value=status;filters.page=1;load();}},
+          h('button', {type:'button', dataset:{status}, class:`company-stat${filters.status === status ? ' is-active' : ''}`, 'aria-pressed':filters.status === status, onclick:()=>{filters.status=status;statusSelect.value=status;filters.page=1;load();}},
             h('strong', {text:data.counts[status] || 0}), h('span', {text:label}))));
+        if (focusedStatus) [...stats.querySelectorAll('button')].find(button=>button.dataset.status === focusedStatus)?.focus({preventScroll:true});
         count.textContent = `${data.total} ${data.total === 1 ? 'company' : 'companies'} · ${data.pending} ready for research`;
         body.replaceChildren(data.rows.length ? dataTable([['Company'],['Research'],['Details found'],['Last checked'],['']],
           data.rows.map(item => h('tr', {},
-            h('td', {}, h('a', {class:'company-name', href:`#/companies/${item.company_id}`, text:item.name}), h('small', {class:'company-job-count', text:`${item.job_count} linked ${item.job_count === 1 ? 'job' : 'jobs'}`})),
+            h('td', {}, h('a', {class:'company-name', href:companyHref(item), text:item.name}), h('small', {class:'company-job-count', text:`${item.job_count} linked ${item.job_count === 1 ? 'job' : 'jobs'}`})),
             h('td', {}, researchPill(item.status)), h('td', {text:`${Object.keys(item.fields).length} / ${Object.keys(fields).length} fields`}),
-            h('td', {text:date(item.updated_at)}), h('td', {}, h('a', {class:'btn btn-sm', href:`#/companies/${item.company_id}`, 'aria-label':`View ${item.name}`, text:'View details'})))))
+            h('td', {text:date(item.updated_at)}), h('td', {}, h('a', {class:'btn btn-sm', href:companyHref(item), 'aria-label':`View ${item.name}`, text:'View details'})))))
           : empty(data.counts.pending + data.counts.found + data.counts.partial + data.counts.researching + data.counts.failed + data.counts.not_found
             ? 'No companies match these filters.' : 'Companies will appear here when your bots discover jobs.',
             h('a', {class:'btn', href:'#/records?kind=jobs', text:'View discovered jobs'})),
           pagination({...data, label:'Companies', sizes:[20,50,100], onPage:page=>{filters.page=page;load();}, onSize:size=>{filters.size=size;filters.page=1;load();}}));
-        writeQuery('companies', filters, {replace:true});
+        filters.page=data.page;writeQuery('companies', filters, {replace:true});
       }
     } catch(error) { if (request === ticket && error.name !== 'AbortError') body.replaceChildren(errorState(error.message, load)); }
     finally { if (request === ticket) {refresh.disabled=false;body.setAttribute('aria-busy','false');poll();} }
@@ -101,7 +105,7 @@ export function renderCompanies(id='') {
   if (!id) actions.append(runButton(),refresh); else actions.append(refresh);
   load();
   return h('div', {class:'page companies-page'},
-    id ? h('a', {class:'company-back', href:'#/companies', text:'← All companies'}) : null,
+    id ? h('a', {class:'company-back', href:'#/companies?'+new URLSearchParams(filters), text:'← All companies'}) : null,
     h('header', {class:'page-head'}, h('div', {}, h('p', {class:'eyebrow', text:'YOUR COMPANY DATABASE'}), title, description), navigationArt('companies','company-header-art')),
     h('div', {class:'company-toolbar'}, actions, h('p', {class:'muted small', text:'Daily pipeline researches up to 10 remaining employers after applications. Public sources only; unknown facts stay missing.'})),
     id ? null : stats,
