@@ -816,7 +816,7 @@ def test_strict_driver_refuses_locked_profile_before_starting_webdriver(tmp_path
     profile.mkdir(parents=True)
     (profile / "SingletonLock").symlink_to("host-100")
     monkeypatch.setattr(webdriver, "Chrome", lambda **kw: pytest.fail("A browser was launched"))
-    with pytest.raises(ValueError, match="already open"):
+    with pytest.raises(ValueError, match="locked"):
         browser.create_driver(Settings(browser_profile_dir=str(profile.parent), session_only=True))
 
 
