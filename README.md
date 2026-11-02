@@ -563,6 +563,12 @@ and offers Fit/Enlarge controls. Phones start at readable size with scroll guida
 No external diagram service is contacted. Diagram checks cover label containment,
 responsive overflow, cloned reader stages and unsafe-content fallback.
 
+Course readers, daily lessons and DSA lessons use a wider study workspace with
+**Quick notes** beside the material. Notes follow the lesson or DSA topic across
+steps; saving uses the existing private notes collection, accessible through
+**All notes**. Smaller screens place a collapsible notes bar above the material.
+Text remains readable while code and diagrams can use the full content column.
+
 Completion keeps today's lesson visible until the next local date. The next
 unfinished day stays in the queue across missed dates. Course state lives under
 `interview_course` in learning memory; document IDs are `interview/day-N`.

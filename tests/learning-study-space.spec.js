@@ -120,8 +120,10 @@ test('an unsaved lesson draft survives stage, subject, route, refresh and browse
   await page.locator('.lesson-subject-menu > summary').click();
   await page.locator('[data-lesson-part="systems"]').click();
   await expect(body(page)).toHaveValue(draft);
+  await page.getByRole('button', { name: 'Show navigation', exact: true }).click();
   await page.getByRole('button', { name: 'Refresh learning', exact: true }).click();
   await expect(body(page)).toHaveValue(draft);
+  await page.getByRole('button', { name: 'Hide navigation', exact: true }).click();
   await page.evaluate(() => { location.hash = '#/learning'; });
   await expect(page.locator('.daily-page')).toHaveAttribute('data-learning-view', 'today');
   await page.evaluate(source => { location.hash = source; }, courseSource(63));
@@ -218,6 +220,32 @@ test('a concurrent edit preserves both the saved version and the typed quick-not
   await page.reload();
   await openNotes(page);
   await expect(body(page)).toHaveValue('My new reasoning must not be lost.');
+  await expect(save(page)).toBeDisabled();
+  await notes(page).locator('.study-notes-conflict > summary').click();
+  await expect(notes(page).getByRole('textbox', { name: 'Saved version', exact: true })).toHaveValue('A newer version saved in another window.');
+  await notes(page).getByRole('button', { name: 'Save as a separate note', exact: true }).click();
+  await expect(status(page)).toHaveText(/^Saved\b/i);
+  const versions = await savedFor(request, courseSource(62));
+  expect(versions).toHaveLength(2);
+  expect(versions.find(note => note.id === original.id)).toMatchObject({ revision: 2, body: 'A newer version saved in another window.' });
+  expect(versions.find(note => note.id !== original.id)).toMatchObject({ revision: 1, body: 'My new reasoning must not be lost.' });
+});
+
+test('a note load failure keeps new typing and blocks saving until the saved version is checked', async ({ page, request }) => {
+  let unavailable = true;
+  await page.route('**/api/learning/collection', route => route.request().method() === 'GET' && unavailable
+    ? route.fulfill({ status: 503, json: { error: 'Saved notes cannot be loaded right now.' } }) : route.fallback());
+  await openCourse(page, 70);
+  await expect(status(page)).toContainText('Could not load your saved note');
+  await body(page).fill('Keep the thought I wrote while the saved note could not load.');
+  await expect(save(page)).toBeDisabled();
+  unavailable = false;
+  await notes(page).getByRole('button', { name: 'Retry loading', exact: true }).click();
+  await expect(save(page)).toBeEnabled();
+  await expect(body(page)).toHaveValue('Keep the thought I wrote while the saved note could not load.');
+  await save(page).click();
+  await expect(status(page)).toHaveText(/^Saved\b/i);
+  expect(await savedFor(request, courseSource(70))).toEqual([expect.objectContaining({ body: 'Keep the thought I wrote while the saved note could not load.' })]);
 });
 
 test('switching accounts in the same tab never restores another account’s notes or drafts', async ({ page }) => {

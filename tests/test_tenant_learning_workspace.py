@@ -47,7 +47,7 @@ def test_interview_bank_is_shared_read_only_and_requires_learning_access():
     bridge = LearningBridge()
     result = request(bridge, 'GET', '/api/learning/interview-bank', query={'track': 'ai_ml', 'week': '1'})
     assert result.status == 200 and result.result['total'] == 14
-    assert result.result['bank_total'] == 540 and not bridge.calls
+    assert result.result['bank_total'] == 564 and not bridge.calls  # 540 course + 24 React
     invalid = request(bridge, 'GET', '/api/learning/interview-bank', query={'track': 'invalid'})
     assert invalid.status == 400
     denied = request(bridge, 'GET', '/api/learning/interview-bank', modules=['profile'])

@@ -124,7 +124,7 @@ body:has(.learning-study-layout) #content { padding-inline: 24px; }
 .study-notes-hint,
 .study-notes-status { margin: 0; color: #75604c; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .study-notes-status:empty { display: none; }
-.study-notes-status[role='alert'] { color: #9a392a; }
+.study-notes-status[role='alert'], .study-notes-status[data-state='error'] { color: #9a392a; }
 .study-notes-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
 .study-notes-actions :is(button, a) { min-height: 44px; max-width: 100%; font-size: 13px; line-height: 1.5; white-space: normal; }
 .study-notes-actions a { display: inline-flex; align-items: center; margin-left: auto; color: #8a4024; text-underline-offset: 3px; }
