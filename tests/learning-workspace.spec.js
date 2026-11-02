@@ -6,6 +6,7 @@ const idle = { epoch: 'learning-workspace', revision: 0, next: 0, running: false
   label: '', shown: '', action: '', seconds: 0, last: null, active_count: 0, runs: [], lines: [] };
 
 async function revealControl(locator) {
+  await expect(locator).toBeAttached();
   // Open real disclosure controls from the outside in, without changing page
   // state directly. Settings may sit below a closed secondary-tools section.
   const closedParents = locator.locator('xpath=ancestor::details[not(@open)]');
@@ -34,6 +35,69 @@ test.beforeEach(async ({ page }) => {
     };
     return route.fulfill({ json: data[path] || {} });
   });
+});
+
+test('interview bank filters real questions, hides answers and returns to the same search from a lesson', async ({ page }) => {
+  const writes = [];
+  page.on('request', request => { if (request.method() !== 'GET') writes.push(request.url()); });
+  await page.goto('/#/learning/weekly?view=questions');
+  await expect(page.getByRole('heading', { name: 'Interview questions', exact: true, level: 1 })).toBeVisible();
+  await expect(page.locator('.interview-question')).toHaveCount(12);
+  const first = page.locator('.interview-question').first();
+  await expect(first.locator('.interview-answer').first()).not.toHaveAttribute('open', '');
+  await first.getByText('Show answer guide', { exact: true }).click();
+  await expect(first.locator('.daily-prose').first()).toBeVisible();
+  await page.getByRole('link', { name: 'Next page', exact: true }).click();
+  await expect(page.locator('.interview-results')).toContainText('Page 2 of 45');
+  await page.getByRole('combobox', { name: 'Subject', exact: true }).selectOption('ai_ml');
+  await page.getByRole('combobox', { name: 'Course week', exact: true }).selectOption('3');
+  await page.getByLabel('Search questions', { exact: true }).fill('regression');
+  await page.getByRole('button', { name: 'Find questions' }).click();
+  await expect(page.locator('.interview-results')).toContainText('Page 1');
+  await expect(page.locator('.interview-question').first()).toContainText('AI & ML');
+  const filteredUrl = page.url();
+  await page.locator('.interview-lesson-link').first().click();
+  await expect(page.locator('.lesson-stage-prose')).toHaveAttribute('data-current-lesson-stage', 'interview');
+  await expect(page.getByRole('link', { name: '← Interview questions', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: '← Interview questions', exact: true }).click();
+  await expect(page.getByLabel('Search questions', { exact: true })).toHaveValue('regression');
+  const previousQuery = new URLSearchParams(new URL(filteredUrl).hash.split('?')[1]);
+  const restoredQuery = new URLSearchParams(new URL(page.url()).hash.split('?')[1]);
+  for (const key of ['view', 'track', 'week', 'q']) expect(restoredQuery.get(key)).toBe(previousQuery.get(key));
+  await page.getByLabel('Search questions', { exact: true }).fill('unlikelytermxyz');
+  await page.getByRole('button', { name: 'Find questions' }).click();
+  await expect(page.getByText('No questions match. Try a shorter search or choose all subjects.')).toBeVisible();
+  await page.getByRole('link', { name: 'Clear filters' }).click();
+  await expect(page.locator('.interview-question')).toHaveCount(12);
+  expect(writes).toEqual([]);
+});
+
+test('interview cases and the question bank are readable and accessible on phones and desktop', async ({ page }) => {
+  await mkdir('artifacts/interview-course', { recursive: true });
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const route of ['learning/weekly?view=questions', 'learning/read/interview%2Fday-1?part=ai&stage=interview']) {
+      await page.goto('/#/' + route);
+      await expect(page.locator(route.includes('weekly') ? '.interview-question' : '.lesson-stage-prose').first()).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+      const audit = await new AxeBuilder({ page }).include('.daily-content').analyze();
+      expect(audit.violations).toEqual([]);
+      await page.screenshot({ path: `artifacts/interview-course/${route.includes('weekly') ? 'bank' : 'lesson'}-${width}.png`, fullPage: !route.includes('weekly') });
+    }
+  }
+});
+
+test('interview bank load failure has a retry without recording any progress', async ({ page }) => {
+  let fail = true;
+  await page.route('**/api/learning/interview-bank*', route => {
+    if (fail) return route.fulfill({ status: 503, json: { error: 'Question bank is temporarily unavailable.' } });
+    return route.continue();
+  });
+  await page.goto('/#/learning/weekly?view=questions');
+  await expect(page.locator('.daily-content').getByRole('alert')).toContainText('Question bank is temporarily unavailable.');
+  fail = false;
+  await page.locator('.daily-content').getByRole('button', { name: 'Try again', exact: true }).click();
+  await expect(page.locator('.interview-question')).toHaveCount(12);
 });
 
 test('paper bookmarks persist in the correct collection and notes can be edited', async ({ page }) => {
@@ -84,7 +148,7 @@ test('DSA bookmarks reopen the exact question', async ({ page }) => {
   await page.goto('/#/learning/dsa?step=practice');
   const question = page.locator('.daily-question');
   await expect(question).toBeVisible();
-  const title = await question.locator(':scope > h3').textContent();
+  const title = await question.locator('.dsa-question-heading h3').textContent();
   await question.getByRole('button', { name: 'Bookmark ' + title, exact: true }).click();
   await expect(question.getByRole('button', { name: 'Remove bookmark for ' + title })).toBeEnabled();
   await page.goto('/#/learning/bookmarks?kind=dsa');
@@ -322,10 +386,15 @@ test('retrying an unconfirmed note creation does not create a duplicate', async 
   expect(notes.filter(note => note.title === 'One saved idea despite retries')).toHaveLength(1);
 });
 
-test('Today puts the next lesson and study list ahead of optional discoveries', async ({ page, request }) => {
+test('Today selects one task without changing progress and keeps optional work out of the study flow', async ({ page, request }) => {
   const daily = await (await request.get('/api/learning/daily')).json();
   daily.plan.read = false;
+  const dsa = await (await request.get('/api/learning/dsa')).json();
+  dsa.progress = { ...dsa.progress, read: false, practiced: [], completed_at: null };
+  const saves = [];
+  page.on('request', req => { if (req.method() === 'POST' && /\/api\/(?:learning|research\/read)/.test(req.url())) saves.push(req.url()); });
   await page.route('**/api/learning/daily', route => route.fulfill({ json: daily }));
+  await page.route('**/api/learning/dsa', route => route.fulfill({ json: dsa }));
   await mkdir('artifacts/learning-clarity', { recursive: true });
   for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 900 });
@@ -333,7 +402,29 @@ test('Today puts the next lesson and study list ahead of optional discoveries', 
     await expect(page.getByRole('link', { name: 'Continue lesson', exact: true })).toBeVisible();
     await expect(page.locator('.daily-page').getByText(/^(null|undefined)$/, { exact: true })).toHaveCount(0);
     await expect(page.locator('.learn-path-explorer')).toHaveCount(0);
-    await expect(page.locator('.daily-task-group').first().locator('[data-learning-task]')).toHaveCount(2);
+    await expect(page.locator('.daily-agenda [data-learning-task]')).toHaveCount(2);
+    await expect(page.locator('.daily-agenda [data-learning-task] a')).toHaveCount(0);
+    await expect(page.locator('.daily-agenda-summary .btn-primary')).toHaveCount(1);
+    await expect(page.locator('[data-disclosure="explore"]')).not.toHaveAttribute('open', '');
+    await expect(page.locator('[data-disclosure="learning-tools"]')).not.toHaveAttribute('open', '');
+    await expect(page.locator('[data-learning-task="papers"]')).not.toBeVisible();
+    const planChoice = page.locator('[data-learning-focus="select-plan"]');
+    const dsaChoice = page.locator('[data-learning-focus="select-dsa"]');
+    await expect(planChoice).toHaveAttribute('aria-pressed', 'true');
+    await dsaChoice.click();
+    await expect(dsaChoice).toHaveAttribute('aria-pressed', 'true');
+    await expect(planChoice).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('.daily-agenda-summary')).toContainText(dsa.lesson.title);
+    await expect(page.locator('.daily-agenda-summary')).not.toContainText(/(^|\s)(null|undefined)(\s|$)/);
+    await expect(page.locator('.daily-agenda-summary').getByRole('link', { name: 'Start DSA lesson', exact: true })).toHaveAttribute('href', '#/learning/dsa');
+    await expect(page.locator('.daily-session-count')).toHaveText('0 / 2 complete');
+    await page.getByRole('button', { name: 'Refresh learning', exact: true }).click();
+    await expect(page.locator('[data-learning-focus="select-dsa"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.daily-agenda-summary')).toContainText(dsa.lesson.title);
+    await expect(page.locator('.daily-agenda-summary')).not.toContainText(/(^|\s)(null|undefined)(\s|$)/);
+    await page.locator('[data-learning-focus="select-plan"]').click();
+    await expect(page.locator('.daily-agenda-summary')).toContainText(daily.plan.title);
+    await expect(page.locator('.daily-agenda-summary')).not.toContainText(/(^|\s)(null|undefined)(\s|$)/);
     await expect(page.locator('.daily-optional-group [data-learning-task]')).toHaveCount(6);
     await expect(page.locator('.daily-optional-group > ol > [data-learning-task]')).toHaveCount(3);
     await expect(page.locator('.daily-more-reading')).not.toHaveAttribute('open', '');
@@ -342,7 +433,7 @@ test('Today puts the next lesson and study list ahead of optional discoveries', 
     const noteLink = page.locator('.daily-tools a[href="#/learning/notes?new=1"]');
     await expect(noteLink).not.toBeVisible();
     await expect(noteLink).toHaveAttribute('href', '#/learning/notes?new=1');
-    await expect(page.locator('.learn-header-context')).not.toContainText('completed today');
+    await expect(page.locator('.learn-header-context')).toHaveCount(0);
     await expect(page.locator('.activity-launch')).not.toBeVisible();
     await expect(page.getByRole('link', { name: 'Continue lesson', exact: true })).toBeInViewport({ ratio: 1 });
     await expect(page.locator('.daily-agenda [data-learning-task]').first()).toBeInViewport({ ratio: .1 });
@@ -353,12 +444,13 @@ test('Today puts the next lesson and study list ahead of optional discoveries', 
     expect(audit.violations).toEqual([]);
     await page.screenshot({ path: `artifacts/learning-clarity/today-${width}.png`, fullPage: true, animations: 'disabled' });
   }
-  await page.locator('.daily-more-reading > summary').click();
+  await revealControl(page.locator('[data-learning-task="companies"]'));
   await expect(page.locator('[data-learning-task="companies"]')).toBeVisible();
-  await page.locator('.daily-tools > summary').click();
+  await revealControl(page.locator('.daily-tools a[href="#/learning/notes?new=1"]'));
   await expect(page.getByRole('link', { name: 'Write a note', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Research activity', exact: true }).click();
   await expect(page.locator('.activity-sheet')).toBeVisible();
+  expect(saves).toEqual([]);
 });
 
 test('an empty Today keeps the next course lesson ahead of optional research setup', async ({ page, request }) => {
@@ -370,14 +462,17 @@ test('an empty Today keeps the next course lesson ahead of optional research set
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto('/#/learning');
   await expect(page.locator('.daily-agenda [data-learning-task]')).toHaveCount(2);
-  await expect(page.getByRole('button', { name: 'Prepare today’s research', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Prepare today’s research', exact: true })).not.toBeVisible();
   await expect(page.getByRole('button', { name: 'Prepare next lesson', exact: true })).toBeVisible();
   await expect(page.locator('.daily-missing-material')).not.toHaveAttribute('open', '');
   await expect(page.locator('.daily-missing-material')).toContainText('6 not prepared');
   await expect(page.locator('[data-learning-task="plan"]')).toBeVisible();
   await page.screenshot({ path: 'artifacts/learning-clarity/today-empty-390.png', fullPage: true, animations: 'disabled' });
+  await revealControl(page.locator('.daily-setup-card'));
+  await expect(page.getByRole('button', { name: 'Prepare today’s research', exact: true })).toBeVisible();
   await page.getByText('Choose individual topics · 6 not prepared', { exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Prepare learning day', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Prepare research papers', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Prepare next lesson', exact: true })).toBeVisible();
   const audit = await new AxeBuilder({ page }).include('.daily-page').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
   expect(audit.violations).toEqual([]);
 });
@@ -423,16 +518,26 @@ test('account learners can study the course and DSA without requesting local cod
     return Object.hasOwn(data, path) ? route.fulfill({ json: data[path] }) : route.fallback();
   });
   await page.goto('/#/learning');
-  await expect(page.locator('.daily-core-group [data-learning-task="plan"]')).toContainText('Read today’s lesson');
+  await expect(page.locator('.daily-core-group [data-learning-task="plan"]')).toContainText('Course lesson');
   await expect(page.locator('.daily-core-group [data-learning-task="plan"]')).toContainText(`Day ${daily.plan.day} of ${daily.plan.total}`);
   await expect(page.locator('.daily-core-group [data-learning-task="dsa"]')).toContainText(dsa.lesson.title);
-  await expect(page.getByRole('link', { name: daily.plan.read ? 'Review learning day' : 'Open learning day', exact: true })).toHaveAttribute('href', '#/learning/plan');
+  await page.locator('[data-learning-focus="select-plan"]').click();
+  await expect(page.locator('.daily-agenda-summary').getByRole('link', { name: daily.plan.read ? 'Review lesson' : 'Continue lesson', exact: true })).toHaveAttribute('href', '#/learning/plan');
   await expect(page.getByRole('button', { name: 'Prepare today’s research', exact: true })).toHaveCount(0);
   await page.goto('/#/learning/dsa?step=practice');
   await expect(page.locator('.daily-question')).toBeVisible();
-  await expect(page.locator('.daily-practice-note')).toContainText('your own code editor');
+  await expect(page.locator('.daily-practice-note')).toContainText('your own editor');
   await expect(page.locator('.code-workspace')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Practice & exams', exact: true })).toHaveCount(0);
+  await page.getByRole('tab', { name: '02 Worked example', exact: true }).click();
+  await expect(page.locator('.daily-example .dsa-reading-prose table')).toBeVisible();
+  await page.locator('.dsa-example-code > summary').click();
+  await expect(page.locator('.dsa-example-code pre')).toBeVisible();
+  await expect(page.locator('.code-workspace')).toHaveCount(0);
+  await page.getByRole('tab', { name: '04 Review', exact: true }).click();
+  await expect(page.locator('.dsa-review-checkpoints')).toBeVisible();
+  await expect(page.locator('.dsa-review-stage .dsa-reading-prose details')).not.toHaveAttribute('open', '');
+  await expect(page.locator('.code-workspace')).toHaveCount(0);
   await page.goto('/#/learning/weekly');
   await expect(page.getByRole('link', { name: 'Continue daily lesson', exact: true })).toBeVisible();
   await page.locator('.learn-course-archive > summary').click();

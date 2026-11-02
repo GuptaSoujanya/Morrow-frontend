@@ -40,7 +40,7 @@ class Handler(dashboard.DashboardHandler):
     def do_GET(self):
         path = urlsplit(self.path).path
         if path.startswith('/api/') and path not in ('/api/learning/dsa', '/api/learning/activity', '/api/learning/daily',
-                '/api/learning/collection', '/api/learning/discovery', '/api/learning/curriculum', '/api/learning/overview', '/api/learning/feed',
+                '/api/learning/collection', '/api/learning/discovery', '/api/learning/curriculum', '/api/learning/interview-bank', '/api/learning/overview', '/api/learning/feed',
                 '/api/learning/dsa/sheet', '/api/learning/dsa/problem', '/api/learning/practice', '/api/learning/practice/paper',
                 '/api/learning/code/capabilities', '/api/learning/code/problem', '/api/learning/code/progress',
                 '/api/research/learning', '/api/document', '/api/library', '/api/course'):

@@ -1,7 +1,6 @@
 import { h } from './dom.js';
 import { S } from './state.js';
 import { routeAccess } from './access-policy.js';
-import { selectControl } from './components/controls.js';
 
 export const DSA_PRACTICE_PATH = '#/learning/dsa?step=practice';
 export const LEARNING_SECTIONS = [
@@ -47,13 +46,7 @@ export function renderLearningSwitcher(arg = '') {
   const sections = availableLearningSections();
   if (!sections.length) return null;
   const current = currentLearningSection(arg);
-  const select = selectControl({ label: 'Learning section', value: current.path,
-    options: sections.map(section => ({ value: section.path, label: section.label })),
-    onChange: value => { window.location.hash = value; },
-  });
-  select.controlElement.classList.add('learning-section-select');
-  return h('div', { class: 'learning-switcher' },
-    h('span', { text: 'Learning section' }),
-    select,
-  );
+  return h('nav', { class: 'learning-section-nav', 'aria-label': 'Learning sections' },
+    sections.map(section => h('a', { href: section.path, text: section.label,
+      'aria-current': section.key === current.key ? 'page' : null })));
 }

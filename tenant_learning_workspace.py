@@ -442,6 +442,14 @@ class LearningWorkspace:
                          'Everyone follows the same interview course; a resume is not required.'),
         }
 
+    def interview_bank(self, query=None):
+        self.require_access()
+        from common.interview_practice import question_bank
+        try:
+            return question_bank(query)
+        except ValueError as exc:
+            raise self.error(400, str(exc)) from exc
+
     def curriculum(self, query=None):
         self.require_access()
         data = self._progress()

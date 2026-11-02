@@ -8,7 +8,7 @@ import re
 from urllib.parse import quote
 
 from markdown_it import MarkdownIt
-from common import learning_activity, learning_memory as memory, dsa_basics
+from common import learning_activity, learning_memory as memory, dsa_basics, dsa_depth
 from common.interview_lessons import render as render_lesson
 
 # Stable IDs survive title changes. Problem numbers refer to bundled chapter headings.
@@ -75,11 +75,15 @@ def lesson(course, identifier):
         raise ValueError('This DSA lesson is missing from the local course. Restore the course files and retry.')
     concept, problems = _chapter(str(path), path.stat().st_mtime_ns)
     simple = dsa_basics.lesson(identifier)
+    depth = dsa_depth.lesson(identifier)
     if any(number not in problems for number in (example, *practices)):
         raise ValueError('The saved DSA chapter is missing one of this lesson’s practice questions.')
     return {'id': identifier, 'title': title, 'number': list(CATALOG).index(identifier) + 1,
-            'total': len(TOPICS), 'minutes': 30, 'concept_html': render_lesson(simple['concept']),
+            'total': len(TOPICS), 'minutes': 60, 'concept_html': render_lesson(simple['concept']),
             'simple_example_html': render_lesson(simple['worked_example']),
+            'advanced_concept_html': render_lesson(depth['concept']),
+            'walkthrough_html': render_lesson(depth['walkthrough']),
+            'interview_html': render_lesson(depth['interview']),
             'example': problems[example],
             'practice': [problems[number] for number in practices], 'course_route': '02-dsa/' + chapter}
 

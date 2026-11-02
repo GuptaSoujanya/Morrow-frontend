@@ -97,3 +97,34 @@ test('legacy aliases resolve to canonical parents and unsafe labels stay plain d
   assert.equal(crumbs.at(-1).href, '#/learning/read/notes.md?from=library');
   assert.equal(trail('#/unknown/path').at(-1).href, '#/unknown/path');
 });
+
+test('question bank readers return to the same subject, week and search page', () => {
+  const crumbs = trail('#/learning/read/interview%2Fday-22?from=weekly&view=questions&track=ai_ml&week=4&q=forest&page=2&part=ai&stage=interview');
+  assert.equal(crumbs.at(-2).label, 'Interview questions');
+  assert.deepEqual(Object.fromEntries(query(crumbs.at(-2))), { view: 'questions', track: 'ai_ml', q: 'forest', week: '4', page: '2' });
+  assert.equal(crumbs.at(-2).href.split('?')[0], '#/learning/weekly');
+  assert.equal(query(crumbs.at(-2)).has('stage'), false);
+  assert.deepEqual(Object.fromEntries(query(crumbs.at(-1))), {
+    view: 'questions', track: 'ai_ml', q: 'forest', week: '4', page: '2', from: 'weekly', part: 'ai', stage: 'interview',
+  });
+});
+
+test('question bank current breadcrumb retains the filtered collection', () => {
+  const crumbs = trail('#/learning/weekly?view=questions&track=system_design&q=cache&week=2&page=2&return=https://bad.example');
+  assert.deepEqual(labels(crumbs), ['Home', 'Learning', 'Interview questions']);
+  assert.equal(crumbs.at(-1).href.split('?')[0], '#/learning/weekly');
+  assert.deepEqual(Object.fromEntries(query(crumbs.at(-1))), {
+    view: 'questions', track: 'system_design', q: 'cache', week: '2', page: '2',
+  });
+});
+
+test('current course breadcrumb accepts only known subject and stage values', () => {
+  const valid = trail('#/learning/read/interview%2Fday-12?from=today&part=systems&stage=interview');
+  assert.deepEqual(Object.fromEntries(query(valid.at(-1))), { from: 'today', part: 'systems', stage: 'interview' });
+  const invalid = trail('#/learning/read/interview%2Fday-12?from=weekly&view=questions&part=private&stage=unknown&redirect=https://bad.example');
+  assert.deepEqual(Object.fromEntries(query(invalid.at(-1))), { view: 'questions', from: 'weekly' });
+  const all = trail('#/learning/read/interview%2Fday-12?part=all&stage=interview');
+  assert.deepEqual(Object.fromEntries(query(all.at(-1))), { from: 'today', part: 'all' });
+  const ordinary = trail('#/learning/read/notes.md?part=systems&stage=interview');
+  assert.deepEqual(Object.fromEntries(query(ordinary.at(-1))), { from: 'today' });
+});

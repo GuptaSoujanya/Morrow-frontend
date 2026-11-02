@@ -9,6 +9,7 @@ import { activityView } from '../components/learning-progress.js';
 import { S } from '../state.js';
 import { routeAccess } from '../access-policy.js';
 import { prepareLearningButton } from '../components/learning-feed.js';
+import { coursePracticeTabs, renderInterviewBank } from '../components/interview-bank.js';
 
 const drafts = new WeakMap();
 const pendingSaves = new WeakMap();
@@ -47,7 +48,9 @@ export function renderLearningWorkspace(view) {
     if (!current() || dirty || busy) return;
     const request = ++ticket;
     try {
-      const path = view === 'weekly' ? '/api/learning/curriculum' : view === 'discover'
+      const bank = view === 'weekly' && query.get('view') === 'questions';
+      const bankQuery = new URLSearchParams([...query].filter(([key]) => ['q', 'track', 'week', 'page'].includes(key)));
+      const path = view === 'weekly' ? bank ? '/api/learning/interview-bank?' + bankQuery : '/api/learning/curriculum' : view === 'discover'
         ? '/api/learning/discovery' + (query.get('date') ? '?date=' + encodeURIComponent(query.get('date')) : '') : view === 'progress' ? '/api/learning/overview' : '/api/learning/collection';
       const result = await api(path, undefined, { fresh: true });
       if (!current() || request !== ticket || dirty || busy) return;
@@ -55,7 +58,8 @@ export function renderLearningWorkspace(view) {
       root.replaceChildren(feedback);
       if (['notes', 'bookmarks'].includes(view)) root.append(h('nav', { class: 'learn-tabs', 'aria-label': 'Your learning library' },
         [['library', 'Saved material'], ['bookmarks', 'Bookmarks'], ['notes', 'My notes']].map(([key, text]) => h('a', { href: '#/learning/' + key, text, 'aria-current': key === view ? 'page' : null }))));
-      if (view === 'weekly') drawWeekly();
+      if (bank) root.append(renderInterviewBank(data));
+      else if (view === 'weekly') drawWeekly();
       else if (view === 'discover') drawDiscovery();
       else if (view === 'bookmarks') drawBookmarks();
       else if (view === 'progress') {
@@ -78,6 +82,7 @@ export function renderLearningWorkspace(view) {
     const courseAction = (url, title) => h('a', { href: url, class: 'btn btn-primary' }, title,
       h('span', { class: 'learn-course-action-arrow', 'aria-hidden': 'true', text: '→' }));
     root.classList.add('learn-roadmap');
+    root.append(coursePracticeTabs());
     // Keep the learner's open weeks when a background refresh updates progress.
     if (!root.roadmapOpenWeeks) root.roadmapOpenWeeks = new Set(active ? [active.number] : []);
     if (root.roadmapActiveWeek !== active?.number) {
@@ -127,8 +132,9 @@ export function renderLearningWorkspace(view) {
       h('div', { class: 'learn-course-next' },
         h('p', { class: 'eyebrow', text: completed === total ? 'ALL COURSE DAYS COMPLETE' : next ? `NEXT LESSON · DAY ${next.day} OF ${total}` : 'YOUR INTERVIEW COURSE' }),
         h('h2', { text: completed === total ? 'Keep practising what you learned.' : next?.title || 'Build your skills, one day at a time.' }),
-        h('p', { class: 'learn-course-encouragement', text: 'Small lessons. Useful skills. A little closer every day.' }),
+        h('p', { class: 'learn-course-encouragement', text: 'Understand the idea. Work through real cases. Explain and defend your answer.' }),
         courseSubjects(course),
+        course?.interview_questions ? h('p', { class: 'learn-course-depth', text: `${course.interview_questions} interview questions · ${course.project_assessments} weekly project and mock reviews` }) : null,
         h('div', { class: 'learn-actions' }, completed === total ? courseAction(weeks[0]?.days[0]?.route || '#/learning', 'Review completed lessons')
           : next?.available ? courseAction(next.route || '#/learning/plan', 'Continue daily lesson')
             : canGenerate ? prepare() : courseAction(canResearch ? '#/learning/library' : '#/learning/notes', canResearch ? 'Open your private library' : 'Open your notes'))),

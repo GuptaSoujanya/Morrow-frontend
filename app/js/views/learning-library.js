@@ -1,5 +1,6 @@
 import { h } from '../dom.js';
 import { lessonReader } from '../components/lesson-reader.js';
+import { enhanceLearningDiagrams } from '../components/learning-diagrams.js';
 import { api, accountRequestSignal } from '../api.js';
 import { S } from '../state.js';
 import { icon } from '../icons.js';
@@ -12,6 +13,7 @@ import { readQuery, withQuery, choice, pageNumber } from '../url-state.js';
 import { fetchButton } from './research-desk.js';
 import { updateRunButtons } from '../forms.js';
 import { learningSave } from '../components/learning-save.js';
+import { studyNotes } from '../components/study-notes.js';
 
 const CATEGORIES = ['Briefing', 'Learning', 'Resume research', 'Email drafts'];
 const dateLabel = value => {
@@ -51,8 +53,8 @@ function requestView(label, render) {
   const content = h('div', {}, loadingState(label));
   const feedback = h('div', { class: 'learning-library-feedback' });
   root.append(feedback, content);
-  let ticket = 0, committed = 0, mutations = 0, refreshing = false, refreshQueued = false, mutationFailed = false, readController;
-  const current = () => !scope.aborted && root.isConnected && location.hash.split('?')[0] === route;
+  let ticket = 0, committed = 0, mutations = 0, refreshing = false, refreshQueued = false, mutationFailed = false, readController, disposed = false;
+  const current = () => !disposed && !scope.aborted && root.isConnected && location.hash.split('?')[0] === route;
   function beginMutation() {
     if (!current()) return null;
     // A GET started before this save cannot replace its controls or its result.
@@ -102,6 +104,7 @@ function requestView(label, render) {
     }
   }
   root.refresh = load;
+  root.dispose = () => { disposed = true; ++ticket; readController?.abort(); };
   queueMicrotask(load);
   return root;
 }
@@ -287,7 +290,7 @@ function libraryView() {
   return root;
 }
 
-function safeReading(html, title) {
+export function safeReading(html, title) {
   const allowed = new Set(['p', 'strong', 'em', 'code', 'pre', 'ul', 'ol', 'li', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'br', 's', 'a', 'details', 'summary']);
   function copy(node) {
     if (node.nodeType === Node.TEXT_NODE) return document.createTextNode(node.textContent);
@@ -296,6 +299,7 @@ function safeReading(html, title) {
     if (!allowed.has(tag)) return document.createTextNode(node.textContent);
     if (tag === 'h1') tag = 'h2';
     const props = {};
+    if (tag === 'code' && node.classList.contains('language-mermaid')) props.class = 'language-mermaid';
     if (tag === 'a') {
       const href = node.getAttribute('href') || '';
       if (/^https?:\/\//i.test(href) || /^mailto:/i.test(href)) Object.assign(props, { href, target: '_blank', rel: 'noopener noreferrer' });
@@ -319,11 +323,12 @@ function safeReading(html, title) {
   const first = parsed.firstElementChild;
   if (first?.tagName === 'H1' && first.textContent.trim() === title) first.remove();
   const reading = h('div', { class: 'daily-prose learning-saved-prose' }, [...parsed.childNodes].map(copy));
-  return reading;
+  return enhanceLearningDiagrams(reading);
 }
 
 function readView(id) {
-  return requestView('Opening your reading…', async ({ current, beginMutation, signal }) => {
+  let notes;
+  const view = requestView('Opening your reading…', async ({ current, beginMutation, signal }) => {
     const data = await api('/api/document?id=' + encodeURIComponent(id), undefined, { signal });
     if (!current()) return [];
     const canMark = hasModule('learning');
@@ -359,13 +364,21 @@ function readView(id) {
     const completion = h('footer', { class: 'learning-library-reading-footer' + (courseLesson ? ' course-completion' : '') }, feedback, toggle);
     const safe = safeReading(data.html, data.title);
     const reading = courseLesson ? lessonReader({ reading: safe, onChange: ({ last, all }) => { completion.hidden = !last && !all; } }) : safe;
-    return [h('article', { class: 'learning-library-reading' + (courseLesson ? ' course-reading' : '') },
+    const material = h('article', { class: 'learning-library-reading' + (courseLesson ? ' course-reading' : '') },
         h('header', { class: 'learning-library-reading-head' }, h('div', {}, h('p', { class: 'eyebrow', text: data.day ? `LEARNING DAY ${data.day} OF 90` : data.category || 'SAVED READING' }), h('h2', { text: data.title || 'Saved reading' })), status),
         courseLesson ? h('p', { class: 'daily-lesson-source' }, h('strong', { text: 'Very simple English. ' }),
-          'One idea, one example, one small task. Take it at your own pace.') : savedAction,
-        reading, completion, courseLesson ? savedAction : null),
+          'Learn the idea, work through real cases, and practise interview answers. Take it at your own pace.') : savedAction,
+        reading, completion, courseLesson ? savedAction : null);
+    if (canMark && !notes) notes = studyNotes({ sourceId: id, sourceTitle: data.title || 'Saved reading',
+      category: 'resource', sourceUrl: '#/learning/read/' + encodeURIComponent(id) });
+    return [notes ? h('div', { class: 'learning-study-layout' }, notes,
+      h('div', { class: 'learning-study-content' }, material)) : material,
       h('a', { class: 'learning-library-back', href: '#/learning', text: 'Continue today’s priorities →' })];
   });
+  const refresh = view.refresh, dispose = view.dispose;
+  view.refresh = () => { if (!notes?.hasDraft?.() && !notes?.contains(document.activeElement)) refresh(); };
+  view.dispose = () => { notes?.dispose(); dispose(); };
+  return view;
 }
 
 function historyView() {

@@ -198,6 +198,7 @@ class TenantAPI:
             "/api/research/learning": self.learning,
             "/api/learning/collection": self.learning_workspace.collection,
             "/api/learning/curriculum": self.learning_workspace.curriculum,
+            "/api/learning/interview-bank": self.learning_workspace.interview_bank,
             "/api/learning/discovery": self.learning_workspace.discovery,
             "/api/learning/overview": self.learning_workspace.overview,
             "/api/learning/activity": self.learning_workspace.activity,

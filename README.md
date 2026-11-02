@@ -496,34 +496,72 @@ for an unused Firestore transitive dependency pulled in by the umbrella SDK.
 ## Learning workspace and daily progress
 
 Open **Learning** (`#/learning`) for one workspace with **Today**, **90-day course**, **DSA practice**,
-**Discover**, **Saved library**, and **Progress**. Desktop navigation
-groups these destinations under Learning; smaller screens use one section selector.
-Today has one primary next action and a compact two-task checklist. Papers, news,
-and GitHub previews are secondary; other reading and tools open on request.
+**Discover**, **Saved library**, and **Progress**, shown as visible page links on
+desktop and mobile. Today has a two-task chooser and one selected task preview.
+Choosing a task changes the preview without recording completion; its single
+primary action opens the lesson. Papers, news, and GitHub reading open under
+**Explore after your session**; daily fetch and notes open under **Learning tools**.
 Today gives two core tasks: the next course lesson and DSA practice. Its completion
 count includes only those tasks. Papers, tech news, GitHub projects, and other
-research remain visible as additional learning. Company research records reading;
+research remain available as additional learning. Company research records reading;
 job applications remain in Applications.
 
 The same versioned syllabus applies to every learner. It covers AI/ML and GenAI,
 system design, full-stack development, DSA, weekly projects, revision, and mock
 interviews in 90 study days across 13 weeks. The suggested session is about two
-hours. Each lesson uses very simple English and follows **Read → See an example → Try it → Check**.
+hours. Each lesson uses very simple English and follows **Understand → See an example → Try it → Interview**.
 All 90 days include short explanations, word meanings, small worked examples,
 tasks and answers. Answers open on request; full reference chapters are optional.
-The daily and saved course readers share the same subject-by-subject layout, with
-Back/Next controls and an optional **Read all parts** view. The selected part stays
-in the URL when refreshing. Navigation does not record completion; the Review
-part contains the explicit completion action. The roadmap opens the current week,
+The daily and saved course readers share a guided **Understand → See an example →
+Try it → Interview** flow for each subject, with word definitions available at every step.
+Back/Next moves through these steps and then the subjects. The selected subject
+and step stay in the URL when refreshing; **Read all parts** keeps the full lesson
+available. Reading and daily DSA open in focus mode, with an always-visible return
+link and **Show navigation** control. Navigation does not record completion; the
+Review part contains the explicit completion action. The roadmap opens the current week,
 with short day rows and optional subject details for every week.
 These public lessons are available without a resume or AI generation. The 22 DSA
 topics also start with a small example before the full coding exercises.
+
+Each of the 270 subject lessons includes a deeper explanation, a real-world case,
+two interview questions, answered follow-ups, a common mistake, and a practical
+drill with checks. The **Interview questions** view (`#/learning/weekly?view=questions`)
+searches the 540 main questions by topic, subject and week. Answers stay closed
+until requested. Links open the matching lesson's Interview step and preserve the
+bank filters when returning. The same read-only catalog serves local and account
+learners; it neither records completion nor requests an AI service.
+
+All 13 weekly review days include a project brief, observable acceptance checks,
+a timed mock scenario and a self-assessment rubric. These are practice measures,
+not hiring scores. Daily study allows around three to four hours, without a reading
+limit; lessons can be split across sessions. Projects and full mocks can take longer.
+Source links are listed in the question bank. The interview
+routine also draws on [Microsoft's technical interview guidance](https://careers.microsoft.com/v2/global/en/hiring-tips/technical-interviewing)
+and [Amazon's technical preparation topics](https://www.amazon.jobs/content/en-gb/how-we-hire/interview-prep/software-development-topics).
+
+Teaching version 4 keeps the syllabus and saved completions intact while targeting
+developers with around three years of experience in very simple English. The main
+reading embeds matched technical sections and 13 weekly engineering notebooks with
+39 subject-specific flows, worked calculations, implementation cases and failure
+reasoning. Weekly notebooks are explicitly shared companion cases; daily topics,
+practical drills and interview questions remain specific to each day. The main
+exercise is the practical drill, with the elementary check available in the answer
+disclosure. New generation must include mechanisms, a system flow, trade-offs,
+failure cases, interview questions, answers and follow-ups. Prior-reading context
+keeps excerpts from each studied subject so longer AI lessons cannot crowd out
+system design or full-stack study.
 Generated lessons must include the same teaching steps. A separate teaching
-version retires old dense text from the lesson reader without resetting progress
+version retires outdated generated text from the lesson reader without resetting progress
 or deleting the original saved files.
 The course progresses from foundations (days 1–28), through connected systems
 (29–56), to production projects and interview practice (57–84), then final review
 (85–90). The syllabus is an interview preparation target, not a job guarantee.
+
+Course and DSA Mermaid diagrams render from locally bundled code. The reader
+rebuilds the result as allowlisted SVG, keeps readable source when rendering fails,
+and offers Fit/Enlarge controls. Phones start at readable size with scroll guidance.
+No external diagram service is contacted. Diagram checks cover label containment,
+responsive overflow, cloned reader stages and unsafe-content fallback.
 
 Completion keeps today's lesson visible until the next local date. The next
 unfinished day stays in the queue across missed dates. Course state lives under
@@ -573,11 +611,13 @@ storage, isolated from the local owner's files; combined storage is limited to
 live AI fetching and code execution still need a connected tenant runner; these
 capabilities are explicitly unavailable rather than using the owner's runner.
 
-The DSA practice provides one topic per local calendar day: a concept explanation,
-a worked Python example, and practice questions with revealable solutions. The path
+The DSA practice provides one topic per local calendar day: a detailed explanation,
+correctness reasoning, approach/complexity comparisons, a traced example table and
+diagram, coding questions, and worked interview follow-ups. The path
 contains 22 topics, from hash maps and arrays through graphs, dynamic programming,
-bits, and tries. Read the explanation, practice each question, then choose
-**Complete DSA topic**. Each question and worked example has an in-app code editor;
+bits, and tries. Allow about 60 minutes, with more time when needed. Read the
+explanation, practice each question, then open Review and choose **Complete DSA topic**.
+Each question and worked example has an in-app code editor;
 run examples while learning, then submit the full test suite for a verified score.
 Reading and practice checklists remain personal check-ins. Checklist progress and
 code drafts save on this computer and survive restarts.
@@ -587,8 +627,9 @@ after all 22 topics, the path revisits completed topics for revision. An open pa
 refreshes across midnight and when returning from another tab. **Refresh**
 can also reload the saved state.
 
-**DSA practice** separates Learn, Worked example, and Practice into individual steps,
-and Continue resumes at the first unfinished practice question after reading. The
+**DSA practice** separates Learn, Worked example, Practice, and Review into individual steps.
+Completion appears only in Review and requires saved reading and practice checkpoints.
+The selected stage, exact question, and code draft survive navigation and reload. The
 DSA roadmap is collapsed until requested. **Progress** contains separate completion
 bars for every learning area, course-level breakdowns, a seven-day activity chart,
 the full calendar, streaks, badges, coding results and learning history. Today keeps
@@ -664,10 +705,11 @@ result. Input/output contracts and comparison rules appear beside the editor.
 Tests verify returned values, not algorithmic complexity or object identity.
 
 The Learning navigation and Today open `#/learning/dsa`: a new topic starts at
-Learn, while a topic whose reading is complete resumes at Practice. Launchpad's
+Learn, while a topic whose reading is complete resumes at Practice. A completed
+topic opens Review. Launchpad's
 **Practice DSA** shortcut and the sheet's **Today’s question** link keep the explicit
 `#/learning/dsa?step=practice` jump to the first unfinished coding question.
-Learn and Worked example remain available as tabs; the selected tab survives reload.
+All four stages remain available as tabs; the selected tab survives reload.
 The practice sheet also offers **Start coding** / **Continue coding** above the topic
 list, so finding a table row is optional. Editor input details open on demand.
 

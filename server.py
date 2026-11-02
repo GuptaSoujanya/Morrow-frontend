@@ -522,6 +522,9 @@ class DashboardHandler(server.Handler):
                 return self.json(learning_workspace.discovery(query.get('date')))
             if url.path == '/api/learning/curriculum':
                 return self.json(learning_workspace.curriculum())
+            if url.path == '/api/learning/interview-bank':
+                from common.interview_practice import question_bank
+                return self.json(question_bank(query))
             if url.path == '/api/learning/overview':
                 return self.json(learning_workspace.overview())
             if url.path == '/api/learning/activity':
@@ -557,9 +560,6 @@ class DashboardHandler(server.Handler):
                 return self.json(data)
             if url.path == "/api/records":
                 return self.json(dashboard_data.records(query))
-            if url.path == "/api/library":
-                return self.json(dashboard_data.artifacts(query if query else None))
-            if url.path == "/api/research/learning":
             if url.path == '/api/companies':
                 from common.company_store import summary
                 return self.json(summary(state.database(), query))
@@ -570,6 +570,9 @@ class DashboardHandler(server.Handler):
                 return self.json(dict(enabled=settings.browser_agent, limit=settings.browser_agent_limit,
                                       timeout=settings.browser_agent_timeout_s, budget=settings.browser_agent_budget_usd,
                                       attempts=history(settings)))
+            if url.path == "/api/library":
+                return self.json(dashboard_data.artifacts(query if query else None))
+            if url.path == "/api/research/learning":
                 return self.json(research_learning.summary(query, environment=runner_setup.runtime_environment(state.APPLY, getattr(self.server, 'workspace_owner_email', ''))))
             if url.path == "/api/data":
                 return self.json(dashboard_data.inventory(server.files(), query if query else None))
@@ -630,9 +633,6 @@ class DashboardHandler(server.Handler):
         if self.account_request():
             return
         path = urlsplit(self.path).path
-        if path in ('/api/learning/feed', '/api/learning/feed/run'):
-            return self.learning_feed_request(path)
-        if path == '/api/learning/collection':
         if path == '/api/application-agent/resolve':
             if not self.host_ok() or not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
                 return self.error(HTTPStatus.FORBIDDEN, 'Only this dashboard can review an attempt.')
@@ -648,6 +648,9 @@ class DashboardHandler(server.Handler):
                 return self.json({'ok': True})
             except ValueError as exc:
                 return self.error(400, str(exc))
+        if path in ('/api/learning/feed', '/api/learning/feed/run'):
+            return self.learning_feed_request(path)
+        if path == '/api/learning/collection':
             if not self.host_ok() or not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
                 return self.error(403, 'Only this dashboard can update your learning workspace.')
             try:
@@ -831,10 +834,10 @@ class DashboardServer(server.ControlServer):
 
 def register_actions():
     server.ACTIONS.update(boards=board_command, pipeline=pipeline_command)
+    server.ACTIONS.update(company_research=commands.company_research_command)
     server.ACTIONS.update(naukri=commands.naukri_command, profile=commands.profile_command,
                          linkedin_profile=commands.linkedin_profile_command,
                          cold_email=commands.cold_email_command)
-    server.ACTIONS.update(company_research=commands.company_research_command)
     for key in ("profile", "linkedin"):
         server.ACTIONS[key + "_install"] = lambda o, save, key=key: schedule_command(key, "enable")
         server.ACTIONS[key + "_disable"] = lambda o, save, key=key: schedule_command(key, "disable")

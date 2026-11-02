@@ -1,0 +1,113 @@
+/* DSA uses the same reading rhythm throughout learning, tracing and practice.
+   The outer lesson must not clip long tables, code editors or focus outlines. */
+.daily-page .dsa-learning,
+.daily-page .dsa-learning-workspace,
+.daily-page .dsa-stage-panel,
+.daily-page .dsa-stage { min-width: 0; max-width: 100%; }
+.daily-page .dsa-learning-workspace { width: 100%; overflow: visible; }
+.daily-page .dsa-learning-workspace > .daily-workspace-head { border-radius: 12px 12px 0 0; }
+.dsa-learning-workspace .daily-workspace-head > div { min-width: 0; }
+.dsa-learning-workspace .daily-workspace-head h2 { overflow-wrap: anywhere; }
+.dsa-session-summary { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 8px 22px; padding: 0 30px 22px; }
+.dsa-session-summary p { margin: 0; font-size: 13px; line-height: 1.6; }
+.dsa-session-count { color: var(--text-900); font-weight: 600; }
+.dsa-session-help { color: var(--text-600); text-align: right; }
+.dsa-session-summary progress { grid-column: 1 / -1; margin-top: 6px; }
+.daily-page .dsa-lesson-steps { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 8px 22px; }
+.daily-page .dsa-lesson-steps .daily-step { min-width: 0; min-height: 48px; line-height: 1.4; white-space: normal; }
+.daily-page .dsa-stage-panel { width: 100%; padding: 34px clamp(20px, 4vw, 44px) 28px; margin: 0; outline-offset: -5px; }
+.dsa-stage-heading { max-width: 72ch; margin: 0 auto 28px; }
+.dsa-stage-heading .eyebrow { margin: 0 0 10px; font-size: 11px; letter-spacing: .08em; color: var(--text-600); }
+.daily-page .dsa-stage-heading h3 { margin: 0 0 14px; color: var(--text-900); font-size: clamp(24px, 2.7vw, 31px); font-weight: 650; line-height: 1.3; letter-spacing: -.025em; }
+.dsa-stage-heading > p:last-child { margin: 0; font-size: 17px; line-height: 1.75; color: var(--text-600); }
+.daily-page .dsa-stage .daily-prose { width: 100%; max-width: 72ch; min-width: 0; margin-inline: auto; color: var(--text-900); font-size: 18px; line-height: 1.8; }
+.daily-page .dsa-stage .daily-prose :is(h2, h3) { font-size: 22px; line-height: 1.4; margin: 32px 0 14px; }
+.daily-page .dsa-stage .daily-prose :is(h4, h5, h6) { font-size: 18px; line-height: 1.5; margin: 26px 0 12px; }
+.daily-page .dsa-stage .daily-prose > :first-child { margin-top: 0; }
+.daily-page .dsa-stage .daily-prose pre { display: block; width: 100%; min-width: 0; max-width: 100%; max-height: none; overflow: auto; white-space: pre; overflow-wrap: normal; word-break: normal; padding: 20px; font-size: 14px; line-height: 1.8; scrollbar-width: thin; }
+.daily-page .dsa-stage .daily-prose pre code { white-space: inherit; overflow-wrap: normal; word-break: normal; }
+.daily-page .dsa-stage .daily-prose table { display: block; width: 100%; max-width: 100%; max-height: none; overflow-x: auto; font-size: 15px; line-height: 1.6; scrollbar-width: thin; }
+.dsa-stage .daily-prose :is(td, th) { min-width: 105px; padding: 13px 16px; vertical-align: top; overflow-wrap: normal; }
+.dsa-stage .daily-prose th { background: var(--canvas); color: var(--text-900); font-weight: 650; }
+.dsa-stage .daily-prose tr:last-child td { border-bottom: 1px solid var(--border); }
+.dsa-stage .daily-prose :not(pre) > code { color: var(--text-900); background: var(--canvas-sunken); padding: 2px 5px; border-radius: 4px; }
+.dsa-stage .daily-prose blockquote { padding: 14px 18px; background: var(--canvas); }
+.dsa-stage .daily-prose blockquote > :last-child { margin-bottom: 0; }
+.dsa-stage :is(pre, table):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.dsa-stage-note { margin: 20px 0; font-size: 16px; line-height: 1.7; color: var(--text-600); }
+.dsa-recap { max-width: 72ch; margin: 28px auto 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.dsa-recap > summary { min-height: 48px; padding: 14px 0; color: var(--text-600); font-size: 15px; font-weight: 600; cursor: pointer; }
+.dsa-recap[open] { padding-bottom: 20px; }
+.dsa-recap[open] > summary { margin-bottom: 12px; }
+.daily-page .dsa-stage .daily-solution { width: 100%; min-width: 0; max-width: none; margin: 26px 0; overflow: visible; background: var(--canvas); }
+.dsa-stage .daily-solution > summary { padding: 17px 20px; font-size: 16px; line-height: 1.6; color: var(--text-900); font-weight: 600; }
+.daily-page .dsa-stage .daily-solution > .daily-prose { padding: 8px 20px 22px; }
+.dsa-example-code > .code-workspace { width: calc(100% - 32px); margin: 0 16px 18px; }
+.dsa-stage .daily-check { max-width: 72ch; margin: 28px auto 0; font-size: 16px; line-height: 1.65; }
+.dsa-stage-pager { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px; margin-top: 34px; padding-top: 24px; border-top: 1px solid var(--border); }
+.dsa-stage-pager > :first-child { justify-self: start; }
+.dsa-stage-pager > :last-child { justify-self: end; }
+.dsa-stage-pager .btn { min-height: 46px; max-width: 100%; white-space: normal; line-height: 1.5; text-align: center; }
+.dsa-stage-position { color: var(--text-600); font-size: 13px; white-space: nowrap; }
+.dsa-practice-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin: 0 0 22px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+.dsa-practice-heading > p { margin: 0; color: var(--text-600); font-size: 14px; }
+.dsa-practice-heading .daily-problem-tabs { margin: 0; }
+.daily-page .dsa-stage .daily-question { max-width: none; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; outline-offset: 5px; }
+.dsa-question-heading { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.dsa-question-heading > div { min-width: 0; }
+.dsa-question-heading .eyebrow { font-size: 11px; color: var(--text-600); margin: 0 0 8px; }
+.daily-page .dsa-question-heading h3 { margin: 0; font-size: 25px; line-height: 1.35; overflow-wrap: anywhere; }
+.dsa-learning .code-workspace { min-width: 0; max-width: 100%; overflow: visible; }
+.dsa-learning .code-workspace-head { border-radius: 15px 15px 0 0; }
+.dsa-learning :is(.code-workbench, .code-editor-pane, .code-console-pane) { min-width: 0; max-width: 100%; }
+.dsa-learning .code-editor-host { width: 100%; }
+.dsa-learning .code-editor-host .cm-scroller { overscroll-behavior-x: contain; }
+.dsa-learning .code-contract { overflow-wrap: anywhere; }
+.dsa-review-prompts { max-width: 72ch; padding-left: 24px; margin: 0 auto; font-size: 18px; line-height: 1.8; }
+.dsa-review-prompts li + li { margin-top: 12px; }
+.dsa-review-checkpoints { max-width: 72ch; margin: 34px auto 0; border-top: 1px solid var(--border); padding-top: 26px; }
+.dsa-review-checkpoints h3 { margin: 0 0 10px; font-size: 21px; }
+.dsa-review-checkpoints > p { margin: 0 0 16px; font-size: 15px; color: var(--text-600); line-height: 1.7; }
+.dsa-review-checkpoints ul { list-style: none; margin: 0; padding: 0; }
+.dsa-review-checkpoints li { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--border); }
+.dsa-review-check-state { display: inline-flex; align-items: center; gap: 6px; color: var(--text-600); font-size: 12px; }
+.dsa-review-check-state .icon { width: 14px; height: 14px; }
+.is-saved .dsa-review-check-state { color: var(--success); }
+.dsa-review-check-title { min-width: 0; font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+.dsa-review-checkpoints .text-link { min-height: 44px; color: var(--accent); font-size: 14px; text-align: right; }
+.daily-page .dsa-completion { border-radius: 0 0 12px 12px; }
+.dsa-extra-links { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 24px; padding-top: 14px; }
+.dsa-extra-links a { min-height: 44px; display: inline-flex; align-items: center; font-size: 14px; }
+@media (max-width: 760px) {
+  .dsa-session-summary { padding: 0 22px 18px; grid-template-columns: 1fr; gap: 5px; }
+  .dsa-session-help { text-align: left; }
+  .daily-page .dsa-lesson-steps { padding: 7px 12px; gap: 5px; }
+  .daily-page .dsa-lesson-steps .daily-step { flex-direction: column; gap: 3px; font-size: 13px; padding: 9px 5px; }
+  .daily-page .dsa-stage-panel { padding: 28px 22px 24px; }
+  .daily-page .dsa-stage .daily-prose { font-size: 17px; line-height: 1.8; }
+  .dsa-stage-pager { gap: 10px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .dsa-stage-position { grid-column: 1 / -1; grid-row: 1; text-align: center; }
+  .dsa-stage-pager .btn { width: 100%; font-size: 14px; }
+  .dsa-stage-heading > p:last-child { font-size: 16px; }
+}
+@media (max-width: 480px) {
+  .dsa-session-summary { padding-inline: 18px; }
+  .daily-page .dsa-lesson-steps { padding: 7px 10px; gap: 4px; }
+  .daily-page .dsa-lesson-steps .daily-step { font-size: 12px; padding: 8px 3px; }
+  .daily-page .dsa-stage-panel { padding: 24px 16px; }
+  .dsa-stage-heading { margin-bottom: 24px; }
+  .daily-page .dsa-stage-heading h3 { font-size: 25px; }
+  .daily-page .dsa-stage .daily-prose :is(h2, h3) { font-size: 21px; }
+  .daily-page .dsa-stage .daily-prose pre { padding: 14px; font-size: 13px; }
+  .daily-page .dsa-stage .daily-solution > .daily-prose { padding: 4px 14px 18px; }
+  .dsa-stage .daily-solution > summary { padding: 14px; font-size: 15px; }
+  .dsa-example-code > .code-workspace { width: calc(100% - 16px); margin-inline: 8px; }
+  .dsa-question-heading { gap: 8px; }
+  .daily-page .dsa-question-heading h3 { font-size: 23px; }
+  .dsa-practice-heading { align-items: flex-start; gap: 10px; }
+  .dsa-review-checkpoints li { grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; }
+  .dsa-review-check-state { grid-column: 1; }
+  .dsa-review-check-title { grid-column: 1; }
+  .dsa-review-checkpoints .text-link { grid-column: 2; grid-row: span 2; }
+  .dsa-extra-links { display: grid; gap: 2px; }
+}

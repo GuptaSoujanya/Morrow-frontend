@@ -43,6 +43,17 @@ def save(bridge, body):
     return result.result
 
 
+def test_interview_bank_is_shared_read_only_and_requires_learning_access():
+    bridge = LearningBridge()
+    result = request(bridge, 'GET', '/api/learning/interview-bank', query={'track': 'ai_ml', 'week': '1'})
+    assert result.status == 200 and result.result['total'] == 14
+    assert result.result['bank_total'] == 540 and not bridge.calls
+    invalid = request(bridge, 'GET', '/api/learning/interview-bank', query={'track': 'invalid'})
+    assert invalid.status == 400
+    denied = request(bridge, 'GET', '/api/learning/interview-bank', modules=['profile'])
+    assert denied.status == 403 and not bridge.calls
+
+
 def test_bookmarks_are_typed_canonical_and_saved_only_in_account_profile():
     bridge = LearningBridge()
     first = save(bridge, {'action': 'bookmark', 'kind': 'paper', 'url': 'https://arxiv.org/pdf/2610.00001v2.pdf', 'title': 'Paper', 'saved': True})

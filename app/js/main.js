@@ -133,7 +133,9 @@ function render(scroll = false) {
     const restore=scrollMemory.begin(S.route,{reset:scroll});
     return ()=>{
       restore();
-      if(changed||scroll)content.focus({preventScroll:true});
+      // A late lazy-route commit must not steal focus from search or its trigger.
+      const interacting = document.activeElement?.closest('dialog, #workspace-header');
+      if((changed||scroll) && !interacting)content.focus({preventScroll:true});
     };
   };
   if(S.route.name==='not-found'){

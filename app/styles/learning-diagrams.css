@@ -1,0 +1,72 @@
+/* Locally rendered course diagrams. Source stays readable in every state. */
+.learning-diagram {
+  min-width: 0; max-width: 100%; margin: 24px 0; padding: 18px;
+  border: 1px solid #d9cbb9; border-radius: 12px; background: #fffcf6;
+  color: #382d23; overflow-wrap: anywhere;
+}
+.learning-diagram > figcaption { margin: 0 0 6px; font-size: 15px; font-weight: 650; line-height: 1.5; }
+.learning-diagram .learning-diagram-description,
+.learning-diagram .learning-diagram-status { margin: 0 0 14px; color: #705e4e; font-size: 13px; line-height: 1.6; }
+.learning-diagram .learning-diagram-scroll-hint {
+  margin: 0 0 12px; padding: 9px 11px; border-radius: 6px;
+  background: #f3eadb; color: #604831; font-size: 13px; line-height: 1.6;
+}
+.learning-diagram-viewport {
+  width: 100%; min-width: 0; max-height: none; overflow: auto;
+  overscroll-behavior: contain; border-radius: 6px; scrollbar-gutter: stable;
+  background: #fffcf6; touch-action: pan-x pan-y;
+}
+.learning-diagram[data-diagram-zoom='actual'] .learning-diagram-viewport { max-height: min(60vh, 460px); }
+.learning-diagram-viewport > svg {
+  display: block; width: min(100%, var(--diagram-width)); height: auto;
+  max-height: none; margin-inline: auto; overflow: visible;
+  font-family: Arial, sans-serif; font-size: 16px; color: #382d23;
+}
+.learning-diagram[data-diagram-zoom='actual'] .learning-diagram-viewport > svg {
+  width: var(--diagram-width); height: var(--diagram-height); max-width: none; max-height: none; margin-inline: 0;
+}
+/* Mermaid's style blocks are discarded. These local rules cover plain SVG labels,
+   paths and common course flow/sequence/class/state diagrams without remote fonts. */
+.learning-diagram svg text, .learning-diagram svg tspan { fill: #382d23; font-family: Arial, sans-serif; }
+/* Mermaid positions these labels at node centres. Its removed style block
+   supplies this anchor; without it every label starts halfway across its box. */
+.learning-diagram svg :is(.node .label text, .rough-node .label text, .flowchartTitleText) { text-anchor: middle; }
+.learning-diagram svg .node :is(rect, circle, ellipse, polygon, path),
+.learning-diagram svg :is(rect.labelBox, rect.actor, rect.note, .cluster rect, .classGroup rect, .stateGroup rect) {
+  fill: #f3eadb; stroke: #9b7955; stroke-width: 1.3px;
+}
+.learning-diagram svg .cluster rect { fill: #f7f4ed; stroke: #b9a58c; }
+.learning-diagram svg rect.note { fill: #edf0e5; }
+.learning-diagram svg :is(.edgePath path, .flowchart-link, .transition, .relation, .messageLine0, .messageLine1, .actor-line) {
+  fill: none; stroke: #78634e; stroke-width: 1.5px;
+}
+.learning-diagram svg :is(.messageLine1, .actor-line) { stroke-dasharray: 4 3; }
+.learning-diagram svg marker path, .learning-diagram svg marker polygon { fill: #78634e; stroke: #78634e; }
+.learning-diagram svg .edgeLabel rect { fill: #fffcf6; stroke: none; }
+.learning-diagram svg .label, .learning-diagram svg .messageText { fill: #382d23; }
+.learning-diagram-controls { display: flex; justify-content: flex-end; margin-top: 10px; }
+.learning-diagram-zoom {
+  min-height: 44px; padding: 8px 12px; border: 1px solid #d9cbb9; border-radius: 7px;
+  color: #75472e; background: #fffaf1; font: 600 13px/1.4 var(--font-body, sans-serif); cursor: pointer;
+}
+.learning-diagram-zoom:hover { background: #f3eadb; }
+.daily-prose .learning-diagram .learning-diagram-source {
+  margin: 8px 0 0; padding: 0; border: 0; border-top: 1px solid #e5d9c9;
+  border-radius: 0; background: transparent;
+}
+.daily-prose .learning-diagram .learning-diagram-source[open] { padding-bottom: 0; }
+.daily-prose .learning-diagram .learning-diagram-source > summary {
+  min-height: 44px; padding: 12px 0; margin: 0; color: #75472e; font-size: 13px; line-height: 1.5;
+}
+.daily-prose .learning-diagram .learning-diagram-source pre {
+  max-width: 100%; max-height: 340px; margin: 0; padding: 14px; overflow: auto;
+  white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.7;
+}
+.learning-diagram :is(button, summary, [tabindex]):focus-visible { outline: 3px solid #a95830; outline-offset: 3px; }
+.learning-diagram [hidden] { display: none !important; }
+.learning-diagram-staging { position: fixed; top: 0; left: -20000px; width: 1200px; visibility: hidden; pointer-events: none; }
+@media (max-width: 480px) {
+  .learning-diagram { margin-block: 20px; padding: 12px; }
+  .learning-diagram[data-diagram-zoom='actual'] .learning-diagram-viewport { max-height: min(55vh, 340px); }
+  .learning-diagram-zoom { width: 100%; }
+}

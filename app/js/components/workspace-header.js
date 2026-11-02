@@ -14,6 +14,12 @@ const sectionDescriptions = {
   files: 'Your profile, resume, and answers', connections: 'Manage connected platforms', setup: 'Make Morrow work for you',
 };
 let installed = false;
+const learningSearchTerms = {
+  weekly: 'courses curriculum syllabus study interview preparation',
+  dsa: 'coding algorithms data structures problems',
+  discover: 'research papers news repositories github',
+  library: 'bookmarks notes saved reading',
+};
 
 export function openWorkspaceSearch() {
   if (document.querySelector('dialog[open], .workspace-search-dialog')) return;
@@ -25,7 +31,8 @@ export function openWorkspaceSearch() {
     return { key, title: routeLabel(key, S) || section[1], description: sectionDescriptions[key] || 'Open workspace tool', href: routeHref(key) };
   });
   if (routes.includes('learning')) items.push(...availableLearningSections().filter(section => section.key !== 'today').map(section => ({
-    key: 'learning', learningSection: section.key, title: section.label, description: 'Learning · ' + section.description, href: section.path,
+    key: 'learning', learningSection: section.key, title: section.label, description: 'Learning · ' + section.description,
+    searchTerms: learningSearchTerms[section.key] || '', href: section.path,
   })));
   const dialog = h('dialog', { class: 'workspace-search-dialog', 'aria-labelledby': 'workspace-search-title' });
   const results = h('div', { class: 'workspace-search-results', id: 'workspace-search-results' });
@@ -42,7 +49,7 @@ export function openWorkspaceSearch() {
   }
   function draw() {
     const query = input.value.trim().toLowerCase();
-    const matches = items.filter(item => (item.title + ' ' + item.description).toLowerCase().includes(query));
+    const matches = items.filter(item => (item.title + ' ' + item.description + ' ' + (item.searchTerms || '')).toLowerCase().includes(query));
     const options = matches.slice(0, 12);
     if (query && ['allowed', 'runtime'].includes(routeAccess('records', S).kind)) options.push({
       title: `Search applications for “${input.value.trim()}”`, description: 'Search your saved application records',

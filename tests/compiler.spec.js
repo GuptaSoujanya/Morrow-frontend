@@ -252,7 +252,7 @@ test('a failed code save retains the draft for an explicit retry', async ({ page
 test('the daily worked example opens the same saved coding exercise', async ({ page, request }) => {
   await page.goto('/#/learning/dsa');
   await page.getByRole('tab', { name: '02 Worked example', exact: true }).click();
-  const disclosure = page.getByText('Try this example in the code editor', { exact: true });
+  const disclosure = page.locator('.dsa-example-code > summary');
   await expect(disclosure).toBeVisible(); await disclosure.click();
   await expect(page.locator('.cm-content[aria-label="Python code editor"]')).toContainText('Retry keeps this note.');
   await expect(page.getByRole('button', { name: 'Run examples', exact: true })).toBeEnabled();
@@ -279,7 +279,7 @@ test('an unavailable language explains setup, allows saving, and leaves other ru
   expect((await progress(request)).totals.attempts).toBe(0);
 });
 
-test('Launchpad, Today and the practice sheet open coding directly on phone and desktop', async ({ page, request }) => {
+test('Launchpad, Today and the practice sheet reach coding on phone and desktop', async ({ page, request }) => {
   test.setTimeout(90000);
   for (const width of [375, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -290,7 +290,9 @@ test('Launchpad, Today and the practice sheet open coding directly on phone and 
     await expect(page.locator('.cm-content[aria-label="Python code editor"]')).toBeVisible();
     await page.goBack(); await expect(page.getByRole('heading', { name: 'Launchpad', level: 1, exact: true })).toBeVisible();
     await page.goto('/#/learning');
-    await page.locator('[data-learning-task="dsa"]').getByRole('link', { name: 'Practice now', exact: true }).click();
+    await page.locator('[data-learning-task="dsa"]').getByRole('button').click();
+    await page.locator('.daily-agenda-summary').getByRole('link').click();
+    await page.getByRole('tab', { name: '03 Practice', exact: true }).click();
     await expect(page.getByRole('tab', { name: '03 Practice', exact: true })).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('.cm-content[aria-label="Python code editor"]')).toBeVisible();
     await page.reload();

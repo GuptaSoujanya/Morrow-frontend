@@ -18,6 +18,7 @@ test('reader breadcrumb restores the filtered library on desktop and phone', asy
   for (const width of [1280, 375]) {
     await page.setViewportSize({ width, height: 850 });
     await page.goto('/#/learning/read/notes%2Fhash-maps.md?from=library&q=hash+maps&category=Learning&page=2&size=24');
+    await page.getByRole('button', { name: 'Show navigation', exact: true }).click();
     const nav = breadcrumb(page);
     await expect(nav.locator('a')).toHaveText(['Home', 'Learning', 'Saved library', 'Hash maps and practical collision handling']);
     await expect(nav.locator('a[aria-current="page"]')).toHaveAttribute('href', /learning\/read\/notes\/hash-maps.md\?/);
@@ -77,5 +78,5 @@ test('header contains only clickable breadcrumb and artwork search with focus re
   await page.keyboard.press('Control+k');
   await page.getByRole('searchbox', { name: 'Search workspace', exact: true }).fill('courses');
   await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(/#\/learning\/courses$/);
+  await expect(page).toHaveURL(/#\/learning\/weekly$/);
 });

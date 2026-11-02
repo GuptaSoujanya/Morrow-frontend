@@ -1,0 +1,176 @@
+/* Give study material and notes the workspace, without stretching prose lines. */
+.daily-page:has(.learning-study-layout) {
+  --study-notes-top: 96px;
+  width: 100%;
+  max-width: 1600px;
+}
+.daily-page.learning-study-mode:has(.learning-study-layout) { --study-notes-top: 24px; }
+body:has(.learning-study-layout) #content { padding-inline: 24px; }
+.learning-study-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'notes' 'content';
+  align-items: start;
+  gap: 18px;
+  width: 100%;
+  min-width: 0;
+}
+.learning-study-content { grid-area: content; min-width: 0; max-width: 100%; }
+.daily-page .learning-study-content :is(.daily-workspace, .course-reading, .learning-library-reading) {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  margin-inline: 0;
+}
+.learning-study-content :is(.lesson-reader, .lesson-reader-layout, .lesson-panel, .dsa-learning) { min-width: 0; max-width: 100%; }
+.learning-study-content .lesson-main { width: 100%; max-width: none; margin-inline: 0; padding: 24px 24px 30px; }
+.daily-page .learning-study-content :is(.daily-reading, .daily-step-content) { width: 100%; max-width: none; }
+.daily-page .learning-study-content .dsa-stage-panel { padding: 30px 24px 26px; }
+.daily-page .learning-study-content .daily-reading:not(:has(.lesson-reader)) { padding: 28px 24px; }
+.daily-page .learning-study-content .daily-prose {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  margin-inline: 0;
+}
+.learning-study-content .daily-prose :is(p, ul, ol, blockquote) { max-width: 78ch; }
+.learning-study-content .daily-prose :is(pre, table, .learning-diagram) { width: 100%; min-width: 0; max-width: 100%; }
+.learning-study-content :is(.dsa-stage-heading, .dsa-recap, .dsa-review-prompts, .dsa-review-checkpoints, .daily-check) {
+  max-width: 78ch;
+  margin-inline: 0;
+}
+.learning-study-content :is(.daily-roadmap, .daily-next-action) { max-width: none; }
+.learning-study-content .learning-saved-prose { padding: 28px 24px; }
+.daily-page .learning-study-content :is(.daily-workspace-head, .learning-library-reading-head) { padding-inline: 24px; }
+.daily-page .learning-study-content :is(.daily-lesson-source, .lesson-reader-bar, .dsa-session-summary) { padding-inline: 24px; }
+.learning-study-content .code-workspace { width: 100%; min-width: 0; max-width: 100%; }
+.learning-study-content .dsa-example-code > .code-workspace { width: calc(100% - 32px); }
+
+/* The same notes panel stays mounted across lesson steps. Its native disclosure
+   is the compact entry point on small screens and the sidebar heading on wide ones. */
+.study-notes {
+  grid-area: notes;
+  position: sticky;
+  top: var(--study-notes-top, 24px);
+  z-index: 12;
+  align-self: start;
+  min-width: 0;
+  max-width: 100%;
+  max-height: calc(100dvh - var(--study-notes-top, 24px) - 20px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #d8c8b5;
+  border-radius: 12px;
+  background: #fffcf6;
+  box-shadow: 0 3px 14px #50301d08;
+  scrollbar-width: thin;
+  scroll-margin-top: calc(var(--study-notes-top, 24px) + 12px);
+}
+.study-notes-panel { margin: 0; border: 0; }
+.study-notes-panel > summary {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  min-height: 56px;
+  padding: 14px 18px;
+  border-radius: 11px;
+  background: #f6efe4;
+  color: #49382a;
+  list-style: none;
+  cursor: pointer;
+}
+.study-notes-panel > summary::-webkit-details-marker { display: none; }
+.study-notes-panel > summary::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  flex: none;
+  margin-right: 2px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+}
+.study-notes-panel[open] > summary { border-bottom: 1px solid #e4d7c5; border-radius: 11px 11px 0 0; }
+.study-notes-panel[open] > summary::before { transform: rotate(45deg); }
+.study-notes-summary-label { flex: 1; font: 650 16px/1.5 var(--font-display); }
+.study-notes-summary-state { max-width: 100%; color: #75604c; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.study-notes-form { display: grid; gap: 12px; margin: 0; padding: 18px; }
+.study-notes-context { margin: 0; color: #705c48; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.study-notes-form > label { color: #49382a; font-size: 13px; line-height: 1.5; font-weight: 600; }
+.study-notes-textarea,
+.study-notes-conflict textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 240px;
+  height: clamp(240px, 36dvh, 400px);
+  margin: 0;
+  padding: 14px;
+  border: 1px solid #d4c2ac;
+  border-radius: 8px;
+  background: #fffefa;
+  color: #382c23;
+  font: 16px/1.75 var(--font-body);
+  letter-spacing: normal;
+  resize: vertical;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.study-notes-textarea::placeholder { color: #897360; opacity: 1; }
+.study-notes-hint,
+.study-notes-status { margin: 0; color: #75604c; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.study-notes-status:empty { display: none; }
+.study-notes-status[role='alert'] { color: #9a392a; }
+.study-notes-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.study-notes-actions :is(button, a) { min-height: 44px; max-width: 100%; font-size: 13px; line-height: 1.5; white-space: normal; }
+.study-notes-actions a { display: inline-flex; align-items: center; margin-left: auto; color: #8a4024; text-underline-offset: 3px; }
+.study-notes-conflict { min-width: 0; padding-top: 12px; border-top: 1px solid #e4d7c5; }
+.study-notes-conflict > summary { min-height: 44px; color: #714c31; font-size: 13px; line-height: 1.6; font-weight: 600; cursor: pointer; }
+.study-notes-conflict textarea { height: 160px; min-height: 140px; margin-block: 10px; color: #705c48; background: #f7f1e8; }
+.study-notes :is(summary, textarea, button, a):focus-visible { outline: 3px solid #a95830; outline-offset: 3px; }
+.study-notes-panel > summary:focus-visible { outline-offset: -4px; }
+.study-notes textarea:focus-visible { outline-offset: 1px; }
+.study-notes [hidden] { display: none !important; }
+
+@media (min-width: 1120px) {
+  .learning-study-layout {
+    grid-template-columns: minmax(0, 1fr) clamp(300px, 22vw, 320px);
+    grid-template-areas: 'content notes';
+    gap: 22px;
+  }
+  .study-notes { z-index: 5; }
+  .study-notes-textarea { min-height: 260px; height: clamp(260px, 42dvh, 480px); }
+}
+@media (max-width: 1119px) {
+  .daily-page.learning-study-mode:has(.learning-study-layout) { --study-notes-top: 8px; }
+  .learning-study-layout { gap: 14px; }
+  .study-notes-panel > summary { min-height: 48px; padding-block: 10px; }
+  .study-notes-form { gap: 10px; }
+}
+@media (max-width: 760px) {
+  body:has(.learning-study-layout) #content { padding-inline: 16px; }
+  .daily-page:has(.learning-study-layout) { --study-notes-top: 80px; }
+  .daily-page.learning-study-mode:has(.learning-study-layout) { --study-notes-top: 8px; }
+  .learning-study-content .lesson-main { padding: 22px 20px 26px; }
+  .daily-page .learning-study-content .dsa-stage-panel,
+  .daily-page .learning-study-content .daily-reading:not(:has(.lesson-reader)),
+  .learning-study-content .learning-saved-prose { padding: 24px 20px; }
+  .study-notes-form { padding: 16px; }
+}
+@media (max-width: 480px) {
+  body:has(.learning-study-layout) #content { padding-inline: 10px; }
+  .learning-study-layout { gap: 12px; }
+  .learning-study-content .lesson-main { padding: 20px 16px 24px; }
+  .daily-page .learning-study-content .dsa-stage-panel,
+  .daily-page .learning-study-content .daily-reading:not(:has(.lesson-reader)),
+  .learning-study-content .learning-saved-prose { padding: 24px 16px; }
+  .daily-page .learning-study-content :is(.daily-workspace-head, .learning-library-reading-head, .daily-lesson-source, .lesson-reader-bar, .dsa-session-summary) { padding-inline: 16px; }
+  .learning-study-content .dsa-example-code > .code-workspace { width: calc(100% - 16px); }
+  .study-notes-panel > summary { padding-inline: 14px; }
+  .study-notes-form { padding: 14px; }
+  .study-notes-textarea { min-height: 210px; height: 34dvh; }
+}

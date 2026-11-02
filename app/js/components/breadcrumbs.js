@@ -8,6 +8,7 @@ const boards = { naukri: 'Naukri', hirist: 'Hirist', instahyre: 'Instahyre', cut
 const outcomes = { submitted: 'Confirmed submissions', matched: 'Above match threshold', not_attempted: 'Not attempted' };
 const flowGroups = { learn: 'Learning', brief: 'Daily briefing', research: 'Research', apply: 'Applications', profile: 'Profile updates' };
 const libraryFilters = ['q', 'category', 'page', 'size', 'date'];
+const interviewFilters = ['view', 'track', 'q', 'week', 'page'];
 const recordFilters = ['kind', 'outcome', 'days', 'board', 'q', 'sort', 'page', 'size'];
 const dataCategories = ['Research', 'Reports', 'Profile', 'Resumes', 'Automation', 'Drafts'];
 const text = value => String(value || '').replace(/\s+/g, ' ').trim();
@@ -45,12 +46,23 @@ export function buildBreadcrumbs(route = { name: 'overview', arg: '' }, options 
         const fallback = id.startsWith('research/resume-learning/') ? 'resume' : 'today';
         const from = ['resume', 'library', 'progress', 'today', 'practice', 'weekly', 'discover'].includes(query.get('from')) ? query.get('from') : fallback;
         const filters = pick(query, libraryFilters);
-        if (from !== 'today') add(learning[from], href('learning', from, ['library', 'progress'].includes(from) ? filters : new URLSearchParams()));
-        filters.set('from', from);
-        add(options.documentTitle || humanize(rest.at(-1)) || 'Saved reading', href('learning', arg, filters));
+        const questionFilters = from === 'weekly' && query.get('view') === 'questions'
+          ? pick(query, interviewFilters) : null;
+        if (from !== 'today') add(questionFilters ? 'Interview questions' : learning[from],
+          href('learning', from, questionFilters || (['library', 'progress'].includes(from) ? filters : new URLSearchParams())));
+        const readerFilters = new URLSearchParams(questionFilters || filters);
+        readerFilters.set('from', from);
+        if (/^interview\/day-\d{1,2}$/.test(id)) {
+          const part = query.get('part'), stage = query.get('stage');
+          if (['ai', 'systems', 'build', 'dsa', 'review', 'all'].includes(part)) readerFilters.set('part', part);
+          if ((!part || ['ai', 'systems', 'build', 'dsa'].includes(part))
+            && ['understand', 'example', 'try', 'interview'].includes(stage)) readerFilters.set('stage', stage);
+        }
+        add(options.documentTitle || humanize(rest.at(-1)) || 'Saved reading', href('learning', arg, readerFilters));
       } else if (learning[part]) {
-        const sectionQuery = pick(query, ['library', 'progress'].includes(part) ? libraryFilters : part === 'courses' ? ['track'] : part === 'dsa' ? ['q', 'status'] : []);
-        add(learning[part], href('learning', part));
+        const questionBank = part === 'weekly' && query.get('view') === 'questions';
+        const sectionQuery = pick(query, questionBank ? interviewFilters : ['library', 'progress'].includes(part) ? libraryFilters : part === 'courses' ? ['track'] : part === 'dsa' ? ['q', 'status'] : []);
+        add(questionBank ? 'Interview questions' : learning[part], href('learning', part));
         if (part === 'practice' && rest[0] === 'paper' && rest[1]) {
           add(options.paperTitle || 'Practice paper', href('learning', arg));
         } else if (part === 'dsa' && ['sheet', 'problem'].includes(rest[0])) {

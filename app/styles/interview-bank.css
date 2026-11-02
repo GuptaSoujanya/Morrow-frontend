@@ -1,0 +1,38 @@
+.interview-course-tabs { margin-bottom: 22px; }
+.interview-bank { max-width: 1000px; }
+.interview-bank-head { max-width: 740px; margin: 18px 0; }
+.interview-bank-head p { margin: 6px 0; font-size: 16px; line-height: 1.65; }
+.interview-filters { display: grid; grid-template-columns: minmax(180px, 2fr) minmax(140px, 1fr) minmax(120px, 1fr) auto; gap: 14px; align-items: end; padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--canvas-surface); }
+.interview-filters label { display: grid; gap: 8px; min-width: 0; font-size: 13px; font-weight: 600; }
+.interview-filters .input { width: 100%; min-height: 46px; font-size: 16px; }
+.interview-filters .btn { min-height: 46px; }
+.interview-results { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding-block: 16px; font-size: 14px; }
+.interview-results p { margin: 0; }
+.interview-question-list { display: grid; gap: 18px; }
+.interview-question { padding: 26px 30px; border: 1px solid #e0d4c4; border-radius: 14px; background: #fffdf9; }
+.interview-question-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; color: #76553c; font-size: 13px; }
+.interview-question h3 { margin: 16px 0 8px; max-width: 65ch; font-size: 21px; line-height: 1.5; color: #342a23; }
+.interview-topic { margin-bottom: 20px; font-size: 13px; color: #756250; }
+.interview-answer { border: 1px solid #dfcfba; border-radius: 9px; background: #f8f2e8; padding-inline: 18px; }
+.interview-answer summary { min-height: 48px; padding-block: 12px; cursor: pointer; color: #793f23; font-weight: 600; font-size: 15px; }
+.interview-answer .daily-prose { padding: 0 0 16px; max-width: 72ch; font-size: 16px; line-height: 1.75; }
+.interview-follow-up { margin-top: 22px; }
+.interview-follow-up h4 { margin: 0 0 8px; font-size: 14px; color: #6f5946; }
+.interview-follow-up > p { font-size: 16px; line-height: 1.65; margin-bottom: 14px; }
+.interview-lesson-link { display: inline-flex; align-items: center; min-height: 44px; margin-top: 12px; font-size: 14px; }
+.interview-pagination { display: flex; justify-content: space-between; gap: 12px; margin-block: 22px; }
+.interview-pagination a { min-height: 44px; }
+.interview-sources { margin-top: 24px; border-top: 1px solid var(--border); padding-top: 10px; }
+.interview-sources summary { min-height: 44px; padding-block: 12px; cursor: pointer; font-weight: 600; }
+.interview-sources li { margin-bottom: 10px; line-height: 1.6; }
+.interview-bank :is(a,button,input,select,summary):focus-visible { outline: 3px solid #a94f2d; outline-offset: 4px; }
+.learn-roadmap .learn-course-intro .learn-course-depth { font-size: 14px; line-height: 1.6; color: #ead7c8; }
+@media (max-width: 1000px) { .interview-filters { grid-template-columns: 1fr 1fr; } .interview-search { grid-column: 1 / -1; } }
+@media (max-width: 480px) {
+  .interview-filters { padding: 16px; gap: 12px; }
+  .interview-filters .btn { grid-column: 1 / -1; }
+  .interview-question { padding: 20px 18px; }
+  .interview-question h3 { font-size: 19px; }
+  .interview-question-meta { font-size: 12px; }
+  .interview-answer { padding-inline: 14px; }
+}

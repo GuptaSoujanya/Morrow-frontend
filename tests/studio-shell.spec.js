@@ -17,8 +17,8 @@ test('workspace search opens by keyboard, navigates, and restores focus on Escap
   await expect(input).toBeFocused();
   await input.fill('courses');
   await input.press('Enter');
-  await expect(page).toHaveURL(/#\/learning\/courses/);
-  await expect(page.locator('.workspace-breadcrumb [aria-current=page]')).toHaveText('Courses');
+  await expect(page).toHaveURL(/#\/learning\/weekly/);
+  await expect(page.locator('.workspace-breadcrumb [aria-current=page]')).toHaveText('90-day course');
   await trigger.click();
   await expect(dialog).toBeVisible();
   await page.keyboard.press('Escape');
