@@ -163,10 +163,14 @@ export function studyTimer({ date, compact = false } = {}) {
   }
   const compactState = compact ? h('span', { class: 'study-timer-compact-state', text: 'Paused' }) : null;
   const root = compact ? h('section', { class: 'study-timer study-timer-compact', 'aria-label': 'Study timer', 'data-study-date': date || localDay() },
-    h('div', { class: 'study-timer-compact-readout' }, icon('clock', 'icon study-timer-compact-icon'),
-      h('div', { class: 'study-timer-compact-copy' },
-        h('p', { class: 'study-timer-compact-label', text: 'Study time today' }),
-        h('div', { class: 'study-timer-compact-meta' }, value, compactState))),
+    h('p', { class: 'study-timer-compact-label', text: 'Study time today' }),
+    h('div', { class: 'study-timer-compact-readout' },
+      h('div', { class: 'study-timer-dial', 'aria-hidden': 'true' },
+        ...Array.from({ length: 12 }, (_, index) => h('span', {
+          class: `study-timer-dial-mark${index % 3 === 0 ? ' is-major' : ''}`,
+          style: { transform: `rotate(${index * 30}deg)` },
+        }))),
+      h('div', { class: 'study-timer-compact-meta' }, value, compactState)),
     h('div', { class: 'study-timer-actions' }, toggle, reset),
     h('p', { class: 'study-timer-help', text: 'Time tracked in this tab today' }), status)
     : h('section', { class: 'study-timer', 'aria-label': 'Study timer', 'data-study-date': date || localDay() },

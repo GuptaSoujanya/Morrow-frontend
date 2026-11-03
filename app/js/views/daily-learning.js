@@ -136,34 +136,57 @@ export function renderDailyLearning(arg = '') {
   window.addEventListener('focus', onFocus); window.addEventListener('hashchange', onRouteChange);
   window.addEventListener('learning-refresh', onFocus);
 
+  async function readLearning(path, signal) {
+    try {
+      return await api(path, undefined, { signal });
+    } catch (error) {
+      signal.throwIfAborted(); scope.throwIfAborted();
+      // Retry a failed read once after a brief interruption. Saves are never
+      // retried here: their result may already have reached the server.
+      if (error.name !== 'ApiError' || !(error.status === 0 || error.status >= 500)) throw error;
+      await new Promise((resolve, reject) => {
+        const abort = () => { clearTimeout(timer); reject(signal.reason); };
+        const timer = setTimeout(() => { signal.removeEventListener('abort', abort); resolve(); }, 500);
+        signal.addEventListener('abort', abort, { once: true });
+      });
+      signal.throwIfAborted(); scope.throwIfAborted();
+      return api(path, undefined, { signal });
+    }
+  }
+
   async function load() {
     if ([...codeWidgets.values()].some(widget => widget.isConnected && widget.hasDraft())) return;
     if ([...noteWidgets.values()].some(widget => widget.isConnected && (widget.hasDraft?.() || widget.contains(document.activeElement)))) return;
     if (busy || loading || !current()) return;
     const ticket = ++request;
     loadController = new AbortController(); loading = true; updateControls();
-    const results = await Promise.allSettled(['/api/learning/daily', '/api/learning/dsa', '/api/learning/activity', ...(view === 'progress' ? ['/api/learning/code/progress', '/api/learning/overview'] : [])]
-      .map(path => api(path, undefined, { signal: loadController.signal })));
+    // The course needs its lesson only; a slow DSA or activity summary must not
+    // hold the reader behind an unrelated request. DSA is independent too.
+    const reads = view === 'plan' ? [['plan', '/api/learning/daily']]
+      : view === 'dsa' ? [['dsa', '/api/learning/dsa']]
+      : [['plan', '/api/learning/daily'], ['dsa', '/api/learning/dsa'], ['activity', '/api/learning/activity'],
+        ...(view === 'progress' ? [['scores', '/api/learning/code/progress'], ['overview', '/api/learning/overview']] : [])];
+    const results = await Promise.allSettled(reads.map(([, path]) => readLearning(path, loadController.signal)));
     if (!current() || ticket !== request) return;
     capture(); errors = {};
     const previousLesson = hub?.plan?.id;
     const focusKey = document.activeElement?.dataset.learningFocus;
     const focusId = document.activeElement?.id;
     results.forEach((result, i) => {
-      const key = ['plan', 'dsa', 'activity', 'scores', 'overview'][i];
+      const [key] = reads[i];
       if (result.status === 'fulfilled') {
-        if (i === 0) hub = result.value;
-        if (i === 1) dsa = result.value;
-        if (i === 2) { activity = result.value; S.learningActivity = activity; }
-        if (i === 3) scores = result.value;
-        if (i === 4) overview = result.value;
+        if (key === 'plan') hub = result.value;
+        if (key === 'dsa') dsa = result.value;
+        if (key === 'activity') { activity = result.value; S.learningActivity = activity; }
+        if (key === 'scores') scores = result.value;
+        if (key === 'overview') overview = result.value;
       } else if (result.reason.name !== 'AbortError') errors[key] = result.reason.message;
     });
     // A partial refresh must never leave yesterday's task beside today's task.
     const latestDate = [localDay(), hub?.date, dsa?.date].filter(Boolean).sort().at(-1);
     if (hub && hub.date < latestDate) { hub = null; errors.plan = 'A new day has started. Refresh to open today’s learning plan.'; }
     if (dsa && dsa.date < latestDate) { dsa = null; errors.dsa = 'A new day has started. Refresh to open today’s DSA topic.'; }
-    if (!activity && dsa) activity = dsa.activity;
+    if (dsa?.activity && (view === 'dsa' || !activity)) { activity = dsa.activity; S.learningActivity = activity; }
     if (view === 'plan' && previousLesson && hub?.plan?.id && hub.plan.id !== previousLesson) {
       const query = new URLSearchParams(location.hash.split('?')[1] || ''); query.delete('part'); query.delete('stage');
       history.replaceState(history.state, '', location.hash.split('?')[0] + (query.size ? '?' + query : ''));
@@ -237,6 +260,10 @@ export function renderDailyLearning(arg = '') {
     content.querySelectorAll('[data-step-control]').forEach(el => { el.disabled = busy; });
   }
   function warning(key) { return errors[key] ? errorState(errors[key], load) : null; }
+  function learningWarning() {
+    const messages = [...new Set([errors.plan, errors.dsa].filter(Boolean))];
+    return messages.length ? errorState(messages.join(' '), load) : null;
+  }
   function status(done, started = false) { return h('span', { class: `daily-status${done ? ' is-complete' : ''}` }, icon(done ? 'check' : 'book', 'icon icon-sm'), done ? 'Complete' : started ? 'In progress' : 'Ready to start'); }
   function todayView() {
     const plan = hub?.plan, doneDsa = Boolean(dsa?.progress.completed_at), date = hub?.date || localDay();
@@ -479,13 +506,15 @@ export function renderDailyLearning(arg = '') {
         h('small', { text: 'Notes, interview questions, your project and research' })), icon('chevron-down', 'icon icon-sm')),
       h('div', { class: 'learning-extras-tools' }, deskTools, courseDetails), discoveryShelf,
       h('div', { class: 'daily-today-body' }, explore, tools));
-    return h('div', { class: 'daily-today-clear daily-study-workbench learning-home-layout learning-progress-home' }, warning('plan'), warning('dsa'),
+    return h('div', { class: 'daily-today-clear daily-study-workbench learning-home-layout learning-progress-home' }, learningWarning(),
       h('div', { class: 'daily-agenda daily-today-overview' }, queue, preview, desk), extrasPanel);
   }
 
-  function studyFrame(material, source) {
+  function studyFrame(material, source, timer = null) {
     if (!noteWidgets.has(source.sourceId)) noteWidgets.set(source.sourceId, studyNotes(source));
-    return h('div', { class: 'learning-study-layout' }, noteWidgets.get(source.sourceId),
+    const notes = noteWidgets.get(source.sourceId);
+    const sidebar = timer ? h('div', { class: 'learning-study-sidebar' }, timer, notes) : notes;
+    return h('div', { class: 'learning-study-layout' }, sidebar,
       h('div', { class: 'learning-study-content' }, material));
   }
   function planView() {
@@ -509,7 +538,7 @@ export function renderDailyLearning(arg = '') {
     const completion = h('footer', { class: 'daily-workspace-footer course-completion' },
       h('p', { text: plan.read ? 'Saved. Your next course day will appear tomorrow.' : 'Finished the reading, engineering task and interview practice? Save this day when you are ready.' }),
       h('button', { class: 'btn btn-primary', type: 'button', 'data-save-control': '', 'data-blocked': String(plan.read), 'data-learning-focus': 'plan-complete', onclick: () => save('plan'), text: plan.read ? 'Learning day completed' : 'Complete learning day' }));
-    const reader = lessonReader({ reading: prose(plan.content_html), lesson: plan.lesson, studyTools: studyClock,
+    const reader = lessonReader({ reading: prose(plan.content_html), lesson: plan.lesson,
       onChange: ({ last, all }) => { completion.hidden = !last && !all; } });
     const material = h('section', { class: 'daily-workspace course-reading' }, warning('plan'),
       h('header', { class: 'daily-workspace-head course-day-heading' },
@@ -518,7 +547,7 @@ export function renderDailyLearning(arg = '') {
       h('article', { class: 'daily-reading', 'aria-label': 'Today’s learning material' }, reader), completion,
       plan.read ? h('a', { class: 'daily-next-action text-link', href: '#/learning/dsa', text: 'Continue with DSA practice →' }) : null);
     return studyFrame(material, { sourceId: plan.id, sourceTitle: plan.title,
-      category: 'resource', sourceUrl: '#/learning/read/' + encodeURIComponent(plan.id) });
+      category: 'resource', sourceUrl: '#/learning/read/' + encodeURIComponent(plan.id) }, studyClock);
   }
   function chooseStep(next) {
     if (busy || !current() || !['concept', 'example', 'practice', 'review'].includes(next)) return;

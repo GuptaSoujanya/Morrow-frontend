@@ -61,12 +61,82 @@ async function openCourse(page) {
   await settle(page);
 }
 
+test('course opens independently of DSA and activity requests', async ({ page }) => {
+  const unrelated = [];
+  for (const path of ['/api/learning/dsa', '/api/learning/activity']) {
+    await page.route('**' + path, route => {
+      unrelated.push(path);
+      return route.abort('timedout');
+    });
+  }
+  await openCourse(page);
+  await expect(page.locator('.daily-content .state-error')).toHaveCount(0);
+  expect(unrelated).toEqual([]);
+});
+
+test('course recovers from one timed out read automatically', async ({ page }) => {
+  await page.addInitScript(() => {
+    const fetch = window.fetch.bind(window);
+    window.courseReadAttempts = 0;
+    window.fetch = (input, options) => {
+      if (new URL(typeof input === 'string' ? input : input.url, location.href).pathname === '/api/learning/daily'
+        && ++window.courseReadAttempts === 1) {
+        return Promise.reject(new DOMException('Request timed out', 'TimeoutError'));
+      }
+      return fetch(input, options);
+    };
+  });
+  await openCourse(page);
+  expect(await page.evaluate(() => window.courseReadAttempts)).toBe(2);
+  await expect(page.locator('.daily-content .state-error')).toHaveCount(0);
+});
+
+test('learning shows one timeout warning and retries successfully', async ({ page }) => {
+  await page.addInitScript(() => {
+    const fetch = window.fetch.bind(window);
+    window.learningUnavailable = true;
+    window.learningReadAttempts = {};
+    window.fetch = (input, options) => {
+      const path = new URL(typeof input === 'string' ? input : input.url, location.href).pathname;
+      if (['/api/learning/daily', '/api/learning/dsa'].includes(path)) {
+        window.learningReadAttempts[path] = (window.learningReadAttempts[path] || 0) + 1;
+        if (window.learningUnavailable) return Promise.reject(new DOMException('Request timed out', 'TimeoutError'));
+      }
+      return fetch(input, options);
+    };
+  });
+  await page.goto('/#/learning');
+  const warnings = page.locator('.daily-content .state-error');
+  await expect(warnings).toHaveCount(1);
+  await expect(warnings).toContainText('The server is taking too long. Try again.');
+  expect(await page.evaluate(() => window.learningReadAttempts)).toEqual({ '/api/learning/daily': 2, '/api/learning/dsa': 2 });
+  await page.evaluate(() => { window.learningUnavailable = false; });
+  await warnings.getByRole('button', { name: 'Try again', exact: true }).click();
+  await expect(warnings).toHaveCount(0);
+  await expect(page.locator('.daily-focus-title')).toHaveText('What is machine learning?');
+});
+
 for (const width of [1440, 390]) test(`course timer stays compact and accessible at ${width}px`, async ({ page }) => {
-  await page.clock.install({ time: new Date() });
+  const midday = new Date(); midday.setHours(12, 0, 0, 0);
+  await page.clock.install({ time: midday });
   await page.setViewportSize({ width, height: 1000 });
   await openCourse(page);
   await expect(value(page)).toHaveText('00:00');
   await expect(timer(page)).toBeInViewport();
+  const face = timer(page).locator('.study-timer-compact-readout');
+  const circle = await face.evaluate(element => {
+    const bounds = element.getBoundingClientRect(), radius = getComputedStyle(element).borderTopLeftRadius;
+    return { width: bounds.width, height: bounds.height, radius: parseFloat(radius), percent: radius.endsWith('%') };
+  });
+  expect(Math.abs(circle.width - circle.height)).toBeLessThan(1);
+  expect(circle.radius).toBeGreaterThanOrEqual(circle.percent ? 50 : circle.width / 2);
+  if (width >= 1120) {
+    const [lesson, clock, notes] = await Promise.all([
+      page.locator('.course-reading').boundingBox(), timer(page).boundingBox(), page.locator('.study-notes').boundingBox(),
+    ]);
+    expect(clock.x).toBeGreaterThanOrEqual(lesson.x + lesson.width);
+    expect(clock.y + clock.height).toBeLessThanOrEqual(notes.y + 1);
+  }
   await mkdir('artifacts/course-timer', { recursive: true });
   await page.screenshot({ path: `artifacts/course-timer/ready-${width}.png` });
   await toggle(page).click();
@@ -76,6 +146,16 @@ for (const width of [1440, 390]) test(`course timer stays compact and accessible
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
   expect((await new AxeBuilder({ page }).include('.daily-page').analyze()).violations).toEqual([]);
   await page.screenshot({ path: `artifacts/course-timer/running-${width}.png` });
+  await page.clock.fastForward(3600000);
+  await expect(value(page)).toHaveText(/^01:00:\d{2}$/);
+  console.log(JSON.stringify({ width, longTimeFont: await value(page).evaluate(element => getComputedStyle(element).fontSize),
+    toggleWidth: (await toggle(page).boundingBox()).width }));
+  const [dialBounds, timeBounds] = await Promise.all([face.boundingBox(), value(page).boundingBox()]);
+  expect(timeBounds.x).toBeGreaterThanOrEqual(dialBounds.x);
+  expect(timeBounds.x + timeBounds.width).toBeLessThanOrEqual(dialBounds.x + dialBounds.width);
+  expect(timeBounds.y).toBeGreaterThanOrEqual(dialBounds.y);
+  expect(timeBounds.y + timeBounds.height).toBeLessThanOrEqual(dialBounds.y + dialBounds.height);
+  await page.screenshot({ path: `artifacts/course-timer/long-time-${width}.png` });
 });
 
 test('course timer counts only running time and reset never completes the lesson', async ({ page }) => {
