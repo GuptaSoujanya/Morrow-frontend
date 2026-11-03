@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 from web import server, state
 
 BOARDS = ('naukri', 'hirist', 'instahyre', 'cutshort', 'wellfound')
-STAGES = ('learn', 'research:resume', 'research:companies', 'profile:linkedin',
+STAGES = ('learn', 'research:resume', 'research:companies', 'profile:linkedin', 'apply:startups',
           *(f'{group}:{board}' for group in ('profile', 'apply') for board in BOARDS),
           *(f'brief:{key}' for key in ('goal','system-design','papers','tech-news','companies','repositories')))
 GROUPS = ('', 'learn', 'study', 'profile', 'apply', 'brief', 'research', *STAGES)
@@ -120,6 +120,15 @@ def pipeline_command(o, save=False):
     return state.py(label + ' · ' + (day if day and group in research_labels else command),*args)
 
 
+def startups_command(o, save=False):
+    """The startup bot: YC and Hacker News jobs, applied on their own sites or drafted by email."""
+    args = ['-m', 'startup_bot', '--limit', number(o, 'limit', 1, 50) or '10']
+    for key in ('dry_run', 'no_tailor', 'headless'):
+        if server._on(o, key):
+            args += ['--' + key.replace('_', '-')]
+    return state.py('Startup jobs · YC and Hacker News', *args)
+
+
 def company_research_command(o, save=False):
     args = ['-m', 'common.company_research', '--limit', number(o, 'limit', 1, 50) or '10']
     company = server._text(o, 'company')
@@ -131,3 +140,29 @@ def company_research_command(o, save=False):
         if server._on(o, key):
             args += ['--' + key.replace('_', '-')]
     return state.py('Company intelligence · ' + ('refresh selected' if company else 'research pending'), *args)
+
+
+def company_outreach_command(o, save=False):
+    args = ['-m', 'common.company_outreach', '--limit', number(o, 'limit', 1, 50) or '10']
+    company = server._text(o, 'company')
+    companies = o.get('companies')
+    if companies is not None:
+        if (not isinstance(companies, list) or not 1 <= len(companies) <= 50
+                or any(not isinstance(key, str) or not re.fullmatch(r'[a-f0-9]{24}', key) for key in companies)):
+            raise ValueError('Select between 1 and 50 companies from the database.')
+        if len(companies) != len(set(companies)):
+            raise ValueError('Select each company only once.')
+        if company or server._on(o, 'all'):
+            raise ValueError('Use selected companies without a single company or all remaining.')
+        for key in companies:
+            args += ['--company', key]
+    if company:
+        if not re.fullmatch(r'[a-f0-9]{24}', company):
+            raise ValueError('Choose a company from the database.')
+        args += ['--company', company]
+    for key in ('all', 'dry_run', 'no_research', 'require_gmail'):
+        if server._on(o, key):
+            args.append('--'+key.replace('_', '-'))
+    if company and server._on(o, 'all'):
+        raise ValueError('Choose a company or all remaining companies.')
+    return state.py('Company contacts · find emails and save drafts', *args)

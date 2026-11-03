@@ -26,15 +26,16 @@ export async function launchCrew(specs, onChange = () => {}) {
     }
     const dialog = document.getElementById('confirm');
     if (dialog.open) return;
+    const single = selected.length === 1 ? selected[0] : null;
     const commands = plan.items.map(item => `${selected.find(spec => spec.key === item.key)?.name || item.label}\n$ ${item.shown}`).join('\n\n');
     const content = h('div', {},
-      h('ul', {class: 'crew-confirm-list'}, selected.map(spec => h('li', {}, h('strong', {text: spec.name}), h('span', {text: spec.effect})))),
+      single ? null : h('ul', {class: 'crew-confirm-list'}, selected.map(spec => h('li', {}, h('strong', {text: spec.name}), h('span', {text: spec.effect})))),
       h('details', {class: 'crew-command-details'}, h('summary', {text: 'Technical details'}), h('pre', {class: 'confirm-code'}, h('code', {text: commands}))));
     const confirmation = confirmDialog({
-      title: `Start ${runs.length} ${runs.length === 1 ? 'agent' : 'agents'}?`,
-      body: 'Review what each agent will do with your saved settings. You can follow progress and stop individual agents in Activity.',
+      title: single ? `Run ${single.name}?` : `Start ${runs.length} agents?`,
+      body: single ? single.effect : 'Review what each agent will do with your saved settings. You can follow progress and stop individual agents in Activity.',
       content,
-      ok: 'Start agents',
+      ok: single ? single.label || 'Run now' : 'Start agents',
     });
     const contents = dialog.firstElementChild;
     const cancel = () => { if (dialog.open && dialog.firstElementChild === contents) dialog.dispatchEvent(new Event('cancel', {cancelable: true})); };

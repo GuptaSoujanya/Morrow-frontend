@@ -3,7 +3,7 @@ export const BROWSER_MODES = [
   {value: 'visible', label: 'Normal Chrome window'},
   {value: 'background', label: 'Background — no browser window'},
 ];
-export const BROWSER_ACTIONS = new Set(['naukri', 'boards', 'profile', 'external', 'linkedin', 'linkedin_profile', 'cold_email', 'resume', 'assist', 'pipeline']);
+export const BROWSER_ACTIONS = new Set(['naukri', 'boards', 'startups', 'profile', 'external', 'linkedin', 'linkedin_profile', 'cold_email', 'resume', 'assist', 'pipeline']);
 export const BROWSER_RUN_MESSAGE = 'Chrome opens normally. Turn on Run in background to hide browser windows for the next run. Logs and progress stay in Activity.';
 
 export function browserRunOptions(action, options = {}) {

@@ -21,7 +21,7 @@ from tenant_learning_workspace import LearningWorkspace
 SUBMITTED = {"applied", "applied_platform", "applied_external"}
 WAITING = {"external_manual", "abstained"}
 SKIPPED = {"already_applied", "external_skipped", "no_apply_button", "not_attempted"}
-BOARDS = {"all", "naukri", "hirist", "instahyre", "cutshort", "wellfound", "external"}
+BOARDS = {"all", "naukri", "hirist", "instahyre", "cutshort", "wellfound", "startups", "external"}
 FILE_NAMES = {
     "profile": "profile.yaml",
     "answers": "answers.txt",

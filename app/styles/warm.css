@@ -251,3 +251,4 @@ code, pre, .confirm-code { font-family: var(--font-mono); }
 /* Primary crew actions must retain their filled treatment inside card footers. */
 .bot-actions > .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .bot-actions > .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.chart-col.s-startups { fill: var(--violet-ink); }

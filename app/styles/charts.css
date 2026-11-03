@@ -21,6 +21,10 @@
   fill: var(--amber-600);
 }
 
+.chart-col.s-startups {
+  fill: var(--violet-ink);
+}
+
 .s-naukri {
   background: var(--emerald-600);
 }
@@ -31,6 +35,10 @@
 
 .s-company {
   background: var(--amber-600);
+}
+
+.s-startups {
+  background: var(--violet-ink);
 }
 
 .chart-axis {

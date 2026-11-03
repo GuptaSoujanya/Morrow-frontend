@@ -6,12 +6,15 @@ import { mkdir } from 'node:fs/promises';
 // submit an application, publish a post, or connect to an account service.
 const botNames = {
   naukri: 'Naukri', hirist: 'Hirist', instahyre: 'Instahyre', cutshort: 'Cutshort',
-  wellfound: 'Wellfound', external: 'Company sites', profile: 'Naukri profile',
+  wellfound: 'Wellfound', startups: 'Startups', external: 'Company sites', profile: 'Naukri profile',
   linkedin: 'LinkedIn writer', linkedin_profile: 'LinkedIn profile', cold_email: 'Recruiter drafts',
-  resume: 'Resume tailor', learn: 'Learning assistant', brief: 'Daily briefing', research: 'Resume researcher',
+  company_research: 'Company researcher', company_outreach: 'Company email drafts', resume: 'Resume tailor', learn: 'Learning assistant', brief: 'Daily briefing', research: 'Resume researcher',
   hirist_profile: 'Hirist profile', instahyre_profile: 'Instahyre profile',
   cutshort_profile: 'Cutshort profile', wellfound_profile: 'Wellfound profile',
 };
+const crewSize = Object.keys(botNames).length;
+const applicationBots = ['Naukri', 'Hirist', 'Instahyre', 'Cutshort', 'Wellfound', 'Startups', 'Company sites'];
+const reviewAttempts = Array.from({ length: 6 }, (_, index) => ({ job_id: `crew-review-${index}`, title: `Platform Engineer ${index + 1}`, company: `Company ${index + 1}`, state: index === 1 ? 'running' : 'uncertain', next_step: 'Check the application page and Sent before another attempt.', detail: 'No matching confirmation was found.', updated_at: '2026-11-03 10:30:00' }));
 const emptyRun = {
   epoch: 'crew-selection-fixture', revision: 0, next: 0, running: false,
   stopping: false, label: '', shown: '', action: '', seconds: 0,
@@ -25,8 +28,8 @@ function command(item) {
   return `python ${item.action}_bot.py`;
 }
 
-async function workspace(page, { account = false, conflict = '', partial = false, missing = '' } = {}) {
-  const state = { plans: [], batches: [], previews: [], individual: [], denied: [], held: null, holdNext: false };
+async function workspace(page, { account = false, conflict = '', partial = false, missing = '', multiple = true, history = false, applicationHistory = [] } = {}) {
+  const state = { plans: [], batches: [], previews: [], individual: [], denied: [], held: null, holdNext: false, applicationAttempts: structuredClone(applicationHistory) };
   let session = account ? {
     mode: 'accounts', legacy_access: true,
     user: { id: 'crew-owner', name: 'Crew Owner', email: 'crew@example.test', role: 'admin', plan_name: 'Pro', modules: [] },
@@ -89,7 +92,8 @@ async function workspace(page, { account = false, conflict = '', partial = false
         run: emptyRun, questions: [], facts: [], sites: [], study: { today: 1, read: 0, total: 0 }, report: { ready: false, days: [] },
       },
       '/api/course': { today: 1, read: 0, total: 0, lessons: [], modules: [] },
-      '/api/bots': { bots: Object.keys(botNames).map(id => ({ id, running: false, status: 'idle', last_run: null })), run: emptyRun },
+      '/api/bots': { bots: Object.keys(botNames).map(id => ({ id, running: false, status: 'idle', last_run: history && id === 'naukri' ? { at: '2026-10-24T10:00:00Z', practice: false, finished: true } : null })), run: emptyRun },
+      '/api/application-agent': { enabled: true, limit: 5, budget: 0, attempts: state.applicationAttempts },
       '/api/run': emptyRun,
       '/api/run/browsers': { runs: [] },
       '/api/v1/auth/options': { provider: 'local', google: false },
@@ -105,56 +109,174 @@ async function workspace(page, { account = false, conflict = '', partial = false
   };
   state.signOut = () => { session = { mode: 'accounts', legacy_access: false, user: null }; };
   await page.goto('/#/bots');
-  await expect(page.getByRole('heading', { name: 'Meet your Bot Crew', exact: true })).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).toBeEnabled();
+  await expect(page.getByRole('heading', { name: 'Bot Crew', exact: true })).toBeVisible();
+  await expect(page.locator('.crew-bot-card')).toHaveCount(crewSize);
+  if (multiple) await page.getByRole('button', { name: 'Run multiple', exact: true }).click();
   return state;
 }
 
-const panel = page => page.getByRole('region', { name: 'Run agents together', exact: true });
+const panel = page => page.getByRole('region', { name: 'Selected bots', exact: true });
+const runSelected = page => panel(page).getByRole('button', { name: 'Review & start selected bots', exact: true });
+const feedback = page => page.locator('.crew-launch-feedback');
 const choose = (page, name) => page.getByRole('checkbox', { name: `Select ${name}`, exact: true }).check();
-const runSelected = page => panel(page).getByRole('button', { name: 'Run selected', exact: true });
-const crewBrowser = page => page.getByRole('combobox', { name: 'Browser for crew runs', exact: true });
-const backgroundGuidance = 'Chrome opens normally. Turn on Run in background to hide browser windows for the next run. Logs and progress stay in Activity.';
+const singleRun = (page, name, label = 'Run now') => page.getByRole('button', { name: `${label} — ${name}`, exact: true });
+const searchBox = page => page.getByRole('searchbox', { name: 'Find a bot', exact: true });
+const settingsDialog = (page, name) => page.getByRole('dialog', { name: `${name} settings`, exact: true });
 const backgroundToggle = page => page.getByRole('checkbox', { name: 'Run in background', exact: true });
+const backgroundGuidance = 'Chrome opens normally. Turn on Run in background to hide browser windows for the next run. Logs and progress stay in Activity.';
 const updateRequired = 'This dashboard service needs an update before it can run agents together. Restart the dashboard service, then try again. Your selection is saved.';
 
-test('Naukri, Hirist and Instahyre launch together with separate site selections', async ({page}) => {
-  const state = await workspace(page);
-  for (const name of ['Naukri', 'Hirist', 'Instahyre']) await choose(page, name);
-  await expect(page.getByText(/Each site has its own browser session/)).toBeVisible();
-  await runSelected(page).click();
-  const dialog = page.getByRole('dialog', {name: 'Start 3 agents?', exact: true});
+async function openSettings(page, name) {
+  if (await page.getByRole('button', { name: 'Run multiple', exact: true }).isVisible()) await page.getByRole('button', { name: 'Run multiple', exact: true }).click();
+  if (name) await choose(page, name);
+  await panel(page).getByRole('button', { name: 'Run settings', exact: true }).click();
+  const dialog = page.locator('.crew-settings-dialog');
   await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', {name: 'Start agents', exact: true}).click();
-  await expect.poll(() => state.batches.length).toBe(1);
-  expect(state.batches[0]).toEqual({runs: [
-    {key: 'naukri', action: 'naukri', options: {dry_run: false, browser_mode: 'visible'}},
-    {key: 'hirist', action: 'boards', options: {board: 'hirist', dry_run: false, browser_mode: 'visible'}},
-    {key: 'instahyre', action: 'boards', options: {board: 'instahyre', dry_run: false, browser_mode: 'visible'}},
-  ]});
-  expect(state.plans[0]).toEqual(state.batches[0]);
+  return dialog;
+}
+async function openAdvanced(dialog) {
+  const details = dialog.locator('.crew-advanced-settings');
+  if (!await details.evaluate(element => element.open)) await details.locator('summary').click();
+}
+async function saveBackground(page, name = 'Naukri') {
+  const dialog = await openSettings(page, name);
+  await openAdvanced(dialog);
+  await backgroundToggle(page).check();
+  await dialog.getByRole('button', { name: 'Apply settings', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await panel(page).getByRole('button', { name: 'Clear selection', exact: true }).click();
+}
+
+test('all bots and their individual run actions are visible immediately without setup steps', async ({ page }) => {
+  const state = await workspace(page, { multiple: false });
+  await expect(page.locator('.crew-team')).toHaveCount(3);
+  await expect(page.locator('.crew-team[data-team="applications"] .crew-bot-card h3')).toHaveText(applicationBots);
+  await expect(page.locator('.crew-team[data-team="profiles"] .crew-bot-card')).toHaveCount(6);
+  await expect(page.locator('.crew-team[data-team="career"] .crew-bot-card')).toHaveCount(8);
+  await expect(page.getByRole('button', { name: 'All bots', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(singleRun(page, 'Naukri')).toBeVisible();
+  await expect(singleRun(page, 'LinkedIn writer', 'Create draft')).toBeVisible();
+  await expect(singleRun(page, 'Company sites', 'Set up')).toBeVisible();
+  await expect(singleRun(page, 'Resume tailor', 'Set up')).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Configure / })).toHaveCount(crewSize);
+  await expect(page.getByRole('button', { name: /^Application history/ })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Bot Crew workspace', exact: true }).getByRole('button', { name: 'Your crew', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.application-history')).not.toBeVisible();
+  await expect(page.locator('[data-crew-pick]')).toHaveCount(0);
+  await expect(panel(page)).not.toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Setup progress', exact: true })).toHaveCount(0);
+  expect(state.plans).toEqual([]);
+  expect(state.batches).toEqual([]);
   expect(state.denied).toEqual([]);
 });
 
-test('two selected assistants start real work together after one exact-command confirmation', async ({ page }) => {
+test('history counts are live and switching views preserves the selected crew and its filter', async ({ page }) => {
+  const state = await workspace(page, { applicationHistory: [...reviewAttempts,
+    { job_id: 'already-checked', title: 'Checked role', company: 'Company', state: 'needs_you', next_step: 'Nothing was sent; retry is allowed.' },
+    { job_id: 'already-confirmed', title: 'Confirmed role', company: 'Company', state: 'confirmed', next_step: 'Do not submit again.' },
+  ] });
+  const history = page.getByRole('button', { name: /^Application history/ });
+  await expect(history).toContainText('6');
+  await choose(page, 'Naukri');
+  await page.getByRole('button', { name: 'Career', exact: true }).click();
+  await searchBox(page).fill('Learning assistant');
+  await choose(page, 'Learning assistant');
+  await history.click();
+  await expect(history).toHaveAttribute('aria-pressed', 'true');
+  const records = page.getByRole('region', { name: 'Application history', exact: true });
+  await expect(records).toBeVisible();
+  await expect(records.getByRole('button', { name: 'Needs review (6)', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(records.locator('article[data-attempt]')).toHaveCount(6);
+  await expect(page.locator('.crew-team:visible')).toHaveCount(0);
+  state.applicationAttempts = state.applicationAttempts.map(item => item.job_id === 'crew-review-0' ? { ...item, state: 'confirmed' } : item);
+  await records.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await expect(records.getByRole('button', { name: 'Needs review (5)', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Your crew', exact: true }).click();
+  await expect(records).not.toBeVisible();
+  await expect(history).toContainText('5');
+  await expect(page.getByRole('button', { name: 'Career', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(searchBox(page)).toHaveValue('Learning assistant');
+  await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).toBeChecked();
+  await expect(panel(page)).toContainText('Naukri');
+  await expect(panel(page)).toContainText('Learning assistant');
+  await page.getByRole('button', { name: 'All bots', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Select Naukri', exact: true })).toBeChecked();
+  expect(state.plans).toEqual([]); expect(state.batches).toEqual([]); expect(state.denied).toEqual([]);
+});
+
+test('cards show recorded history, recognizable portraits and separate Configure and Run actions', async ({ page }) => {
+  const state = await workspace(page, { multiple: false, history: true });
+  const card = page.locator('[data-bot="naukri"]');
+  await expect(card.locator('.bot-status')).not.toBeVisible();
+  await expect(card.locator('.crew-card-history')).toContainText('Last run Oct 24');
+  await expect(page.locator('[data-bot="hirist"] .crew-card-history')).toHaveCount(0);
+  const portrait = await card.locator('.bot-icon').boundingBox();
+  expect(portrait.width).toBeGreaterThanOrEqual(48);
+  expect(portrait.height).toBeGreaterThanOrEqual(48);
+  const configure = await card.getByRole('button', { name: 'Configure Naukri', exact: true }).boundingBox();
+  const run = await singleRun(page, 'Naukri').boundingBox();
+  expect(Math.min(configure.x + configure.width, run.x + run.width) <= Math.max(configure.x, run.x)
+    || Math.min(configure.y + configure.height, run.y + run.height) <= Math.max(configure.y, run.y)).toBe(true);
+  expect(configure.height).toBeGreaterThanOrEqual(44);
+  expect(run.height).toBeGreaterThanOrEqual(44);
+  expect(state.plans).toEqual([]);
+  expect(state.batches).toEqual([]);
+  expect(state.denied).toEqual([]);
+});
+
+test('one click on Naukri reviews only that bot and starts the exact approved action', async ({ page }) => {
+  const state = await workspace(page, { multiple: false });
+  await singleRun(page, 'Naukri').click();
+  const dialog = page.getByRole('dialog', { name: 'Run Naukri?', exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('Submit matching job applications on Naukri');
+  await expect(page.locator('.crew-settings-dialog')).toHaveCount(0);
+  expect(state.batches).toEqual([]);
+  expect(state.plans).toEqual([{ runs: [{ key: 'naukri', action: 'naukri', options: { dry_run: false, browser_mode: 'visible' } }] }]);
+  await dialog.getByRole('button', { name: 'Run now', exact: true }).click();
+  await expect.poll(() => state.batches.length).toBe(1);
+  expect(state.batches).toEqual(state.plans);
+  expect(state.individual).toEqual([]);
+  expect(state.denied).toEqual([]);
+});
+
+test('multi mode replaces individual run buttons and starts exactly the selected sites', async ({ page }) => {
   const state = await workspace(page);
-  await expect(crewBrowser(page)).toHaveCount(0);
-  await expect(page.getByText(backgroundGuidance, { exact: true })).toBeVisible();
-  await expect(backgroundToggle(page)).not.toBeChecked();
+  await expect(page.getByRole('button', { name: 'Cancel selection', exact: true })).toBeVisible();
+  await expect(page.locator('[data-crew-pick]')).toHaveCount(crewSize);
+  await expect(page.locator('.crew-card-run')).toHaveCount(0);
+  await expect(runSelected(page)).toBeDisabled();
+  for (const name of ['Naukri', 'Hirist', 'Instahyre']) await choose(page, name);
+  await runSelected(page).click();
+  const dialog = page.getByRole('dialog', { name: 'Start 3 agents?', exact: true });
+  await expect(dialog).toBeVisible();
+  expect(state.batches).toEqual([]);
+  await dialog.getByRole('button', { name: 'Start agents', exact: true }).click();
+  await expect.poll(() => state.batches.length).toBe(1);
+  expect(state.batches[0]).toEqual({ runs: [
+    { key: 'naukri', action: 'naukri', options: { dry_run: false, browser_mode: 'visible' } },
+    { key: 'hirist', action: 'boards', options: { board: 'hirist', dry_run: false, browser_mode: 'visible' } },
+    { key: 'instahyre', action: 'boards', options: { board: 'instahyre', dry_run: false, browser_mode: 'visible' } },
+  ] });
+  expect(state.plans).toEqual(state.batches);
+  await expect(page.getByRole('button', { name: 'Run multiple', exact: true })).toBeVisible();
+  await expect(page.locator('[data-crew-pick]')).toHaveCount(0);
+  expect(state.individual).toEqual([]);
+  expect(state.denied).toEqual([]);
+});
+
+test('two assistants have one review with optional exact-command details', async ({ page }) => {
+  const state = await workspace(page);
   await choose(page, 'Learning assistant');
   await choose(page, 'Daily briefing');
-  await expect(panel(page)).toContainText('Learning assistant');
-  await expect(panel(page)).toContainText('Daily briefing');
   await runSelected(page).click();
   const dialog = page.getByRole('dialog', { name: 'Start 2 agents?', exact: true });
-  await expect(dialog).toBeVisible();
   await expect(dialog).toContainText('Learning assistant');
   await expect(dialog).toContainText('Daily briefing');
-  const details = dialog.locator('details').filter({ has: page.getByText('Technical details', { exact: true }) });
+  const details = dialog.locator('.crew-command-details');
   await expect(details).not.toHaveAttribute('open', '');
   await expect(details.locator('pre')).not.toBeVisible();
-  await details.getByText('Technical details', { exact: true }).click();
-  await expect(details.locator('pre')).toBeVisible();
+  await details.locator('summary').click();
   await expect(dialog).toContainText('--only learn');
   await expect(dialog).toContainText('--only brief');
   expect(state.batches).toEqual([]);
@@ -164,30 +286,81 @@ test('two selected assistants start real work together after one exact-command c
   ] }]);
   await dialog.getByRole('button', { name: 'Start agents', exact: true }).click();
   await expect.poll(() => state.batches.length).toBe(1);
-  expect(state.batches[0]).toEqual(state.plans[0]);
-  await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).not.toBeChecked();
-  await expect(page.getByRole('checkbox', { name: 'Select Daily briefing', exact: true })).not.toBeChecked();
+  expect(state.batches).toEqual(state.plans);
   expect(state.individual).toEqual([]);
   expect(state.denied).toEqual([]);
 });
 
-test('background choice and selected agents survive navigation before starting a batch', async ({ page }) => {
-  const state = await workspace(page);
+test('Cancel and Escape discard selected-run drafts and restore focus to Run settings', async ({ page }) => {
+  const state = await workspace(page, { multiple: false });
+  for (const cancelWith of ['button', 'escape']) {
+    const dialog = await openSettings(page, 'Naukri');
+    await expect(dialog.getByRole('textbox', { name: 'Keywords', exact: true })).toHaveValue('');
+    await expect(dialog.locator('.crew-advanced-settings')).not.toHaveAttribute('open', '');
+    await dialog.getByRole('textbox', { name: 'Keywords', exact: true }).fill('Discard this draft');
+    await openAdvanced(dialog);
+    await expect(backgroundToggle(page)).not.toBeChecked();
+    await backgroundToggle(page).check();
+    if (cancelWith === 'button') await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    else await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+    await expect(panel(page).getByRole('button', { name: 'Run settings', exact: true })).toBeFocused();
+  }
+  await page.getByRole('button', { name: 'Cancel selection', exact: true }).click();
+  await singleRun(page, 'Naukri').click();
+  await expect(page.getByRole('dialog', { name: /^Run .+\?$/ })).toBeVisible();
+  expect(state.plans).toEqual([{ runs: [{ key: 'naukri', action: 'naukri', options: { dry_run: false, browser_mode: 'visible' } }] }]);
+  expect(state.batches).toEqual([]);
+  expect(state.individual).toEqual([]);
+  expect(state.denied).toEqual([]);
+});
+
+test('Apply settings commits a selected-run draft without launching and shares its browser preference', async ({ page }) => {
+  const state = await workspace(page, { multiple: false });
+  const settings = await openSettings(page, 'Naukri');
+  await settings.getByRole('textbox', { name: 'Keywords', exact: true }).fill('Platform engineer');
+  await settings.getByRole('spinbutton', { name: 'Naukri job limit', exact: true }).fill('12');
+  await openAdvanced(settings);
+  await expect(settings).toContainText('This browser preference applies to all Bot Crew runs.');
   await backgroundToggle(page).check();
+  await settings.getByRole('button', { name: 'Apply settings', exact: true }).click();
+  await expect(settings).not.toBeVisible();
+  expect(state.plans).toEqual([]);
+  expect(state.batches).toEqual([]);
+  expect(state.previews).toEqual([]);
+  await page.getByRole('button', { name: 'Cancel selection', exact: true }).click();
+  await singleRun(page, 'Naukri').click();
+  const dialog = page.getByRole('dialog', { name: /^Run .+\?$/ });
+  await expect(dialog).toBeVisible();
+  expect(state.plans[0]).toEqual({ runs: [{ key: 'naukri', action: 'naukri', options: {
+    keywords: 'Platform engineer', limit: '12', dry_run: false, browser_mode: 'background',
+  } }] });
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await singleRun(page, 'Hirist').click();
+  await expect(dialog).toBeVisible();
+  expect(state.plans[1]).toEqual({ runs: [{ key: 'hirist', action: 'boards', options: { board: 'hirist', dry_run: false, browser_mode: 'background' } }] });
+  expect(state.batches).toEqual([]);
+  expect(state.individual).toEqual([]);
+  expect(state.denied).toEqual([]);
+});
+
+test('selected bots and saved browser preference survive filters and route navigation', async ({ page }) => {
+  const state = await workspace(page);
+  await saveBackground(page);
   await choose(page, 'Learning assistant');
   await choose(page, 'Daily briefing');
-  await expect(crewBrowser(page)).toHaveCount(0);
-  await expect(page.getByText(backgroundGuidance, { exact: true })).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).toBeChecked();
-  await expect(page.getByRole('checkbox', { name: 'Select Daily briefing', exact: true })).toBeChecked();
-  await page.getByRole('button', { name: 'Career & research', exact: true }).click();
+  await page.getByRole('button', { name: 'Career', exact: true }).click();
   await page.evaluate(() => { location.hash = '#/naukri'; });
-  await expect(page.getByText(backgroundGuidance, { exact: true })).toBeVisible();
-  await expect(page.getByRole('combobox', { name: 'Browser mode', exact: true })).toHaveCount(0);
-  await page.evaluate(() => { location.hash = '#/bots'; });
+  await expect(page.getByRole('heading', { name: 'Apply on Naukri', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Back to Bot Crew', exact: true }).click();
+  await expect(panel(page)).toContainText('Learning assistant');
+  await expect(panel(page)).toContainText('Daily briefing');
   await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Select Daily briefing', exact: true })).toBeChecked();
+  const settings = await openSettings(page, 'Learning assistant');
+  await openAdvanced(settings);
   await expect(backgroundToggle(page)).toBeChecked();
+  await settings.getByRole('button', { name: 'Cancel', exact: true }).click();
   await runSelected(page).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Start agents', exact: true }).click();
   await expect.poll(() => state.batches.length).toBe(1);
@@ -200,55 +373,38 @@ test('background choice and selected agents survive navigation before starting a
   expect(state.denied).toEqual([]);
 });
 
-test('a selected card can start actual work directly in the background', async ({ page }) => {
+test('pending review freezes selection, settings and mode changes and preserves the approved payload', async ({ page }) => {
   const state = await workspace(page);
-  await backgroundToggle(page).check();
+  await saveBackground(page);
+  await choose(page, 'Naukri');
   await choose(page, 'Hirist');
-  await expect(crewBrowser(page)).toHaveCount(0);
-  await expect(page.getByRole('checkbox', { name: 'Select Hirist', exact: true })).toBeChecked();
-  await page.getByRole('button', { name: 'Run now — Hirist', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Run it', exact: true }).click();
-  await expect.poll(() => state.individual.length).toBe(1);
-  const approved = { action: 'boards', options: { board: 'hirist', dry_run: false, browser_mode: 'background' } };
-  expect(state.previews.at(-1)).toEqual(approved);
-  expect(state.individual).toEqual([approved]);
-  expect(state.plans).toEqual([]);
-  expect(state.batches).toEqual([]);
-  expect(state.denied).toEqual([]);
-});
-
-test('background batch commands stay frozen while the selected agents are being reviewed', async ({ page }) => {
-  const state = await workspace(page);
-  await backgroundToggle(page).check();
-  await choose(page, 'Learning assistant');
-  await choose(page, 'Daily briefing');
   state.holdPlan();
   await runSelected(page).click();
   await expect.poll(() => Boolean(state.held)).toBe(true);
-  await expect(backgroundToggle(page)).toBeDisabled();
-  await expect(crewBrowser(page)).toHaveCount(0);
-  await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Cancel selection', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Your crew', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^Application history/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Configure Naukri', exact: true })).toBeDisabled();
+  await expect(panel(page).getByRole('button', { name: 'Run settings', exact: true })).toBeDisabled();
+  await expect(panel(page).getByRole('button', { name: 'Remove Naukri', exact: true })).toBeDisabled();
+  await expect(page.getByRole('checkbox', { name: 'Select Naukri', exact: true })).toBeDisabled();
+  await expect(page.locator('.crew-settings-dialog')).toHaveCount(0);
   const approved = structuredClone(state.held.request);
   expect(approved.runs.every(run => run.options.browser_mode === 'background' && !Object.hasOwn(run.options, 'headless'))).toBe(true);
   await state.releasePlan();
   await expect(page.getByRole('dialog', { name: 'Start 2 agents?', exact: true })).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: 'Select Daily briefing', exact: true })).toBeDisabled();
   await page.getByRole('dialog').getByRole('button', { name: 'Start agents', exact: true }).click();
   await expect.poll(() => state.batches.length).toBe(1);
   expect(state.batches[0]).toEqual(approved);
-  await expect(crewBrowser(page)).toHaveCount(0);
   expect(state.individual).toEqual([]);
   expect(state.denied).toEqual([]);
 });
 
-test('individual settings default to visible Chrome and preview an explicit background choice', async ({ page }) => {
-  const state = await workspace(page);
+test('individual full settings retain their practice default and explicit browser preference', async ({ page }) => {
+  const state = await workspace(page, { multiple: false });
   await page.evaluate(() => { location.hash = '#/naukri'; });
   await expect(page.getByRole('heading', { name: 'Apply on Naukri', exact: true })).toBeVisible();
-  const browser = page.getByRole('combobox', { name: 'Browser mode', exact: true });
-  await expect(browser).toHaveCount(0);
   await expect(page.getByText(backgroundGuidance, { exact: true })).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: /headless/i })).toHaveCount(0);
   await expect(backgroundToggle(page)).not.toBeChecked();
   await expect.poll(() => state.previews.some(request => request.action === 'naukri' && request.options.browser_mode === 'visible')).toBe(true);
   await backgroundToggle(page).check();
@@ -259,107 +415,188 @@ test('individual settings default to visible Chrome and preview an explicit back
   await page.getByRole('dialog').getByRole('button', { name: 'Run it', exact: true }).click();
   await expect.poll(() => state.individual.length).toBe(1);
   expect(state.individual[0]).toMatchObject({ action: 'naukri', options: { browser_mode: 'background', keywords: 'Platform engineer', dry_run: true } });
-  expect(state.previews.at(-1).options.browser_mode).toBe('background');
   expect(Object.hasOwn(state.individual[0].options, 'headless')).toBe(false);
   expect(state.individual[0]).toEqual(state.previews.at(-1));
   expect(state.denied).toEqual([]);
 });
 
-test('missing batch preview explains how to recover and preserves selection without starting individual agents', async ({ page }) => {
-  const state = await workspace(page, { missing: 'preview' });
-  await choose(page, 'Learning assistant');
-  await choose(page, 'Daily briefing');
-  await runSelected(page).click();
-  await expect(panel(page).getByRole('alert')).toHaveText(updateRequired);
-  await expect(page.getByRole('dialog')).not.toBeVisible();
-  await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).toBeChecked();
-  await expect(page.getByRole('checkbox', { name: 'Select Daily briefing', exact: true })).toBeChecked();
-  await expect(runSelected(page)).toBeEnabled();
-  await page.evaluate(snapshot => window.__crewSources.at(-1).send(snapshot), { ...emptyRun, revision: 1 });
-  await page.getByRole('button', { name: 'Career & research', exact: true }).click();
-  await expect(panel(page).getByRole('alert')).toHaveText(updateRequired);
-  await expect(page.locator('.toast-text')).toHaveCount(0);
-  expect(state.plans).toHaveLength(1);
-  expect(state.batches).toEqual([]);
-  expect(state.previews).toEqual([]);
-  expect(state.individual).toEqual([]);
-  expect(state.denied).toEqual([]);
-});
+for (const missing of ['preview', 'start']) {
+  test(`missing batch ${missing} explains recovery and preserves selection without fallback`, async ({ page }) => {
+    const state = await workspace(page, { missing });
+    await choose(page, 'Learning assistant');
+    await choose(page, 'Daily briefing');
+    await runSelected(page).click();
+    if (missing === 'start') await page.getByRole('dialog').getByRole('button', { name: 'Start agents', exact: true }).click();
+    await expect(feedback(page).getByRole('alert')).toHaveText(updateRequired);
+    await expect(page.getByRole('dialog')).not.toBeVisible();
+    await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).toBeChecked();
+    await expect(page.getByRole('checkbox', { name: 'Select Daily briefing', exact: true })).toBeChecked();
+    await expect(runSelected(page)).toBeEnabled();
+    await page.getByRole('button', { name: 'Career', exact: true }).click();
+    await expect(feedback(page).getByRole('alert')).toHaveText(updateRequired);
+    expect(state.plans).toHaveLength(1);
+    expect(state.batches).toEqual(missing === 'start' ? state.plans : []);
+    expect(state.previews).toEqual([]);
+    expect(state.individual).toEqual([]);
+    expect(state.denied).toEqual([]);
+  });
+}
 
-test('missing batch start retains the confirmed selection and reports no false success or fallback', async ({ page }) => {
-  const state = await workspace(page, { missing: 'start' });
-  await choose(page, 'Learning assistant');
-  await choose(page, 'Daily briefing');
-  await runSelected(page).click();
-  const dialog = page.getByRole('dialog', { name: 'Start 2 agents?', exact: true });
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: 'Start agents', exact: true }).click();
-  await expect(panel(page).getByRole('alert')).toHaveText(updateRequired);
-  await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).toBeChecked();
-  await expect(page.getByRole('checkbox', { name: 'Select Daily briefing', exact: true })).toBeChecked();
-  await expect(runSelected(page)).toBeEnabled();
-  await page.evaluate(snapshot => window.__crewSources.at(-1).send(snapshot), { ...emptyRun, revision: 1 });
-  await page.getByRole('button', { name: 'Career & research', exact: true }).click();
-  await expect(panel(page).getByRole('alert')).toHaveText(updateRequired);
-  await expect(page.locator('.toast-text')).toHaveCount(0);
-  expect(state.plans).toHaveLength(1);
-  expect(state.batches).toEqual(state.plans);
-  expect(state.previews).toEqual([]);
-  expect(state.individual).toEqual([]);
-  expect(state.denied).toEqual([]);
-});
-
-test('simple steps explain the workflow and selected agent settings are easy to find', async ({ page }) => {
+test('search, filters and keyboard selection preserve the crew until selection is cancelled', async ({ page }) => {
   const state = await workspace(page);
-  for (const step of ['Choose agents', 'Review together', 'Follow progress']) {
-    await expect(page.getByText(step, { exact: true })).toBeVisible();
-  }
-  const card = page.locator('[data-bot="hirist"]');
-  const selection = card.getByRole('checkbox', { name: 'Select Hirist', exact: true });
-  const checkboxBounds = await selection.boundingBox();
-  const headingBounds = await card.getByRole('heading', { name: 'Hirist', exact: true }).boundingBox();
-  expect(checkboxBounds.y).toBeLessThan(headingBounds.y);
-  await selection.check();
-  const configure = card.getByRole('button', { name: 'Configure Hirist', exact: true });
-  await expect(configure).toBeVisible();
-  await expect(configure).toContainText('Configure');
+  await searchBox(page).fill('Learning assistant');
+  const selection = page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true });
+  await selection.focus();
+  await selection.press('Space');
+  await expect(selection).toBeChecked();
+  await searchBox(page).fill('no-bot-with-this-name');
+  await expect(page.locator('.crew-bot-card')).toHaveCount(0);
+  await expect(panel(page)).toContainText('Learning assistant');
+  await page.getByRole('button', { name: 'Clear search', exact: true }).click();
+  await expect(searchBox(page)).toHaveValue('');
+  await expect(page.locator('.crew-bot-card')).toHaveCount(crewSize);
+  await page.getByRole('button', { name: 'Applications', exact: true }).click();
+  await expect(page.locator('.crew-bot-card')).toHaveCount(applicationBots.length);
+  await expect(panel(page)).toContainText('Learning assistant');
+  await searchBox(page).fill('Learning assistant');
+  await expect(page.locator('.crew-bot-card')).toHaveCount(0);
+  await page.getByRole('button', { name: 'All bots', exact: true }).click();
+  await expect(searchBox(page)).toHaveValue('');
+  await expect(selection).toBeChecked();
+  await page.getByRole('button', { name: 'Cancel selection', exact: true }).click();
+  await expect(page.locator('[data-crew-pick]')).toHaveCount(0);
+  await expect(panel(page)).not.toBeVisible();
+  await page.getByRole('button', { name: 'Run multiple', exact: true }).click();
+  await expect(selection).not.toBeChecked();
+  await expect(runSelected(page)).toBeDisabled();
   expect(state.plans).toEqual([]);
   expect(state.batches).toEqual([]);
-  expect(state.individual).toEqual([]);
   expect(state.denied).toEqual([]);
 });
 
-test('selection survives searching, changing category and visiting another route', async ({ page }) => {
+test('settings validate limits and share the configured board limit across selected sites', async ({ page }) => {
   const state = await workspace(page);
-  await choose(page, 'Learning assistant');
-  await page.getByRole('searchbox', { name: 'Find a bot', exact: true }).fill('Hirist');
-  await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).toHaveCount(0);
-  await expect(panel(page)).toContainText('Learning assistant');
-  await choose(page, 'Hirist');
-  await page.getByRole('searchbox', { name: 'Find a bot', exact: true }).clear();
-  await page.getByRole('button', { name: 'Career & research', exact: true }).click();
-  await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).toBeChecked();
-  await expect(panel(page)).toContainText('Hirist');
-  await page.evaluate(() => { location.hash = '#/naukri'; });
+  const naukri = await openSettings(page, 'Naukri');
+  await naukri.getByRole('textbox', { name: 'Keywords', exact: true }).fill('Platform engineer');
+  await naukri.getByRole('spinbutton', { name: 'Naukri job limit', exact: true }).fill('0');
+  await naukri.getByRole('button', { name: 'Apply settings', exact: true }).click();
+  await expect(naukri.getByRole('spinbutton', { name: 'Naukri job limit', exact: true })).toHaveAttribute('aria-invalid', 'true');
+  await expect(naukri).toBeVisible();
+  expect(state.plans).toEqual([]);
+  await naukri.getByRole('spinbutton', { name: 'Naukri job limit', exact: true }).fill('12');
+  await naukri.getByRole('button', { name: 'Apply settings', exact: true }).click();
+  const hirist = await openSettings(page, 'Hirist');
+  await hirist.getByRole('spinbutton', { name: 'Application limit per board', exact: true }).fill('7');
+  await hirist.getByRole('button', { name: 'Apply settings', exact: true }).click();
+  for (const name of ['Naukri', 'Hirist', 'Instahyre']) await choose(page, name);
+  await runSelected(page).click();
+  await expect(page.getByRole('dialog', { name: 'Start 3 agents?', exact: true })).toBeVisible();
+  expect(state.plans).toEqual([{ runs: [
+    { key: 'naukri', action: 'naukri', options: { keywords: 'Platform engineer', limit: '12', dry_run: false, browser_mode: 'visible' } },
+    { key: 'hirist', action: 'boards', options: { board: 'hirist', limit: '7', dry_run: false, browser_mode: 'visible' } },
+    { key: 'instahyre', action: 'boards', options: { board: 'instahyre', limit: '7', dry_run: false, browser_mode: 'visible' } },
+  ] }]);
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect(state.batches).toEqual([]);
+  expect(state.denied).toEqual([]);
+});
+
+test('Configure opens the existing bot page directly and returns with selection and settings intact', async ({ page }) => {
+  const state = await workspace(page);
+  await choose(page, 'Naukri');
+  await page.getByRole('button', { name: 'Configure Naukri', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Apply on Naukri', exact: true })).toBeVisible();
-  await page.evaluate(() => { location.hash = '#/bots'; });
-  await expect(panel(page)).toContainText('Learning assistant');
-  await expect(panel(page)).toContainText('Hirist');
-  await panel(page).getByRole('button', { name: 'Clear selection', exact: true }).click();
-  await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).not.toBeChecked();
-  await expect(runSelected(page)).toBeDisabled();
+  await expect(page.locator('.crew-settings-dialog')).toHaveCount(0);
+  await page.getByRole('textbox', { name: 'Keywords', exact: true }).fill('Platform engineer');
+  await page.getByRole('spinbutton', { name: 'Limit', exact: true }).fill('12');
+  await page.getByRole('link', { name: 'Back to Bot Crew', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Select Naukri', exact: true })).toBeChecked();
+  await runSelected(page).click();
+  await expect(page.getByRole('dialog', { name: 'Run Naukri?', exact: true })).toBeVisible();
+  expect(state.plans).toEqual([{ runs: [{ key: 'naukri', action: 'naukri', options: {
+    keywords: 'Platform engineer', limit: '12', dry_run: false, browser_mode: 'visible', answer_mode: '', llm_backend: '',
+  } }] }]);
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
   expect(state.batches).toEqual([]);
   expect(state.individual).toEqual([]);
   expect(state.denied).toEqual([]);
 });
 
-test('a shared-browser conflict explains the problem and keeps selection without starting anything', async ({ page }) => {
+test('Company sites asks for a valid URL only when needed and reviews after setup', async ({ page }) => {
+  const state = await workspace(page, { multiple: false });
+  await singleRun(page, 'Company sites', 'Set up').click();
+  const settings = settingsDialog(page, 'Company sites');
+  const url = settings.getByRole('textbox', { name: 'Application URL', exact: true });
+  await expect(settings).toBeVisible();
+  await settings.getByRole('button', { name: 'Review & run', exact: true }).click();
+  await expect(url).toHaveAttribute('aria-invalid', 'true');
+  await expect(url).toBeFocused();
+  expect(state.plans).toEqual([]);
+  await url.fill('ftp://example.test/job');
+  await settings.getByRole('button', { name: 'Review & run', exact: true }).click();
+  await expect(url).toHaveAttribute('aria-invalid', 'true');
+  expect(state.plans).toEqual([]);
+  await url.fill('https://example.test/jobs/platform');
+  await settings.getByRole('button', { name: 'Review & run', exact: true }).click();
+  await expect(settings).not.toBeVisible();
+  await expect(page.getByRole('dialog', { name: /^Run .+\?$/ })).toBeVisible();
+  expect(state.plans).toEqual([{ runs: [{ key: 'external', action: 'external', options: {
+    url: 'https://example.test/jobs/platform', dry_run: false, browser_mode: 'visible',
+  } }] }]);
+  expect(state.batches).toEqual([]);
+  expect(state.denied).toEqual([]);
+});
+
+test('resume setup validates its description and Cancel discards the unsaved draft', async ({ page }) => {
+  const state = await workspace(page, { multiple: false });
+  await singleRun(page, 'Resume tailor', 'Set up').click();
+  const settings = settingsDialog(page, 'Resume tailor');
+  const description = settings.getByRole('textbox', { name: 'Job description', exact: true });
+  await settings.getByRole('button', { name: 'Review & run', exact: true }).click();
+  await expect(description).toHaveAttribute('aria-invalid', 'true');
+  expect(state.plans).toEqual([]);
+  await description.fill('Unsaved job description');
+  await settings.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await singleRun(page, 'Resume tailor', 'Set up').click();
+  await expect(description).toHaveValue('');
+  await description.fill('Platform engineer building reliable APIs and distributed systems.');
+  await settings.getByRole('button', { name: 'Review & run', exact: true }).click();
+  await expect(settings).not.toBeVisible();
+  await expect(page.getByRole('dialog', { name: /^Run .+\?$/ })).toBeVisible();
+  expect(state.plans[0]).toMatchObject({ runs: [{ key: 'resume', action: 'resume', options: {
+    jd_text: 'Platform engineer building reliable APIs and distributed systems.', browser_mode: 'visible',
+  } }] });
+  expect(state.batches).toEqual([]);
+  expect(state.denied).toEqual([]);
+});
+
+test('a multi run collects required setup together before previewing the exact selected bots', async ({ page }) => {
+  const state = await workspace(page);
+  await choose(page, 'Company sites');
+  await choose(page, 'Resume tailor');
+  await runSelected(page).click();
+  const settings = page.getByRole('dialog', { name: 'Selected bot settings', exact: true });
+  await expect(settings).toBeVisible();
+  expect(state.plans).toEqual([]);
+  await settings.getByRole('textbox', { name: 'Application URL', exact: true }).fill('https://example.test/jobs/platform');
+  await settings.getByRole('textbox', { name: 'Job description', exact: true }).fill('Platform engineering role.');
+  await settings.getByRole('button', { name: 'Review & run', exact: true }).click();
+  await expect(settings).not.toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Start 2 agents?', exact: true })).toBeVisible();
+  expect(state.plans[0].runs.map(run => run.key)).toEqual(['external', 'resume']);
+  expect(state.plans[0].runs[0].options.url).toBe('https://example.test/jobs/platform');
+  expect(state.plans[0].runs[1].options.jd_text).toBe('Platform engineering role.');
+  expect(state.batches).toEqual([]);
+  expect(state.denied).toEqual([]);
+});
+
+test('a shared-site conflict keeps selection and explains how to resolve it', async ({ page }) => {
   const problem = 'Hirist and Hirist profile share the same browser. Run them one at a time.';
   const state = await workspace(page, { conflict: problem });
   await choose(page, 'Hirist');
   await choose(page, 'Hirist profile');
   await runSelected(page).click();
-  await expect(panel(page)).toContainText(problem);
+  await expect(feedback(page)).toContainText(problem);
   await expect(page.getByRole('dialog')).not.toBeVisible();
   await expect(page.getByRole('checkbox', { name: 'Select Hirist', exact: true })).toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Select Hirist profile', exact: true })).toBeChecked();
@@ -368,94 +605,101 @@ test('a shared-browser conflict explains the problem and keeps selection without
   expect(state.denied).toEqual([]);
 });
 
-test('the eight-agent limit remains reversible and agents needing setup explain why they cannot be selected', async ({ page }) => {
+test('the eight-bot limit is reversible and setup requirements do not block selection', async ({ page }) => {
   const state = await workspace(page);
-  for (const name of ['Naukri', 'Hirist', 'Instahyre', 'Cutshort', 'Wellfound', 'Naukri profile', 'LinkedIn writer', 'LinkedIn profile']) {
-    await choose(page, name);
-  }
-  await expect(panel(page)).toContainText('8 of 8 agents selected');
+  for (const name of ['Naukri', 'Hirist', 'Instahyre', 'Cutshort', 'Wellfound', 'Naukri profile', 'LinkedIn writer', 'LinkedIn profile']) await choose(page, name);
+  await expect(panel(page)).toContainText('8 of 8 bots selected');
   await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).toBeDisabled();
   await expect(page.getByRole('checkbox', { name: 'Select Naukri', exact: true })).toBeEnabled();
   await panel(page).getByRole('button', { name: 'Remove Naukri', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).toBeEnabled();
-  await expect(page.getByRole('checkbox', { name: 'Select Company sites', exact: true })).toBeDisabled();
-  await expect(page.locator('[data-bot="external"]')).toContainText('Add an application URL in settings first.');
-  await expect(page.getByRole('checkbox', { name: 'Select Resume tailor', exact: true })).toBeDisabled();
-  await expect(page.locator('[data-bot="resume"]')).toContainText('Add a job description in settings first.');
+  await expect(page.getByRole('checkbox', { name: 'Select Company sites', exact: true })).toBeEnabled();
+  await expect(page.getByRole('checkbox', { name: 'Select Resume tailor', exact: true })).toBeEnabled();
+  await panel(page).getByRole('button', { name: 'Clear selection', exact: true }).click();
+  await expect(runSelected(page)).toBeDisabled();
   expect(state.plans).toEqual([]);
   expect(state.batches).toEqual([]);
   expect(state.denied).toEqual([]);
 });
 
-test('partial success removes only started agents and keeps failed agents with a clear error', async ({ page }) => {
+test('partial success keeps failed bots selected and retains multi mode with clear feedback', async ({ page }) => {
   const state = await workspace(page, { partial: true });
   await choose(page, 'Learning assistant');
   await choose(page, 'Daily briefing');
   await runSelected(page).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Start agents', exact: true }).click();
-  await expect(panel(page)).toContainText('The AI service is temporarily unavailable. Try this agent again.');
-  await expect(panel(page)).toContainText('Daily briefing');
+  await expect(feedback(page)).toContainText('The AI service is temporarily unavailable. Try this agent again.');
+  await expect(runSelected(page)).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Cancel selection', exact: true })).toBeVisible();
   await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).not.toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Select Daily briefing', exact: true })).toBeChecked();
-  await expect(runSelected(page)).toBeEnabled();
   expect(state.batches).toHaveLength(1);
   expect(state.plans).toHaveLength(1);
   expect(state.denied).toEqual([]);
 });
 
-for (const [name, action, options] of [
-  ['Hirist', 'boards', { board: 'hirist', dry_run: false, browser_mode: 'visible' }],
-  ['Naukri', 'naukri', { dry_run: false, browser_mode: 'visible' }],
-]) {
-  test(`${name} Run now starts actual work without practice mode`, async ({ page }) => {
-    const state = await workspace(page);
-    await page.getByRole('button', { name: `Run now — ${name}`, exact: true }).click();
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible();
-    await expect(dialog).not.toContainText('--dry-run');
-    expect(state.individual).toEqual([]);
-    await dialog.getByRole('button', { name: 'Run it', exact: true }).click();
-    await expect.poll(() => state.individual.length).toBe(1);
-    expect(state.individual[0]).toEqual({ action, options });
-    expect(state.previews.at(-1)).toEqual(state.individual[0]);
-    expect(state.denied).toEqual([]);
-  });
-}
-
-test('LinkedIn writer creates a saved draft instead of simulating or publishing a post', async ({ page }) => {
-  const state = await workspace(page);
-  await page.getByRole('button', { name: 'Create draft — LinkedIn writer', exact: true }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toContainText('--mode propose');
-  await dialog.getByRole('button', { name: 'Run it', exact: true }).click();
-  await expect.poll(() => state.individual.length).toBe(1);
-  expect(state.individual[0]).toEqual({ action: 'linkedin', options: { mode: 'propose', browser_mode: 'visible' } });
+test('Hirist runs directly with the correct board and actual-work default', async ({ page }) => {
+  const state = await workspace(page, { multiple: false });
+  await singleRun(page, 'Hirist').click();
+  const dialog = page.getByRole('dialog', { name: 'Run Hirist?', exact: true });
+  await expect(dialog).toContainText('Submit matching job applications on Hirist');
+  expect(state.batches).toEqual([]);
+  await dialog.getByRole('button', { name: 'Run now', exact: true }).click();
+  await expect.poll(() => state.batches.length).toBe(1);
+  expect(state.batches[0]).toEqual({ runs: [{ key: 'hirist', action: 'boards', options: { board: 'hirist', dry_run: false, browser_mode: 'visible' } }] });
+  expect(state.plans).toEqual(state.batches);
+  expect(state.individual).toEqual([]);
   expect(state.denied).toEqual([]);
 });
 
-test('repeated clicks during preflight make one request and cancelling starts no agents', async ({ page }) => {
-  const state = await workspace(page);
-  await choose(page, 'Learning assistant');
-  await choose(page, 'Daily briefing');
+test('Startups reviews and launches only its own action while explaining email drafts', async ({ page }) => {
+  const state = await workspace(page, { multiple: false });
+  await singleRun(page, 'Startups').click();
+  const dialog = page.getByRole('dialog', { name: 'Run Startups?', exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('Emails are never sent.');
+  expect(state.plans).toEqual([{ runs: [{ key: 'startups', action: 'startups', options: { dry_run: false, browser_mode: 'visible' } }] }]);
+  expect(state.batches).toEqual([]);
+  await dialog.getByRole('button', { name: 'Run now', exact: true }).click();
+  await expect.poll(() => state.batches.length).toBe(1);
+  expect(state.batches).toEqual(state.plans); expect(state.individual).toEqual([]); expect(state.denied).toEqual([]);
+});
+
+test('LinkedIn writer creates a draft directly without publishing a post', async ({ page }) => {
+  const state = await workspace(page, { multiple: false });
+  await singleRun(page, 'LinkedIn writer', 'Create draft').click();
+  const dialog = page.getByRole('dialog', { name: 'Run LinkedIn writer?', exact: true });
+  await expect(dialog).toContainText('Save a LinkedIn draft');
+  await dialog.getByText('Technical details', { exact: true }).click();
+  await expect(dialog).toContainText('--mode propose');
+  expect(state.batches).toEqual([]);
+  await dialog.getByRole('button', { name: 'Create draft', exact: true }).click();
+  await expect.poll(() => state.batches.length).toBe(1);
+  expect(state.batches[0]).toEqual({ runs: [{ key: 'linkedin', action: 'linkedin', options: { mode: 'propose', browser_mode: 'visible' } }] });
+  expect(state.plans).toEqual(state.batches);
+  expect(state.individual).toEqual([]);
+  expect(state.denied).toEqual([]);
+});
+
+test('repeated run clicks send one preview and cancelling restores the single-run trigger', async ({ page }) => {
+  const state = await workspace(page, { multiple: false });
+  const trigger = singleRun(page, 'Naukri');
+  await trigger.focus();
   state.holdPlan();
-  const start = runSelected(page);
-  await start.evaluate(button => {
-    button.click();
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  });
+  await trigger.evaluate(button => { button.click(); button.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
   await expect.poll(() => Boolean(state.held)).toBe(true);
-  await expect(start).toBeDisabled();
+  await expect(trigger).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Configure Naukri', exact: true })).toBeDisabled();
   expect(state.plans).toHaveLength(1);
   await state.releasePlan();
   await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
-  await expect(start).toBeEnabled();
-  await expect(page.getByRole('checkbox', { name: 'Select Learning assistant', exact: true })).toBeChecked();
-  await expect(page.getByRole('checkbox', { name: 'Select Daily briefing', exact: true })).toBeChecked();
+  await expect(trigger).toBeEnabled();
+  await expect(trigger).toBeFocused();
   expect(state.batches).toEqual([]);
   expect(state.denied).toEqual([]);
 });
 
-test('account expiration closes a pending batch confirmation without starting or reporting stale success', async ({ page }) => {
+test('account expiration closes pending confirmation without stale starts or success', async ({ page }) => {
   const state = await workspace(page, { account: true });
   await choose(page, 'Learning assistant');
   await choose(page, 'Daily briefing');
@@ -474,7 +718,7 @@ test('account expiration closes a pending batch confirmation without starting or
   expect(state.denied).toEqual([]);
 });
 
-test('an old-account preflight response cannot reopen a batch confirmation after sign-out', async ({ page }) => {
+test('late preflight from an expired account cannot reopen confirmation', async ({ page }) => {
   const state = await workspace(page, { account: true });
   await choose(page, 'Learning assistant');
   await choose(page, 'Daily briefing');
@@ -492,48 +736,97 @@ test('an old-account preflight response cannot reopen a batch confirmation after
   expect(state.denied).toEqual([]);
 });
 
-test('selected agents can be started without scrolling back up on mobile and desktop', async ({ page }) => {
-  const state = await workspace(page);
-  await choose(page, 'Learning assistant');
-  await choose(page, 'Daily briefing');
-  await mkdir('artifacts/crew-selection', { recursive: true });
-  for (const width of [1280, 375]) {
-    await page.setViewportSize({ width, height: 900 });
-    await page.locator('[data-bot="wellfound_profile"]').scrollIntoViewIfNeeded();
-    await expect(runSelected(page)).toBeInViewport({ ratio: 1 });
-    await expect(panel(page).getByRole('button', { name: 'Clear selection', exact: true })).toBeInViewport({ ratio: 1 });
-    await expect(panel(page)).toContainText('Learning assistant');
-    await expect(panel(page)).toContainText('Daily briefing');
-    // Trial clicks also verify the sticky action is not covered by navigation,
-    // the Activity launcher, or a card. No command is submitted.
-    await runSelected(page).click({ trial: true });
-    await page.screenshot({ path: `artifacts/crew-selection/sticky-${width}.png`, animations: 'disabled' });
-  }
+test('account expiration closes selected-run settings without committing or running the draft', async ({ page }) => {
+  const state = await workspace(page, { account: true, multiple: false });
+  const settings = await openSettings(page, 'Naukri');
+  await settings.getByRole('textbox', { name: 'Keywords', exact: true }).fill('Private unsaved edit');
+  state.signOut();
+  await page.evaluate(() => window.dispatchEvent(new Event('account-expired')));
+  await expect(page).toHaveURL(/#\/login$/);
+  await expect(page.locator('.crew-settings-dialog')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Welcome back.', exact: true })).toBeVisible();
   expect(state.plans).toEqual([]);
   expect(state.batches).toEqual([]);
   expect(state.individual).toEqual([]);
   expect(state.denied).toEqual([]);
 });
 
-test('the parallel selection panel fits mobile and desktop and has accessible controls', async ({ page }) => {
+test('the selected crew remains reachable without overlapping Activity on mobile and desktop', async ({ page }) => {
   const state = await workspace(page);
-  const errors = []; page.on('pageerror', error => errors.push(error.message));
   await choose(page, 'Learning assistant');
   await choose(page, 'Daily briefing');
-  await mkdir('artifacts/crew-selection', { recursive: true });
+  await mkdir('artifacts/crew-refinement', { recursive: true });
   for (const width of [1280, 375]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.locator('.crew-browser-setting').screenshot({ path: `artifacts/crew-selection/browser-${width}.png`, animations: 'disabled' });
-    await panel(page).scrollIntoViewIfNeeded();
-    const bounds = await panel(page).boundingBox();
-    expect(bounds.x).toBeGreaterThanOrEqual(0);
-    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-    await panel(page).screenshot({ path: `artifacts/crew-selection/panel-${width}.png`, animations: 'disabled' });
-    await page.screenshot({ path: `artifacts/crew-selection/crew-${width}.png`, fullPage: true, animations: 'disabled' });
-    const result = await new AxeBuilder({ page }).include('.bot-page')
+    await page.locator('[data-bot="company_outreach"]').scrollIntoViewIfNeeded();
+    await expect(runSelected(page)).toBeInViewport({ ratio: 1 });
+    await runSelected(page).click({ trial: true });
+    if (width > 767) await panel(page).getByRole('button', { name: 'Clear selection', exact: true }).click({ trial: true });
+    else {
+      await expect(panel(page).getByRole('button', { name: 'Clear selection', exact: true })).not.toBeVisible();
+      await panel(page).getByRole('button', { name: 'Run settings', exact: true }).click({ trial: true });
+    }
+    await page.screenshot({ path: `artifacts/crew-refinement/refined-sticky-${width}.png`, animations: 'disabled' });
+  }
+  expect(state.plans).toEqual([]);
+  expect(state.batches).toEqual([]);
+  expect(state.denied).toEqual([]);
+});
+
+test('catalogue, single review, settings drawer and multi selection fit four widths accessibly', async ({ page }) => {
+  test.setTimeout(60000);
+  const errors = []; page.on('pageerror', error => errors.push(error.message));
+  const state = await workspace(page, { multiple: false, applicationHistory: reviewAttempts });
+  await mkdir('artifacts/crew-studio', { recursive: true });
+  const audit = async selector => {
+    const result = await new AxeBuilder({ page }).include(selector)
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
     expect(result.violations.map(item => `${item.id}: ${item.nodes.map(node => node.target).join(', ')}`)).toEqual([]);
+  };
+  for (const width of [1440, 1024, 768, 375]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.getByRole('heading', { name: 'Bot Crew', exact: true }).scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    const overflowingActions = await page.locator('.crew-bot-card').evaluateAll(cards => cards.flatMap(card => {
+      const bounds = card.getBoundingClientRect();
+      return [...card.querySelectorAll('.bot-actions button')].filter(button => {
+        const action = button.getBoundingClientRect();
+        return action.left < bounds.left - 1 || action.right > bounds.right + 1 || action.top < bounds.top - 1 || action.bottom > bounds.bottom + 1;
+      }).map(button => `${card.dataset.bot}: ${button.textContent.trim()}`);
+    }));
+    expect(overflowingActions, `Card actions must fit at ${width}px`).toEqual([]);
+    await page.screenshot({ path: `artifacts/crew-studio/after-default-${width}.png`, animations: 'disabled' });
+    if (width === 1440) await page.screenshot({ path: 'artifacts/crew-studio/after-full-1440.png', fullPage: true, animations: 'disabled' });
+    await audit('.bot-page');
+    await page.getByRole('button', { name: /^Application history/ }).click();
+    await expect(page.getByRole('region', { name: 'Application history', exact: true }).locator('article[data-attempt]')).toHaveCount(6);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `artifacts/crew-studio/after-history-${width}.png`, animations: 'disabled' });
+    await audit('.bot-page');
+    await page.getByRole('button', { name: 'Your crew', exact: true }).click();
+    await singleRun(page, 'Naukri').click();
+    const review = page.getByRole('dialog', { name: /^Run .+\?$/ });
+    await expect(review).toBeVisible();
+    await page.screenshot({ path: `artifacts/crew-studio/after-review-${width}.png`, animations: 'disabled' });
+    await audit('#confirm');
+    await review.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.getByRole('button', { name: 'Run multiple', exact: true }).click();
+    await choose(page, 'Naukri');
+    await choose(page, 'Hirist');
+    const settings = await openSettings(page);
+    await page.screenshot({ path: `artifacts/crew-studio/after-settings-${width}.png`, animations: 'disabled' });
+    await audit('.crew-settings-dialog');
+    await openAdvanced(settings);
+    const bounds = await settings.boundingBox();
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    await audit('.crew-settings-dialog');
+    await settings.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.getByRole('heading', { name: 'Bot Crew', exact: true }).scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: `artifacts/crew-studio/after-multiple-${width}.png`, animations: 'disabled' });
+    await audit('.bot-page');
+    await page.getByRole('button', { name: 'Cancel selection', exact: true }).click();
   }
   expect(errors).toEqual([]);
   expect(state.batches).toEqual([]);

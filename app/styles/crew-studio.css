@@ -1,0 +1,133 @@
+/* A roster of specialists: shared team surfaces, individual robot identities. */
+.crew-workspace.crew-studio { max-width: 1560px; }
+.crew-studio .page-head { margin-bottom: 18px; gap: 5px 20px; }
+.crew-studio .page-head h1 { font-size: 38px; font-weight: 750; line-height: 1.15; letter-spacing: -.055em; }
+.crew-studio .page-head .lead { font-size: 14px; }
+.crew-studio .crew-mode-button { border-color: var(--border-strong); background: var(--canvas-raised); }
+.crew-studio .crew-mode-button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+
+.crew-studio .crew-view-tabs { display: flex; align-items: center; gap: 8px 18px; flex-wrap: wrap; min-width: 0; margin: 0 0 16px; border-bottom: 1px solid var(--border); }
+.crew-studio .crew-view-tabs > button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 10px 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--text-600); background: transparent; font: 550 14px/1.5 var(--font-body); }
+.crew-studio .crew-view-tabs > button:is([aria-selected="true"], [aria-pressed="true"], .is-active) { border-bottom-color: var(--accent); color: var(--text-900); font-weight: 650; }
+.crew-studio .crew-history-switch { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px; color: var(--text-900); background: var(--canvas-raised); font: 550 13px/1.5 var(--font-body); }
+.crew-studio .crew-history-switch:hover { border-color: var(--accent); color: var(--accent); }
+.crew-studio .crew-history-switch:is([aria-pressed="true"], [aria-selected="true"], .is-active) { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.crew-studio .crew-history-switch :is(.badge, .crew-history-count) { display: inline-grid; place-items: center; min-width: 21px; height: 21px; padding: 1px 6px; border-radius: 7px; color: var(--accent); background: var(--accent-soft); font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.crew-studio .crew-view-tabs > .text-link { min-height: 44px; margin-left: auto; font-size: 13px; }
+.crew-studio .crew-view-switches { display: flex; align-items: center; flex-wrap: wrap; gap: 22px; min-width: 0; }
+.crew-studio .crew-view-tabs .crew-view-switches > button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 10px 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--text-600); background: transparent; font: 550 14px/1.5 var(--font-body); }
+.crew-studio .crew-view-tabs .crew-view-switches > button:hover { color: var(--accent); }
+.crew-studio .crew-view-tabs .crew-view-switches > button:is([aria-selected="true"], [aria-pressed="true"], .is-active) { border-bottom-color: var(--accent); color: var(--text-900); background: transparent; font-weight: 650; }
+
+.crew-studio .crew-toolbar { gap: 10px 16px; margin-bottom: 18px; }
+.crew-studio .crew-category-tabs { gap: 2px; padding: 0; border: 0; background: transparent; }
+.crew-studio .crew-category-tabs button { min-height: 44px; padding: 8px 11px; border-radius: 9px; font-size: 13px; }
+.crew-studio .crew-category-tabs button[aria-pressed="true"] { border-color: var(--border); color: var(--text-900); background: var(--canvas-raised); box-shadow: none; }
+.crew-studio .crew-category-tabs button :is(.badge, .crew-category-count) { background: transparent; }
+.crew-studio .search-control { flex-basis: 180px; max-width: 270px; border-color: var(--border); }
+.crew-studio .filter-count { color: var(--text-600); font-size: 11px; }
+
+.crew-studio .crew-team-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 18px; min-width: 0; }
+.crew-studio .crew-team { min-width: 0; border: 1px solid var(--border); border-radius: 18px; background: var(--canvas-raised); box-shadow: 0 3px 12px #342a2305; }
+.crew-studio .crew-team-header { position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; min-height: 116px; padding: 18px 20px; border-bottom: 1px solid var(--border); border-radius: 17px 17px 0 0; overflow: hidden; background: var(--canvas-sunken); }
+.crew-studio .crew-team-header > div { position: relative; z-index: 1; max-width: calc(100% - 76px); min-width: 0; }
+.crew-studio .crew-team-header h2 { margin: 0; color: inherit; font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -.045em; }
+.crew-studio .crew-team-header p { margin: 4px 0 0; color: inherit; font-size: 12px; line-height: 1.5; }
+.crew-studio .crew-team-count { position: relative; z-index: 1; display: inline-flex; align-items: center; min-height: 20px; padding: 2px 7px; border: 1px solid color-mix(in srgb, currentColor 20%, transparent); border-radius: 6px; color: inherit; font-size: 10px; font-weight: 550; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.crew-studio .crew-team-header > div > .crew-team-count { margin-bottom: 4px; }
+.crew-studio .crew-team-art { position: absolute; right: -3px; bottom: -5px; width: 112px; height: 112px; max-width: none; flex: none; border: 0; border-radius: 0; box-shadow: none; pointer-events: none; }
+.crew-studio .crew-team-art :is(img, .avatar) { width: 100%; height: 100%; object-fit: contain; border: 0; border-radius: 0; box-shadow: none; }
+.crew-studio .crew-team[data-team="applications"] .crew-team-header { color: var(--canvas-raised); border-bottom-color: var(--text-900); background: var(--text-900); }
+.crew-studio .crew-team[data-team="applications"] .crew-team-header p { color: var(--ink-800); }
+.crew-studio .crew-team[data-team="profiles"] .crew-team-header { color: var(--text-900); background: var(--accent-soft); }
+.crew-studio .crew-team[data-team="profiles"] .crew-team-header p { color: var(--text-600); }
+.crew-studio .crew-team[data-team="career"] .crew-team-header { color: var(--text-900); background: var(--canvas-sunken); }
+.crew-studio .crew-team[data-team="career"] .crew-team-header p { color: var(--text-600); }
+.crew-studio .crew-team-bots { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; padding: 0 12px; }
+
+.crew-studio .crew-bot-card.crew-roster-bot { display: grid; grid-template-columns: minmax(0, 1fr) 66px; align-items: center; column-gap: 8px; row-gap: 4px; min-height: 120px; margin: 0; padding: 12px 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; box-shadow: none; transform: none; transition: background-color 160ms; }
+.crew-studio .crew-roster-bot:last-child { border-bottom: 0; }
+.crew-studio .crew-bot-card.crew-roster-bot:hover { border-color: var(--border); background: color-mix(in srgb, var(--canvas-sunken) 28%, transparent); box-shadow: none; }
+.crew-studio .crew-bot-card.crew-roster-bot.is-selected { position: relative; background: color-mix(in srgb, var(--accent-soft) 62%, var(--canvas-raised)); box-shadow: inset 3px 0 0 var(--accent); }
+.crew-studio .crew-roster-bot.is-selected .bot-top { padding-left: 5px; }
+.crew-studio .crew-roster-bot .bot-top { grid-column: 1; grid-row: 1; display: grid; grid-template-columns: 60px minmax(0, 1fr); align-items: center; justify-content: start; gap: 4px 9px; min-width: 0; margin: 0; }
+.crew-studio .crew-roster-bot .bot-icon { grid-column: 1; grid-row: 1 / span 2; align-self: center; width: 60px; height: 60px; border-radius: 14px; box-shadow: none; transform: none; }
+.crew-studio .crew-roster-bot:hover .bot-icon { transform: none; }
+.crew-studio .crew-roster-bot .crew-bot-title { grid-column: 2; grid-row: 1; min-width: 0; margin: 0; }
+.crew-studio .crew-roster-bot .crew-bot-title h3 { margin: 0; font-size: 15px; font-weight: 650; line-height: 1.3; letter-spacing: -.025em; overflow-wrap: anywhere; }
+.crew-studio .crew-roster-bot .crew-outcome { margin-top: 4px; color: var(--text-600); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.crew-studio .crew-roster-bot .bot-status { grid-column: 2; grid-row: 2; justify-self: start; gap: 4px; max-width: 100%; margin: 0; padding: 0; color: var(--text-600); background: transparent; font-size: 10px; font-weight: 450; line-height: 1.4; }
+.crew-studio .crew-roster-bot .bot-status .status-pin { width: 5px; height: 5px; flex: none; }
+.crew-studio .crew-roster-bot .bot-status.is-live { color: var(--success); background: transparent; }
+.crew-studio .crew-roster-bot .bot-status.needs-setup { color: var(--amber-600); }
+.crew-studio .crew-roster-bot .bot-actions { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 2px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.crew-studio .crew-roster-bot .bot-actions > .crew-card-run { order: 0; display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: 66px; min-width: 0; min-height: 44px; margin: 0; padding: 7px 5px; border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); border-radius: 9px; color: var(--accent); background: var(--accent-soft); box-shadow: none; font-size: 12px; font-weight: 600; line-height: 1.35; text-align: center; white-space: normal; }
+.crew-studio .crew-roster-bot .bot-actions > .crew-card-run:hover { color: var(--accent-hover); border-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 82%, var(--canvas-raised)); }
+.crew-studio .crew-roster-bot .crew-card-run .icon { width: 14px; height: 14px; flex: none; }
+.crew-studio .crew-roster-bot .bot-actions > .crew-configure { order: 1; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; min-height: 44px; margin: 0; padding: 12px; border: 1px solid transparent; border-radius: 9px; color: var(--text-600); background: transparent; }
+.crew-studio .crew-roster-bot .bot-actions > .crew-configure:hover { color: var(--accent); border-color: var(--border); background: var(--canvas-sunken); text-decoration: none; }
+.crew-studio .crew-roster-bot .crew-configure .icon { width: 17px; height: 17px; }
+.crew-studio .crew-roster-bot .crew-pick { order: 0; flex-direction: column; gap: 3px; width: 66px; min-width: 0; min-height: 50px; margin: 0; padding: 5px 2px; border-radius: 9px; font-size: 10px; line-height: 1.3; }
+.crew-studio .crew-roster-bot .crew-pick input { width: 24px; height: 24px; }
+.crew-studio .crew-roster-bot .crew-card-history { grid-column: 1 / -1; grid-row: 2; margin: 0; padding-left: 69px; color: var(--text-600); font-size: 10px; line-height: 1.5; }
+.crew-studio .crew-team-board > .bot-empty { grid-column: 1 / -1; border: 1px solid var(--border); border-radius: 16px; background: var(--canvas-raised); }
+
+/* A filtered team uses the workspace instead of leaving two empty columns. */
+.crew-studio .crew-team-board:has(> .crew-team:only-child),
+.crew-studio .crew-team-board[data-visible-teams="1"] { grid-template-columns: minmax(0, 1fr); }
+.crew-studio .crew-team:only-child .crew-team-bots,
+.crew-studio .crew-team-board[data-visible-teams="1"] .crew-team-bots { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 22px; padding-inline: 16px; }
+.crew-studio .crew-team:only-child .crew-team-header,
+.crew-studio .crew-team-board[data-visible-teams="1"] .crew-team-header { min-height: 100px; }
+.crew-studio .crew-team:only-child .crew-team-header > div,
+.crew-studio .crew-team-board[data-visible-teams="1"] .crew-team-header > div { max-width: calc(100% - 110px); }
+.crew-studio .crew-team:only-child .crew-team-art,
+.crew-studio .crew-team-board[data-visible-teams="1"] .crew-team-art { right: 24px; }
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .crew-studio .crew-team-board { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .crew-studio .crew-team[data-team="career"]:last-child:nth-child(3) { grid-column: 1 / -1; }
+  .crew-studio .crew-team[data-team="career"]:last-child:nth-child(3) .crew-team-bots { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 22px; }
+  .crew-studio .crew-team:only-child .crew-team-bots,
+  .crew-studio .crew-team-board[data-visible-teams="1"] .crew-team-bots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .crew-studio .crew-category-tabs { flex: 0 1 auto; }
+  .crew-studio .search-control { max-width: none; }
+}
+
+@media (max-width: 767px) {
+  .crew-studio .page-head { gap: 6px 10px; margin-bottom: 16px; }
+  .crew-studio .page-head h1 { font-size: 30px; }
+  .crew-studio .page-head .lead { font-size: 13px; line-height: 1.6; }
+  .crew-studio .crew-mode-button { padding-inline: 11px; }
+  .crew-studio .crew-view-tabs { gap: 8px 16px; margin-bottom: 12px; }
+  .crew-studio .crew-view-tabs > button { font-size: 13px; }
+  .crew-studio .crew-view-tabs .crew-view-switches > button { font-size: 13px; }
+  .crew-studio .crew-view-switches { gap: 18px; }
+  .crew-studio .crew-view-tabs > .text-link { margin-left: 0; }
+  .crew-studio .crew-history-switch { font-size: 12px; }
+  .crew-studio .crew-toolbar { gap: 8px 10px; margin-bottom: 16px; }
+  .crew-studio .crew-category-tabs { flex: 1 0 100%; width: 100%; gap: 1px; }
+  .crew-studio .crew-category-tabs button { min-height: 44px; padding: 7px 4px; font-size: 11px; }
+  .crew-studio .search-control { min-width: 0; max-width: none; }
+  .crew-studio .filter-count { font-size: 11px; }
+  .crew-studio .crew-team-board,
+  .crew-studio .crew-team:only-child .crew-team-bots,
+  .crew-studio .crew-team-board[data-visible-teams="1"] .crew-team-bots { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .crew-studio .crew-team-header { min-height: 110px; padding: 16px 18px; }
+  .crew-studio .crew-team-header h2 { font-size: 24px; }
+  .crew-studio .crew-team-header p { font-size: 12px; }
+  .crew-studio .crew-team-art { width: 108px; height: 108px; right: 2px; bottom: -4px; }
+  .crew-studio .crew-team:only-child .crew-team-art,
+  .crew-studio .crew-team-board[data-visible-teams="1"] .crew-team-art { right: 2px; }
+  .crew-studio .crew-team-bots,
+  .crew-studio .crew-team:only-child .crew-team-bots,
+  .crew-studio .crew-team-board[data-visible-teams="1"] .crew-team-bots { gap: 0; padding-inline: 12px; }
+  .crew-studio .crew-bot-card.crew-roster-bot { min-height: 116px; padding-block: 12px; }
+  .crew-studio .crew-roster-bot .crew-bot-title h3 { font-size: 15px; }
+  .crew-studio .crew-roster-bot .crew-outcome { font-size: 11px; }
+  .crew-studio .crew-roster-bot .bot-status { font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crew-studio .crew-bot-card.crew-roster-bot { transition: none; }
+}

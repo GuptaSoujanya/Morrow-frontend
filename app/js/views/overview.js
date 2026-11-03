@@ -21,7 +21,10 @@ const CHANNELS = [
   { key: "naukri", label: "Naukri", cls: "s-naukri" },
   { key: "boards", label: "Job boards", cls: "s-boards" },
   { key: "company", label: "Company sites", cls: "s-company" },
+  { key: "startups", label: "Startups", cls: "s-startups" },
 ];
+const sentOn = (r) => r.naukri + r.boards + r.company + (r.startups || 0);
+const sentText = (s) => `${num(s.naukri)} on Naukri · ${num(s.boards)} on job boards · ${num(s.company)} on company sites · ${num(s.startups || 0)} at startups`;
 const KINDS = [
   ["sent", "Sent"],
   ["waiting", "Needs you"],
@@ -67,9 +70,9 @@ function kpis(d) {
     kpiCard({
       label: 'Applications sent',
       value: num(d.sent.total),
-      sub: `${num(d.sent.naukri)} on Naukri · ${num(d.sent.boards)} on job boards · ${num(d.sent.company)} on company sites`,
+      sub: sentText(d.sent),
       change: changeFrom(d.sent.total, d.sent.before, d.days),
-      extra: sparkline(d.daily.map((r) => r.naukri + r.boards + r.company)),
+      extra: sparkline(d.daily.map(sentOn)),
     }),
     kpiCard(quota.limit ? {
       label: "Daily application quota",
@@ -107,7 +110,7 @@ function sentPanel(d) {
       .toLocaleDateString("en-GB", short ? { weekday: "short", day: "numeric" } : { day: "numeric", month: "short" })
       .replace("Sept", "Sep");
   const detailFor = r => Object.entries(NOT_SENT).filter(([key])=>r[key]).map(([key,phrase])=>phrase(r[key])).join(', ');
-  const best = rows.reduce((top, r) => (r.naukri + r.boards + r.company > top.n ? { n: r.naukri + r.boards + r.company, day: r.day } : top), { n: 0, day: "" });
+  const best = rows.reduce((top, r) => (sentOn(r) > top.n ? { n: sentOn(r), day: r.day } : top), { n: 0, day: "" });
   const label = `Applications sent per day, ${rangeText(d)}: ${num(d.sent.total)} in all${best.n ? `, most on ${longDate(best.day)} (${num(best.n)})` : ""}.`;
   return panel(
     "Application activity",
@@ -329,9 +332,9 @@ function pipelineSummary(d){
 function platformSummary(d){
   return panel('Platform performance',{cls:'span-8 platform-panel',sub:'Discovered jobs and confirmed submissions in the selected period',tools:h('a',{class:'text-link',href:'#/analytics',text:'Full analytics →'})},
     dataTable([['Platform'],['Discovered','num'],['Matched','num'],['Submitted','num'],['Controls']],(d.boards || []).map(board=>h('tr',{},
-      h('th',{scope:'row',text:({naukri:'Naukri',hirist:'Hirist',instahyre:'Instahyre',cutshort:'Cutshort',wellfound:'Wellfound',external:'Company sites'})[board.key] || board.label || board.key}),
+      h('th',{scope:'row',text:({naukri:'Naukri',hirist:'Hirist',instahyre:'Instahyre',cutshort:'Cutshort',wellfound:'Wellfound',startups:'Startups',external:'Company sites'})[board.key] || board.label || board.key}),
       h('td',{class:'num tabular',text:num(board.found)}),h('td',{class:'num tabular',text:num(board.over)}),h('td',{class:'num tabular',text:num(board.sent)}),
-      h('td',{},h('a',{class:'text-link',href:board.key==='naukri'?'#/naukri':board.key==='external'?'#/sites':'#/boards/'+board.key,'aria-label':'Configure '+board.key,text:'Configure'}))))));
+      h('td',{},h('a',{class:'text-link',href:board.key==='naukri'?'#/naukri':board.key==='external'||board.key==='startups'?'#/sites':'#/boards/'+board.key,'aria-label':'Configure '+board.key,text:'Configure'}))))));
 }
 function orbitHeader(d){
   const waiting=(S.status.questions?.length||0)+(S.status.facts?.length||0)+(S.status.sites?.length||0);
@@ -342,7 +345,7 @@ function orbitHeader(d){
       h('button',{class:'btn export-button',type:'button','aria-label':'Export data',title:'Export daily activity',disabled:!d,onclick:()=>exportDaily(d),text:'Export'})));
 }
 function careerCard(d){
-  return h('section',{class:'career-card','aria-label':'Application summary'},h('div',{class:'career-card-copy'},h('div',{class:'career-card-label',text:'Applications in this period'}),h('p',{class:'career-number'},h('strong',{text:num(d.sent.total)}),h('span',{text:'applications sent'})),h('p',{class:'career-context',text:`${num(d.sent.naukri)} on Naukri · ${num(d.sent.boards)} on job boards · ${num(d.sent.company)} on company sites`}),h('div',{class:'career-actions'},h('a',{class:'btn btn-primary',href:'#/records/applications/submitted',text:'View applications'}))),h('div',{class:'career-art','aria-hidden':'true'},h('span',{class:'orbital-ring orbital-ring-back'}),avatar(12,'hero-avatar'),h('span',{class:'orbital-ring orbital-ring-front'}),h('span',{class:'orbit-satellite'})));
+  return h('section',{class:'career-card','aria-label':'Application summary'},h('div',{class:'career-card-copy'},h('div',{class:'career-card-label',text:'Applications in this period'}),h('p',{class:'career-number'},h('strong',{text:num(d.sent.total)}),h('span',{text:'applications sent'})),h('p',{class:'career-context',text:sentText(d.sent)}),h('div',{class:'career-actions'},h('a',{class:'btn btn-primary',href:'#/records/applications/submitted',text:'View applications'}))),h('div',{class:'career-art','aria-hidden':'true'},h('span',{class:'orbital-ring orbital-ring-back'}),avatar(12,'hero-avatar'),h('span',{class:'orbital-ring orbital-ring-front'}),h('span',{class:'orbit-satellite'})));
 }
 function orbitMetrics(d){
   return h('div',{class:'orbit-metrics'},[
@@ -383,7 +386,7 @@ export function renderAnalytics() {
 
 function exportDaily(data) {
   if (!data) return;
-  const keys = ['day', 'naukri', 'boards', 'company', 'waiting', 'skipped', 'failed'];
+  const keys = ['day', 'naukri', 'boards', 'company', 'startups', 'waiting', 'skipped', 'failed'];
   const csv = [keys.join(','), ...data.daily.map(row => keys.map(key => row[key] ?? 0).join(','))].join('\r\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const link = h('a', { href: url, download: `job-hunt-${data.start}-${data.end}.csv` });

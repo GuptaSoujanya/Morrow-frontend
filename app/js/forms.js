@@ -243,7 +243,7 @@ export function updateRunButtons() {
   }
 }
 
-async function run(action, options, { confirm } = {}) {
+async function run(action, options, { confirm, onStarted } = {}) {
   const scope = accountRequestSignal();
   if (scope.aborted || pendingStarts.get(action)?.scope === scope) return;
   const trigger = document.activeElement;
@@ -265,6 +265,7 @@ async function run(action, options, { confirm } = {}) {
     scope.throwIfAborted();
     if (S.consoleSize === "collapsed") setConsoleSize("normal");
     toast(`Started ${reply.label}.`, "info", 2500);
+    onStarted?.(reply);
   } catch (error) {
     if (!scope.aborted && error.name !== 'AbortError') toast(error.message, "error");
   } finally {
@@ -298,7 +299,7 @@ export function quickButton(action, label, options = {}, extra = {}) {
     class: `btn ${extra.tone ? `btn-${extra.tone}` : ""}`,
     type: "button",
     dataset: { action: `${action}-fixed`, runAction: action },
-    onclick: () => run(action, options, { confirm: typeof extra.confirm === "function" ? extra.confirm() : extra.confirm }),
+    onclick: () => run(action, options, { confirm: typeof extra.confirm === "function" ? extra.confirm() : extra.confirm, onStarted: extra.onStarted }),
   }, label);
   S.runButtons[`${action}-fixed:${label}`] = button;
   return button;

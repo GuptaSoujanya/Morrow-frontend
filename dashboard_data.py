@@ -8,7 +8,7 @@ from web import state
 from common import paths
 
 SUBMITTED = {'applied','applied_platform','applied_external'}
-BOARDS = {'all','naukri','hirist','instahyre','cutshort','wellfound','external'}
+BOARDS = {'all','naukri','hirist','instahyre','cutshort','wellfound','startups','external'}
 
 
 def shown_path(path):

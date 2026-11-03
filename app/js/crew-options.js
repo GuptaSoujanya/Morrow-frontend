@@ -12,14 +12,21 @@ export function crewRunSpec(bot, forms = {}, browserMode = 'visible') {
   } else if (action === 'company_research') {
     options = {limit:10};
     effect = 'Research up to 10 pending employers from saved jobs. Save public details and sources without sending messages.';
+  } else if (action === 'startups') {
+    options = {...pick(values, ['limit', 'no_tailor', 'headless']), dry_run: false};
+    effect = 'Find YC and Hacker News startup jobs open to India, apply on their own sites, and save email drafts for posts with a hiring address. Emails are never sent.';
+  } else if (action === 'company_outreach') {
+    options = {limit:10};
+    label = 'Find emails & draft';
+    effect = 'Find public hiring contacts for up to 10 companies. Save one resume pitch per recipient, and sync to Gmail Drafts when connected. No emails are sent.';
   } else if (action === 'boards') {
-    options = {...pick(values, ['limit']), board: bot.board || bot.id, ...(bot.mode ? {mode: bot.mode} : {}), dry_run: false};
+    options = {...pick(values, ['limit', 'update_profile']), board: bot.board || bot.id, ...(bot.mode ? {mode: bot.mode} : {}), dry_run: false};
     effect = bot.mode === 'profile' ? `Create or update your ${bot.name.replace(/ profile$/, '')} profile using saved facts.` : `Submit matching job applications on ${bot.name}, using your configured limits.`;
   } else if (action === 'naukri') {
-    options = {...pick(values, ['keywords', 'location', 'limit', 'headless', 'answer_mode', 'min_score', 'max_days_old', 'llm_backend']), dry_run: false};
+    options = {...pick(values, ['keywords', 'location', 'limit', 'headless', 'answer_mode', 'min_score', 'max_days_old', 'llm_backend', 'early_access', 'early_access_only', 'early_access_limit']), dry_run: false};
     effect = 'Submit matching job applications on Naukri, using your configured limits.';
   } else if (action === 'profile') {
-    options = {...pick(values, ['headless', 'review']), dry_run: false};
+    options = {...pick(values, ['headless', 'review', 'if_due']), dry_run: false};
     effect = 'Refresh your Naukri profile and upload your resume when due.';
   } else if (action === 'linkedin_profile') {
     effect = 'Update your LinkedIn profile using your saved facts.';

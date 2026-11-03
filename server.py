@@ -40,7 +40,7 @@ import runner_setup
 import user_repo
 
 BOARDS = ("hirist", "instahyre", "cutshort", "wellfound")
-BOT_IDS = ("naukri", *BOARDS, "external", "profile", "linkedin", "linkedin_profile", "cold_email", "resume", "learn", "brief", "research", 'company_research', *(board + '_profile' for board in BOARDS))
+BOT_IDS = ("naukri", *BOARDS, "startups", "external", "profile", "linkedin", "linkedin_profile", "cold_email", "resume", "learn", "brief", "research", 'company_research', 'company_outreach', *(board + '_profile' for board in BOARDS))
 
 
 def board_command(options, save=False):
@@ -438,6 +438,7 @@ class DashboardHandler(server.Handler):
                 return True
             query = {key: values[-1] for key, values in parse_qs(url.query).items()}
             required = {"/api/library": "research", "/api/document": "research", '/api/companies':'research',
+                        '/api/company-outreach/gmail':'research',
                         '/api/application-agent':'automations', '/api/application-agent/resolve':'automations',
                         "/api/research/learning": "learning", "/api/research/read": "learning"}.get(url.path)
             if url.path == '/api/document' and re.fullmatch(r'interview/day-\d{1,2}', query.get('id', '')):
@@ -562,7 +563,13 @@ class DashboardHandler(server.Handler):
                 return self.json(dashboard_data.records(query))
             if url.path == '/api/companies':
                 from common.company_store import summary
-                return self.json(summary(state.database(), query))
+                from common.config import load_settings
+                from common.company_outreach import attach_rows, public_status
+                settings = load_settings(overrides={'db_path':str(state.database())})
+                data = summary(state.database(), query)
+                attach_rows(settings, data['rows'])
+                data['outreach'] = public_status(settings)
+                return self.json(data)
             if url.path == '/api/application-agent':
                 from common.config import load_settings
                 from sites_bot.application_brain import history
@@ -633,6 +640,18 @@ class DashboardHandler(server.Handler):
         if self.account_request():
             return
         path = urlsplit(self.path).path
+        if path == '/api/company-outreach/gmail':
+            if not self.host_ok() or not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
+                return self.error(HTTPStatus.FORBIDDEN, 'Only this dashboard can connect Gmail drafts.')
+            try:
+                from common.config import load_settings
+                from common.company_outreach import connect_gmail
+                data = self.body()
+                return self.json(connect_gmail(load_settings(), data.get('sender',''), data.get('password','')))
+            except ValueError as exc:
+                return self.error(400, str(exc))
+            except OSError:
+                return self.error(503, 'The Gmail connection could not be saved. Try again.')
         if path == '/api/application-agent/resolve':
             if not self.host_ok() or not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
                 return self.error(HTTPStatus.FORBIDDEN, 'Only this dashboard can review an attempt.')
@@ -834,7 +853,8 @@ class DashboardServer(server.ControlServer):
 
 def register_actions():
     server.ACTIONS.update(boards=board_command, pipeline=pipeline_command)
-    server.ACTIONS.update(company_research=commands.company_research_command)
+    server.ACTIONS.update(company_research=commands.company_research_command, company_outreach=commands.company_outreach_command,
+                          startups=commands.startups_command)
     server.ACTIONS.update(naukri=commands.naukri_command, profile=commands.profile_command,
                          linkedin_profile=commands.linkedin_profile_command,
                          cold_email=commands.cold_email_command)

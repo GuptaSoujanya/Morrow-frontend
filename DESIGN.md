@@ -248,3 +248,19 @@ One SVG serves the sidebar, sign-in, missing pages, loaders and the favicon. Siz
 Every finished state shares one badge: a round sage coin (`#37694c`, radial highlight at the top left, soft lift) with a bold white tick that pops in once. It replaces the square outlined boxes on the Today checklist, the week strip, the completion banner, status chips, practice question tabs and flow steps. Pending counterparts stay hollow: a thin numbered ring on the checklist and a dashed ring for empty days, so the done state always reads first. Today keeps a terracotta halo around its coin. The DSA checkpoint checkboxes are round as well and fill with the same sage. Styles live in `app/styles/completion-marks.css`; the motion respects `prefers-reduced-motion`.
 
 Toasts are no longer dark tiles. They are raised cream cards with a 5px tone bar on the left (terracotta for info, sage for success, amber for warnings, red for errors), a tinted surface for the three accent tones, dark body text and a quiet dismiss button. They keep their bottom-right anchor and their enter and leave motion.
+
+
+## Companies spreadsheet — November 3, 2026
+
+The user selected white rows, compact spacing and minimal decoration. Companies uses a neutral table surface within the existing shell. Show company, email and phone first. Keep research status quiet, show additional contacts as a count, and open sources, company facts and email pitches in a detail panel. Contacts and Drafts views keep each task focused. Search stays visible; optional filters open from one button and applied filters remain visible. On phones, retain the three contact columns and open details as a full-screen dialog.
+
+Research: [Carbon data-table guidance](https://www.carbondesignsystem.com/building-blocks/core/components/data-table/guidelines) informed the compact toolbar and consistent rows. [NN/g table guidance](https://www.nngroup.com/articles/data-tables/) informed adjacent related information, sticky headers and a detail panel that preserves table context. Saved drafts, Gmail connection, copying, evidence links, keyboard navigation and honest missing-data labels remain functional.
+
+### Companies selection and Gmail — November 3, 2026
+
+The compact white table retains Morrow's warm text, borders and terracotta actions. Native
+row checkboxes support selection across filters and pages; the header checkbox selects the
+visible page, up to 50 companies. The selection bar names the Gmail destination and reviews
+the exact company list before starting. Successful starts open the Drafts view. Local files,
+verified Gmail drafts and uncertain saves have distinct labels. Google browser readiness comes
+from the saved connection; the active account and saved draft are checked during each run.

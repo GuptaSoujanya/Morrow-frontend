@@ -71,3 +71,6 @@
   .dimensional-donut .donut-segment { stroke-dasharray: var(--arc-length) var(--ring-circumference) !important; animation: none !important; }
   .chart-column { transition: none; }
 }
+
+.chart-prism.s-startups, .chart-series.s-startups { color: var(--violet-ink); }
+.swatch.s-startups { background: var(--violet-ink); }

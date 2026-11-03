@@ -24,6 +24,11 @@ def test_company_endpoint_and_job_flags_use_same_record(app, monkeypatch):
     assert status==200 and records['rows'][0]['company_research']==dict(id=key,status='partial',researched=True,information_found=True)
     assert request(app,'GET','/api/companies?status=made-up')[0]==400
     assert request(app,'GET','/api/companies?size=1000')[0]==400
+    assert request(app,'GET','/api/companies?contact=made-up')[0]==400
+    status, contacts=request(app,'GET','/api/companies?contact=missing')
+    assert status==200 and contacts['contact_counts']==dict(all=1,email=0,phone=0,missing=1)
+    assert len(contacts['rows'])==1
+    assert request(app,'GET','/api/companies?contact=email')[1]['rows']==[]
 
 
 def test_command_is_bounded_and_reserves_same_resource_as_pipeline():
@@ -43,6 +48,43 @@ def test_nonowner_cannot_read_company_database_or_application_attempts(app):
     app[0].account_bridge=Accounts()
     for endpoint in ('/api/companies','/api/application-agent'):
         assert request(app,'GET',endpoint)[0]==403
+    assert request(app,'POST','/api/company-outreach/gmail',{'sender':'a@gmail.com','password':'a'*16})[0]==403
+
+
+def test_outreach_commands_are_bounded_and_share_draft_and_research_locks():
+    command=commands.company_outreach_command({'all':True})
+    assert '--all' in command.argv
+    resource=resources_for(command,'company_outreach')
+    assert conflicts(resource,resources_for(commands.cold_email_command({}),'cold_email'))
+    assert conflicts(resource,resources_for(commands.company_research_command({}),'company_research'))
+    assert 'browser:main' in resource
+    for options in ({'limit':0},{'limit':51},{'company':'../bad'},{'company':'a'*24,'all':True}):
+        with pytest.raises(ValueError):commands.company_outreach_command(options)
+
+
+def test_outreach_selected_company_commands_preserve_exact_ids_and_require_gmail():
+    selected = ['a'*24, 'b'*24]
+    command = commands.company_outreach_command({'companies':selected, 'require_gmail':True})
+    assert [command.argv[index+1] for index, value in enumerate(command.argv) if value=='--company']==selected
+    assert '--require-gmail' in command.argv and '--all' not in command.argv
+    for selection in ([], 'a'*24, [True], ['../bad'], selected*2, [f'{n:024x}' for n in range(51)]):
+        with pytest.raises(ValueError):
+            commands.company_outreach_command({'companies':selection})
+    for additional in ({'company':'c'*24}, {'all':True}):
+        with pytest.raises(ValueError):
+            commands.company_outreach_command({'companies':selected, **additional})
+
+
+def test_gmail_setup_is_same_origin_and_does_not_return_password(app,monkeypatch):
+    from common import company_outreach
+    called=[]
+    monkeypatch.setattr(company_outreach,'connect_gmail',lambda settings,sender,password:called.append((sender,password)) or {'connected':True,'sender':sender})
+    payload={'sender':'applicant@gmail.com','password':'a'*16}
+    assert request(app,'POST','/api/company-outreach/gmail',payload,{'Origin':'https://other.example'})[0]==403
+    assert not called
+    status,result=request(app,'POST','/api/company-outreach/gmail',payload)
+    assert status==200 and result=={'connected':True,'sender':'applicant@gmail.com'}
+    assert called==[('applicant@gmail.com','a'*16)]
 
 
 def test_agent_review_cannot_be_cross_origin_or_release_a_running_attempt(app, monkeypatch):

@@ -9,7 +9,7 @@ import {readQuery,writeQuery,pageNumber,choice} from '../url-state.js';
 import { selectControl } from '../components/controls.js';
 import { researchPill } from './companies.js';
 
-const boardNames={naukri:'Naukri',hirist:'Hirist',instahyre:'Instahyre',cutshort:'Cutshort',wellfound:'Wellfound',external:'Company site'};
+const boardNames={naukri:'Naukri',hirist:'Hirist',instahyre:'Instahyre',cutshort:'Cutshort',wellfound:'Wellfound',startups:'Startups',external:'Company site'};
 export function outcomePill(row) {return h('span',{class:`result-pill result-${row.kind}`,text:row.label});}
 export function recordTable(rows, compact=false) {
   return dataTable(compact ? [['Role / company'],['Platform'],['Outcome'],['When']] : [['Role / company'],['Platform'],['Outcome'],['Match score','num'],['When']],

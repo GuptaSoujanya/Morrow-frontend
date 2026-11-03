@@ -7,6 +7,28 @@ async function choose(page,label,value){
   await page.locator('[role=listbox]:popover-open').locator(`[role=option][data-value="${value}"]`).click();
 }
 
+async function openCrewSettings(page, name) {
+  await page.getByRole('button', { name: `Configure ${name}`, exact: true }).click();
+}
+
+async function fixtureCrewLaunch(page) {
+  const state = { plans: [], batches: [] };
+  await page.route('**/api/run/batch/preview', route => {
+    const request = route.request().postDataJSON();
+    state.plans.push(request);
+    return route.fulfill({ json: {
+      ready: true, conflicts: [],
+      items: request.runs.map(item => ({ key: item.key, label: 'Hirist', shown: 'python -m sites_bot.platforms --site hirist' })),
+    } });
+  });
+  await page.route('**/api/run/batch', route => {
+    const request = route.request().postDataJSON();
+    state.batches.push(request);
+    return route.fulfill({ json: { ok: true, results: request.runs.map(item => ({ key: item.key, label: 'Hirist', ok: true, id: 'fixture-hirist' })) } });
+  });
+  return state;
+}
+
 const pages = ['overview', 'bots', 'analytics', 'pipeline', 'naukri', 'boards', 'sites', 'profile', 'linkedin', 'resume', 'reports', 'study', 'todo', 'setup', 'files', 'records', 'research', 'outreach', 'linkedin-profile', 'data'];
 const sampleFiles = {
   env: 'NAUKRI_EMAIL=demo@example.com\nNAUKRI_PASSWORD=sample-secret\nMIN_SCORE=45\nKEYWORDS=AI Engineer\n',
@@ -186,40 +208,55 @@ test('empty history is honest and reduced-motion disables transitions', async ({
 
 test('bot inventory is visible, searchable and opens the selected board', async ({ page }) => {
   await page.goto('/#/bots');
-  await expect(page.locator('.bot-card')).toHaveCount(18);
-  await expect(page.locator('.bot-status').first()).toContainText('Idle');
+  await expect(page.getByRole('heading', {name:'Bot Crew',exact:true})).toBeVisible();
+  await expect(page.locator('.bot-card')).toHaveCount(21);
+  await expect(page.getByRole('button', {name:'All bots',exact:true})).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('checkbox', {name:/^Select /})).toHaveCount(0);
+  await page.getByRole('button', {name:'Applications',exact:true}).click();
+  await expect(page.locator('.bot-card')).toHaveCount(7);
+  await expect(page.getByRole('button', {name:'Run now — Hirist',exact:true})).toBeEnabled();
+  await page.getByRole('button', {name:'All bots',exact:true}).click();
+  await expect(page.locator('.bot-card')).toHaveCount(21);
   await page.getByRole('searchbox', {name:'Find a bot'}).fill('hirist');
   await expect(page.locator('.bot-card')).toHaveCount(2);
-  await page.getByRole('button', {name:'Configure Hirist',exact:true}).click();
+  await openCrewSettings(page, 'Hirist');
   await expect(page).toHaveURL(/#\/boards\/hirist$/);
-  await expect(page.getByRole('combobox',{name:'Job board',exact:true})).toHaveAttribute('data-value','hirist');
+  await expect(page.getByRole('heading',{name:'Hirist',exact:true})).toBeVisible();
+  await expect(page.getByRole('combobox',{name:'Job board',exact:true})).toHaveCount(0);
   await expect(page.locator('.preview')).toContainText('--site hirist');
-  await page.getByRole('link', {name:'← Bot Crew'}).click();
-  await page.getByRole('searchbox', {name:'Find a bot'}).fill('');
-  await page.getByRole('button', {name:'Career & research',exact:true}).click();
-  await expect(page.locator('.bot-card')).toHaveCount(6);
-  await page.getByRole('button', {name:'Configure Learning assistant',exact:true}).click();
+  await mkdir('artifacts/crew-refinement', { recursive: true });
+  for (const width of [1440, 375]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.getByRole('heading', {name:'Hirist',exact:true}).scrollIntoViewIfNeeded();
+    await page.screenshot({path:`artifacts/crew-refinement/refined-hirist-${width}.png`,animations:'disabled',fullPage:true});
+  }
+  await page.setViewportSize({width:1280,height:720});
+  await page.getByRole('navigation', {name:'Breadcrumb'}).getByRole('link', {name:'Bot Crew',exact:true}).click();
+  await expect(page.getByRole('button', {name:'Run now — Hirist',exact:true})).toBeVisible();
+  await page.getByRole('button', {name:'Career',exact:true}).click();
+  await expect(page.locator('.bot-card')).toHaveCount(8);
+  await openCrewSettings(page, 'Learning assistant');
   await expect(page.getByRole('combobox',{name:'Stages to run',exact:true})).toHaveAttribute('data-value','learn');
   await expect(page.locator('.preview')).toContainText('--only learn');
 });
 
-test('individual bot live run previews and submits exactly that board', async ({ page }) => {
-  const runs=[];
-  await page.route('**/api/run', route => {
-    if(route.request().method()==='POST') { runs.push(route.request().postDataJSON()); return route.fulfill({json:{label:'Hirist · practice',ok:true}}); }
-    return route.fallback();
-  });
+test('single bot run previews and submits exactly that board', async ({ page }) => {
+  const state = await fixtureCrewLaunch(page);
   await page.goto('/#/bots');
-  await page.getByRole('button', {name:'Run now — Hirist',exact:true}).click();
-  await expect(page.getByRole('dialog', {name:'Run Hirist?'})).toBeVisible();
+  const run = page.getByRole('button', {name:'Run now — Hirist',exact:true});
+  await run.click();
+  await expect(page.getByRole('dialog', {name:'Run Hirist?',exact:true})).toBeVisible();
+  await page.getByRole('dialog').getByText('Technical details', {exact:true}).click();
   await expect(page.locator('.confirm-code')).toContainText('--site hirist');
   await expect(page.locator('.confirm-code')).not.toContainText('--dry-run');
   await page.getByRole('button',{name:'Cancel',exact:true}).click();
-  expect(runs).toHaveLength(0);
-  await page.getByRole('button', {name:'Run now — Hirist',exact:true}).click();
-  await page.getByRole('button',{name:'Run it',exact:true}).click();
-  await expect.poll(()=>runs.length).toBe(1);
-  expect(runs[0]).toEqual({action:'boards',options:{board:'hirist',dry_run:false}});
+  expect(state.batches).toHaveLength(0);
+  await expect(run).toBeFocused();
+  await run.click();
+  await page.getByRole('dialog').getByRole('button',{name:'Run now',exact:true}).click();
+  await expect.poll(()=>state.batches.length).toBe(1);
+  expect(state.batches[0]).toEqual({runs:[{key:'hirist',action:'boards',options:{board:'hirist',dry_run:false,browser_mode:'visible'}}]});
+  expect(state.batches[0]).toEqual(state.plans.at(-1));
 });
 
 test('active bot keeps other run controls available and exposes confirmed stop', async ({ page }) => {
@@ -231,9 +268,10 @@ test('active bot keeps other run controls available and exposes confirmed stop',
   let stops=0;
   await page.route('**/api/stop',route=>{stops++;return route.fulfill({json:{ok:true,message:'Stopping fixture'}});});
   await page.goto('/#/bots');
-  await expect(page.locator('[data-bot="hirist"] .bot-status')).toHaveText('In current run');
+  await expect(page.locator('[data-bot="hirist"]')).toHaveClass(/is-running/);
+  await expect(page.getByRole('button',{name:'Run now — Hirist',exact:true})).toHaveCount(0);
   await expect(page.getByRole('button',{name:'Run now — Naukri',exact:true})).toBeEnabled();
-  await page.getByRole('button',{name:'View live run',exact:true}).click();
+  await page.getByRole('button',{name:'View progress — Hirist',exact:true}).click();
   await expect(page.locator('.console')).toHaveAttribute('data-size','normal');
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   await expect(page.getByRole('dialog',{name:'Stop Hirist · practice?'})).toBeVisible();
@@ -246,11 +284,11 @@ test('bot status failure is explicit and can be retried', async ({ page }) => {
   await page.route('**/api/bots',route=>failed ? route.fulfill({status:503,json:{error:'Status temporarily unavailable'}}) : route.fallback());
   await page.goto('/#/bots');
   await expect(page.locator('.inline-notice')).toContainText('Bot status is unavailable');
-  await expect(page.locator('.bot-status').first()).toHaveText('Status unavailable');
   failed=false;
   await page.getByRole('button',{name:'Try again',exact:true}).click();
   await expect(page.locator('.inline-notice')).toHaveCount(0);
-  await expect(page.locator('.bot-status').first()).toHaveText('Idle');
+  await expect(page.getByText('Status unavailable', {exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Run now — Naukri',exact:true})).toBeEnabled();
 });
 
 test('schedule disable is explicit and uses the registered action', async ({ page }) => {
@@ -269,13 +307,14 @@ test('schedule disable is explicit and uses the registered action', async ({ pag
 });
 
 test('route and dialog motion settles and Escape restores the triggering control', async ({ page }) => {
+  const state = await fixtureCrewLaunch(page);
   await page.goto('/');
   await page.locator('.nav-group a[href="#/bots"]').click();
-  await expect(page.getByRole('heading',{name:'Meet your Bot Crew',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Bot Crew',exact:true})).toBeVisible();
   await page.locator('main').evaluate(async el=>{await Promise.all(el.getAnimations({subtree:true}).filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})));});
   const trigger=page.getByRole('button',{name:'Run now — Hirist',exact:true});
   await trigger.click();
-  const dialog=page.getByRole('dialog',{name:'Run Hirist?'});
+  const dialog=page.getByRole('dialog',{name:'Run Hirist?',exact:true});
   await expect(dialog).toBeVisible();
   expect(await dialog.evaluate(el=>getComputedStyle(el).animationName)).toBe('dialog-in');
   await dialog.evaluate(async el=>{await Promise.all(el.getAnimations().map(a=>a.finished));});
@@ -283,6 +322,7 @@ test('route and dialog motion settles and Escape restores the triggering control
   await page.screenshot({animations:'disabled',path:'artifacts/bot-dialog-settled.png'});
   await page.keyboard.press('Escape');
   await expect(trigger).toBeFocused();
+  expect(state.batches).toHaveLength(0);
 });
 
 test('records explorer filters real data, preserves search focus and drills down from metrics',async({page})=>{
@@ -309,6 +349,7 @@ test('records explorer filters real data, preserves search focus and drills down
 
 test('new controls preview exact CLI options without running bots',async({page})=>{
   await page.goto('/#/naukri');
+  await page.getByText('Advanced matching options', {exact:true}).click();
   await page.getByLabel('Minimum match score').fill('66');
   await page.getByLabel('Maximum job age (days)').fill('5');
   await choose(page,'Scoring provider','none');
@@ -331,13 +372,14 @@ test('new controls preview exact CLI options without running bots',async({page})
   await page.getByRole('button',{name:'Cancel',exact:true}).click();
   await page.goto('/#/pipeline/brief%3Apapers');
   await expect(page.getByRole('combobox',{name:'Stages to run',exact:true})).toHaveAttribute('data-value','brief:papers');
-  await page.getByLabel('Rerun selected stages').check();
+  await page.getByText('Advanced settings', {exact:true}).click();
+  await page.getByLabel('Rerun selected completed stages').check();
   await page.getByLabel('Research agents').fill('3');
   await choose(page,'AI CLI','kiro');
   await expect(page.locator('.preview')).toContainText('--only brief:papers --dry-run --redo --cli kiro --agents 3');
   await choose(page,'Stages to run','');
   await expect(page.locator('.preview')).toContainText('Select a stage or group');
-  await expect(page.getByRole('button',{name:'Continue pipeline'})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'Run configured flow',exact:true})).toBeDisabled();
 });
 
 test('research documents can be searched, opened and read in their dark sandbox',async({page})=>{
@@ -371,7 +413,8 @@ test('launchpad search and avatar shortcuts open the right workspace controls',a
   await expect(page.getByText('No records match these filters.',{exact:true})).toBeVisible();
   await page.goto('/#/overview');
   await page.getByRole('button',{name:'Configure Hirist',exact:true}).click();
-  await expect(page.getByRole('combobox',{name:'Job board',exact:true})).toHaveAttribute('data-value','hirist');
+  await expect(page.getByRole('heading',{name:'Hirist',exact:true})).toBeVisible();
+  await expect(page.getByRole('combobox',{name:'Job board',exact:true})).toHaveCount(0);
   await expect(page.locator('.preview')).toContainText('--site hirist');
 });
 
@@ -425,6 +468,7 @@ test('calendar supports typed errors, keyboard dates, months, clearing and mobil
 
 test('bounded fields show persistent inline guidance and recover on correction',async({page})=>{
   await page.goto('/#/naukri');
+  await page.getByText('Advanced matching options', {exact:true}).click();
   const score=page.getByLabel('Minimum match score');
   await score.fill('150');await score.press('Tab');
   await expect(score).toHaveAttribute('aria-invalid','true');
@@ -561,15 +605,17 @@ test('Research Studio and Data hub expose real sources and all-time records',asy
 test('profile crew selects profile-only previews for all four new platforms',async({page})=>{
   for(const name of ['Hirist','Instahyre','Cutshort','Wellfound']){
     await page.goto('/#/bots');
-    await page.getByRole('button',{name:'Profile crew',exact:true}).click();
+    await page.getByRole('button',{name:'Profiles',exact:true}).click();
     await expect(page.locator('.bot-card')).toHaveCount(6);
-    await page.getByRole('button',{name:`Configure ${name} profile`,exact:true}).click();
-    await expect(page.getByRole('combobox',{name:'Job board',exact:true})).toHaveAttribute('data-value',name.toLowerCase());
-    await expect(page.getByRole('combobox',{name:'Action',exact:true})).toHaveAttribute('data-value','profile');
+    await openCrewSettings(page, `${name} profile`);
+    await expect(page.getByRole('heading',{name:`${name} profile`,exact:true})).toBeVisible();
+    await expect(page.getByRole('combobox',{name:'Job board',exact:true})).toHaveCount(0);
+    await expect(page.getByRole('combobox',{name:'Action',exact:true})).toHaveCount(0);
     await expect(page.locator('.preview')).toContainText(`--site ${name.toLowerCase()} --profile-only --create-profile --dry-run`);
   }
   await page.goto('/#/boards/wellfound');
-  await expect(page.getByRole('combobox',{name:'Action',exact:true})).toHaveAttribute('data-value','apply');
+  await expect(page.getByRole('heading',{name:'Wellfound',exact:true})).toBeVisible();
+  await expect(page.getByRole('combobox',{name:'Action',exact:true})).toHaveCount(0);
   await expect(page.locator('.preview')).not.toContainText('--profile-only');
 });
 

@@ -229,7 +229,7 @@ def test_bot_status_includes_each_parallel_run_and_ignores_completed_runs(monkey
 
 
 @pytest.mark.parametrize('selection,expected', [
-    ('--only apply', {'naukri', *dashboard.BOARDS}),
+    ('--only apply', {'naukri', 'startups', *dashboard.BOARDS}),
     ('--only profile --skip profile:linkedin', {'profile', *(board + '_profile' for board in dashboard.BOARDS)}),
     ('--only apply:wellfound', {'wellfound'}),
     ('--only profile:linkedin', {'linkedin_profile'}),
@@ -393,3 +393,11 @@ def test_every_reply_refuses_to_be_framed_by_other_sites(app):
         assert response.getheader('X-Frame-Options') == 'SAMEORIGIN', (method, path)
         assert response.getheader('X-Content-Type-Options') == 'nosniff', (method, path)
         connection.close()
+
+
+def test_the_startup_bot_has_its_own_card_and_command():
+    import commands
+
+    assert 'startups' in dashboard.BOT_IDS
+    command = commands.startups_command({'limit': 5, 'dry_run': True})
+    assert command.argv[-4:] == ('startup_bot', '--limit', '5', '--dry-run')
