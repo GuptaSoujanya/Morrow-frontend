@@ -18,7 +18,8 @@ import { normalizeFirebaseActionLink } from './firebase-auth.js';
 import { AUTH_ROUTES as authPages, ACCOUNT_ROUTES as accountPages, routeAccess, preloadRoute, keyboardRoutes, routeLabel } from './access-policy.js';
 import { renderAccessState } from './views/access-state.js';
 import { renderNotFound } from './views/not-found.js';
-import { createRunStream, runLifecycleChanged } from './run-stream.js';
+import { runLifecycleChanged } from './run-stream.js';
+import { createVisibleRunStream } from './visible-run-stream.js';
 import { receiveAnswerNotifications, resetAnswerNotifications } from './answer-notifications.js';
 normalizeFirebaseActionLink();
 const refreshBots=()=>import('./views/bots.js').then(m=>m.refreshBots());
@@ -271,7 +272,7 @@ function startRunStream(){
   runStream?.close();runStream=null;
   if(!S.legacyAccess||!S.status)return;
   const scope=accountRequestSignal();
-  runStream=createRunStream({
+  runStream=createVisibleRunStream({
     signal:scope,
     getCursor:()=>({next:S.runNext,epoch:S.runEpoch}),
     readSnapshot:({next,epoch},{signal})=>api(`/api/run?${new URLSearchParams({after:String(next),...(epoch?{epoch}:{})})}`,undefined,{signal}),
@@ -299,7 +300,9 @@ function poll(){
       if(JSON.stringify(S.user)!==previous)render();
     }
     if(!S.legacyAccess||!S.meta||document.hidden)return;
-    await hooks.refreshStatus({refreshRun:runStream?.state!=='live'});scope.throwIfAborted();
+    // The activity transport handles its own reconnect/fallback reads. Summary
+    // polling must not add another activity request when a tab becomes visible.
+    await hooks.refreshStatus({refreshRun:!runStream});scope.throwIfAborted();
     if(['overview','bots'].includes(S.route.name)&&routeAccess('bots',S).kind==='allowed')await refreshBots();
     scope.throwIfAborted();
     if(S.route.name==='overview'&&S.overview&&Date.now()-S.overview.at>60000){S.overview=null;render();}
