@@ -62,7 +62,10 @@ export function selectBot(bot) {
   } else navigate(bot.route);
 }
 export function botIcon(bot) {
-  return avatar(bot.image??Math.max(0,BOTS.findIndex(b=>b.id===bot.id)),'bot-icon');
+  // Keep familiar identities stable when another specialist joins the catalogue.
+  const identities={naukri:0,hirist:1,instahyre:2,cutshort:3,wellfound:4,external:5,profile:6,
+    linkedin:7,linkedin_profile:8,cold_email:9,resume:10,learn:11,brief:12,research:13,startups:20};
+  return avatar(bot.image??identities[bot.id]??0,'bot-icon');
 }
 export function botCard(bot) {
   const state = S.bots?.data?.bots.find(b => b.id === bot.id);
