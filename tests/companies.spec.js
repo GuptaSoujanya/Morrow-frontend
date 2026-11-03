@@ -9,7 +9,7 @@ const acme={company_id:key,name:'Acme Labs',status:'partial',updated_at:17936100
 const pending={...acme,company_id:'b'.repeat(24),name:'Northstar Systems',status:'pending',fields:{},jobs:[{job_id:'n1',title:'AI Engineer',url:'https://example.com/northstar'}],job_count:1,updated_at:null};
 const missing={...acme,company_id:'c'.repeat(24),name:'Unlisted Employer',status:'not_found',fields:{},jobs:[{job_id:'u1',title:'AI Engineer',url:'https://example.com/unlisted'}],job_count:1};
 const counts={pending:1,researching:0,found:0,partial:1,not_found:1,failed:0};
-const outreach={sender:'applicant@gmail.com',gmail_configured:true,gmail_method:'browser',workflow_version:2,resume_ready:true,resume_name:'Resume.pdf'};
+const outreach={sender:'applicant@gmail.com',gmail_configured:true,gmail_method:'browser',workflow_version:2,resume_ready:true,resume_name:'Resume.pdf',automatic_drafts:true};
 const payload=rows=>({rows,counts,contact_counts:{all:3,email:1,phone:1,missing:2},total:rows.length,page:1,pages:1,size:20,outreach});
 test.beforeEach(async({page})=>{
   await page.emulateMedia({reducedMotion:'reduce'});
@@ -34,187 +34,116 @@ test.beforeEach(async({page})=>{
   });
 });
 
-for(const width of [1440,1024,768,375])test(`outreach table and role controls work at ${width}px`,async({page})=>{
+for(const width of [1440,1024,768,375])test(`simple company table works at ${width}px`,async({page})=>{
   await page.setViewportSize({width,height:960});await page.goto('/#/companies');
   const table=page.getByRole('table');
-  await expect(table.getByRole('columnheader')).toHaveText(width<=700?['','Company & role','Email & phone']:['','Company & role','Email & phone','Progress','Draft']);
+  await expect(table.getByRole('columnheader')).toHaveText(width<=700?['','Company','Email & phone']:['','Company','Email & phone','Status','Gmail draft']);
+  await expect(page.getByRole('combobox',{name:/Role for/})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Create Gmail draft',exact:true})).toHaveCount(3);
+  await expect(page.getByRole('button',{name:/Review role|View details|Retry draft/})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:/Create Gmail drafts \(/})).toHaveCount(0);
   for(const name of ['Copy email: careers@example.com','Copy phone: +1 415 555 0100']){
     const bounds=await page.getByRole('button',{name,exact:true}).boundingBox();
     expect(bounds.x).toBeGreaterThanOrEqual(0);expect(bounds.x+bounds.width).toBeLessThanOrEqual(width);
   }
-  await page.getByRole('combobox',{name:'Role for Acme Labs'}).click();
-  await page.getByRole('option',{name:'AI Engineer',exact:true}).click();
-  await page.getByRole('checkbox',{name:'Select Acme Labs',exact:true}).check();
-  await expect(page.getByRole('button',{name:'Create selected drafts (1)',exact:true})).toBeEnabled();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   expect((await new AxeBuilder({page}).include('.companies-page').analyze()).violations).toEqual([]);
-  await mkdir('artifacts/companies',{recursive:true});
-  await page.screenshot({path:`artifacts/companies/outreach-${width}.png`,fullPage:true});
-  await page.getByRole('button',{name:'Filters',exact:true}).click();
-  await page.getByRole('combobox',{name:'Contact availability'}).click();
-  await page.getByRole('option',{name:'With email (1)',exact:true}).click();
-  await page.getByRole('button',{name:'Done',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Northstar Systems',exact:true})).toHaveCount(0);
+  await mkdir('artifacts/companies',{recursive:true});await page.screenshot({path:`artifacts/companies/simple-${width}.png`,fullPage:true});
   await page.getByRole('button',{name:'Acme Labs',exact:true}).click();
-  const dialog=page.getByRole('dialog',{name:'Acme Labs',exact:true});
+  const dialog=page.getByRole('dialog',{name:'Acme Labs'});
   await expect(dialog.getByRole('link',{name:'Source · example.com'})).toHaveCount(2);
-  await dialog.getByRole('button',{name:'Company',exact:true}).click();
+  await dialog.getByText('Company information & sources',{exact:true}).click();
   await expect(dialog).toContainText('No public CTO or hiring manager could be confirmed.');
   expect((await new AxeBuilder({page}).include('.company-drawer').analyze()).violations).toEqual([]);
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('button',{name:'Acme Labs',exact:true})).toBeFocused();
+  await page.keyboard.press('Escape');await expect(page.getByRole('button',{name:'Acme Labs',exact:true})).toBeFocused();
 });
 
-async function mockTab(page){
-  await page.addInitScript(()=>{window.openedTabs=[];window.open=()=>{const tab={opener:window,closed:false,document:{title:'',body:{textContent:''}},location:{replace:value=>window.openedTabs.push(value)},close(){this.closed=true;}};return tab;};});
-}
-test('one click starts exactly the selected roles and opens the independent Gmail handoff tab',async({page})=>{
-  const starts=[];await mockTab(page);
-  await page.route('**/api/run',route=>{starts.push(route.request().postDataJSON());return route.fulfill({json:{id:'fixture-run',label:'Company drafts'}});});
-  await page.goto('/#/companies');
-  await page.getByRole('combobox',{name:'Role for Acme Labs'}).click();await page.getByRole('option',{name:'Backend Engineer',exact:true}).click();
-  await page.getByRole('checkbox',{name:'Select Acme Labs',exact:true}).check();
+test('one click automatically finds and drafts without role selection or a popup',async({page})=>{
+  const starts=[];let phase='queued',updated=Date.now()/1000;
+  const target='https://mail.google.com/mail/u/?authuser=applicant%40gmail.com#search/verified';
+  await page.addInitScript(()=>{window.popupCalls=0;window.open=()=>{window.popupCalls++;return null;};});
+  await page.route('**/api/run',route=>{starts.push(route.request().postDataJSON());updated=Date.now()/1000;return route.fulfill({json:{id:'automatic-run'}});});
+  await page.route('**/api/companies?*',route=>route.fulfill({json:payload([{...acme,...(starts.length?{workflow:{phase,message:phase==='ready'?'Saved and verified.':'Writing an email from your résumé.',updated_at:updated},drafts:phase==='ready'?[{state:'gmail',gmail_url:target,title:'AI Engineer'}]:[]}:{})}])}));
+  await page.goto('/#/companies');await page.getByRole('button',{name:'Create Gmail draft',exact:true}).click();
+  await expect.poll(()=>starts.length).toBe(1);
+  expect(starts[0]).toEqual({action:'company_outreach',options:{companies:[key],automatic:true,require_gmail:true}});
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(await page.evaluate(()=>window.popupCalls)).toBe(0);
+  phase='writing';await expect(page.getByRole('button',{name:'Creating…',exact:true})).toBeDisabled();
+  // Progress still updates with a table checkbox focused.
+  await page.locator('thead input').focus();
+  phase='ready';updated=Date.now()/1000;
+  await expect(page.getByRole('link',{name:'Open Gmail',exact:true})).toHaveAttribute('href',target,{timeout:10000});
+  await expect(page.getByRole('link',{name:'Open Gmail',exact:true})).toHaveAttribute('target','_blank');
+  await expect(page.locator('.company-cell-progress')).toContainText('Saved in Gmail');
+  expect(starts).toHaveLength(1);
+});
+
+test('batch drafting preserves only selected companies across filters with no extra dialog',async({page})=>{
+  const starts=[];await page.route('**/api/run',route=>{starts.push(route.request().postDataJSON());return route.fulfill({json:{id:'selected-run'}});});
+  await page.goto('/#/companies');await page.getByRole('checkbox',{name:'Select Acme Labs',exact:true}).check();
   await page.getByRole('searchbox',{name:'Search companies'}).fill('Northstar');
   await expect(page.getByRole('checkbox',{name:'Select Acme Labs',exact:true})).toHaveCount(0);
   await page.getByRole('checkbox',{name:'Select Northstar Systems',exact:true}).check();
-  await page.getByRole('button',{name:'Create selected drafts (2)',exact:true}).click();
+  await page.getByRole('button',{name:'Create Gmail drafts (2)',exact:true}).click();
   await expect.poll(()=>starts.length).toBe(1);
-  expect(starts[0]).toEqual({action:'company_outreach',options:{companies:[key,pending.company_id],roles:{[key]:'j2',[pending.company_id]:'n1'},require_gmail:true}});
-  await expect.poll(()=>page.evaluate(()=>window.openedTabs.length)).toBe(1);
-  const destination=await page.evaluate(()=>window.openedTabs[0]);
-  expect(destination).toContain('/#/companies?watch='+key+','+pending.company_id+'&since=');
+  expect(starts[0].options).toEqual({companies:[key,pending.company_id],automatic:true,require_gmail:true});
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
-test('a missing role cannot silently draft for a different job',async({page})=>{
-  const starts=[];await page.route('**/api/run',route=>{starts.push(route.request());return route.fulfill({json:{}});});
-  await page.goto('/#/companies');
-  await page.getByRole('checkbox',{name:'Select Acme Labs',exact:true}).check();
-  await page.getByRole('button',{name:'Create selected drafts (1)',exact:true}).click();
-  await expect(page.getByRole('alert')).toContainText('Choose the role for Acme Labs first.');
-  await expect(page.getByRole('combobox',{name:'Role for Acme Labs'})).toBeFocused();expect(starts).toHaveLength(0);
+test('a previous role mismatch is handled by the same one-click action',async({page})=>{
+  const starts=[];
+  await page.route('**/api/companies?*',route=>route.fulfill({json:payload([{...pending,workflow:{phase:'failed',job_id:'n1',message:'Unrelated role.',issue:{code:'role_mismatch'}}}])}));
+  await page.route('**/api/run',route=>{starts.push(route.request().postDataJSON());return route.fulfill({json:{id:'retry-run'}});});
+  await page.goto('/#/companies');await page.getByRole('button',{name:'Create Gmail draft',exact:true}).click();
+  await expect.poll(()=>starts.length).toBe(1);expect(starts[0].options.automatic).toBe(true);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
-test('a previous failed run does not stop the new workflow progress',async({page})=>{
-  await mockTab(page);
-  let started=false,ready=false;
-  await page.route('**/api/run',route=>{started=true;return route.fulfill({json:{id:'new-run'}});});
-  await page.route('**/api/companies?*',route=>{
-    const polling=new URL(route.request().url()).searchParams.has('ids');
-    const state=ready?{phase:'ready',message:'New draft verified.',updated_at:Date.now()/1000}: {phase:'failed',message:'Old failed run.',updated_at:1};
-    return route.fulfill({json:payload([{...pending,workflow:polling&&started?state:null}])});
-  });
-  await page.goto('/#/companies');
-  await page.getByRole('button',{name:'Create draft',exact:true}).click();
-  const panel=page.getByRole('region',{name:'Current draft workflow'});
-  await expect(panel).toContainText('Waiting for the draft run to start.');
-  await expect(panel).not.toContainText('Old failed run.');
-  ready=true;
-  await expect(panel).toContainText('New draft verified.',{timeout:10000});
+test('fast repeated clicks cannot start duplicate draft runs',async({page})=>{
+  const starts=[];await page.route('**/api/run',async route=>{starts.push(route.request().postDataJSON());await new Promise(r=>setTimeout(r,300));await route.fulfill({json:{id:'one-run'}});});
+  await page.goto('/#/companies');await page.getByRole('button',{name:'Create Gmail draft',exact:true}).first().dblclick({force:true});
+  await expect.poll(()=>starts.length).toBe(1);
+  await expect(page.getByRole('button',{name:'Creating…',exact:true})).toBeDisabled();
+  expect(starts).toHaveLength(1);
 });
 
-test('Gmail handoff waits for verified saved contents before opening the correct draft',async({page})=>{
-  const since=Date.now()/1000,target='https://mail.google.com/mail/u/0/#search/verified-test';
-  let ready=false;
-  await page.route('https://mail.google.com/**',route=>route.fulfill({contentType:'text/html',body:'<title>Gmail test</title>Gmail draft'}));
-  await page.route('**/api/companies?*',route=>route.fulfill({json:payload([{...acme,workflow:{phase:ready?'ready':'saving',message:ready?'Draft verified.':'Checking the attachment.',updated_at:since+1,title:'AI Engineer'},drafts:ready?[{state:'gmail',gmail_url:target}]:[]}])}));
-  await page.goto('/#/companies?watch='+key+'&since='+since);
-  await expect(page.getByRole('heading',{name:'Preparing your Gmail draft'})).toBeVisible();
-  await expect(page.getByText('Checking the attachment.',{exact:true})).toBeVisible();
-  expect(page.url()).not.toContain('mail.google.com');ready=true;
-  await expect(page).toHaveURL(target,{timeout:10000});
+test('a failed start leaves one usable retry action and preserves selection',async({page})=>{
+  await page.route('**/api/run',route=>route.fulfill({status:409,json:{error:'The Google browser is busy. Try again when the other run finishes.'}}));
+  await page.goto('/#/companies');await page.getByRole('checkbox',{name:'Select Acme Labs',exact:true}).check();
+  await page.getByRole('button',{name:'Create Gmail drafts (1)',exact:true}).click();
+  await expect(page.getByRole('alert')).toContainText('Google browser is busy');
+  await expect(page.getByRole('checkbox',{name:'Select Acme Labs',exact:true})).toBeChecked();
+  await expect(page.getByRole('button',{name:'Create Gmail drafts (1)',exact:true})).toBeEnabled();
 });
 
-test('role mismatch stays visible with the timeline and never opens Gmail',async({page})=>{
-  const since=Date.now()/1000;
-  await page.route('**/api/companies?*',route=>route.fulfill({json:payload([{...acme,workflow:{phase:'failed',message:'This role is not supported by the résumé. Choose a matching role.',updated_at:since+1,title:'Front Office Executive',history:[{phase:'contacts'},{phase:'writing'}]}}])}));
-  await page.goto('/#/companies?watch='+key+'&since='+since);
-  await expect(page.getByRole('heading',{name:'Your draft needs attention'})).toBeVisible();
-  await expect(page.getByText('This role is not supported by the résumé. Choose a matching role.',{exact:true})).toBeVisible();
-  expect((await new AxeBuilder({page}).include('.outreach-watch').analyze()).violations).toEqual([]);
-  expect(page.url()).not.toContain('mail.google.com');
+test('ready draft details show the subject and resume and open the saved Gmail draft',async({page})=>{
+  const target='https://mail.google.com/mail/u/?authuser=applicant%40gmail.com#search/verified';
+  await page.route('**/api/companies?*',route=>route.fulfill({json:payload([{...acme,drafts:[{state:'gmail',subject:'Introduction: software opportunities',recipient:'careers@example.com',body:'I build evaluation tools. My resume is attached.',resume:'Resume.pdf',gmail_url:target}]}])}));
+  await page.goto('/#/companies');await expect(page.getByRole('link',{name:'Open Gmail',exact:true})).toHaveAttribute('href',target);
+  await page.getByRole('button',{name:'Acme Labs',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'Acme Labs'});await expect(dialog).toContainText('Introduction: software opportunities');await expect(dialog).toContainText('Resume attached: Resume.pdf');
 });
 
-test('a stopped run exits the waiting screen and preserves the completed steps',async({page})=>{
-  const since=Date.now()/1000;
-  await page.route('**/api/companies?*',route=>{
-    expect(new URL(route.request().url()).searchParams.get('run')).toBe('stopped-run');
-    return route.fulfill({json:{...payload([{...acme,workflow:{phase:'saving',message:'Saving…',updated_at:since+1,title:'AI Engineer',history:[{phase:'contacts'},{phase:'writing'},{phase:'attaching'},{phase:'saving'}]}}]),draft_run:{id:'stopped-run',running:false,stopped:true,status:'stopped'}}});
-  });
-  await page.goto('/#/companies?watch='+key+'&since='+since+'&run=stopped-run');
-  await expect(page.getByRole('heading',{name:'Your draft needs attention'})).toBeVisible();
-  await expect(page.locator('.outreach-watch').getByText('This run was stopped.',{exact:false})).toBeVisible();
-  await expect(page.locator('.outreach-timeline .is-done')).toHaveCount(3);
-  await expect(page.locator('.outreach-timeline .is-failed')).toContainText('Save in Gmail');
-  await expect(page.getByRole('link',{name:'Review and resume'})).toHaveAttribute('href','#/companies/'+key+'?review=1');
+test('missing email remains an honest failure with no fake Gmail success',async({page})=>{
+  await page.route('**/api/companies?*',route=>route.fulfill({json:payload([{...pending,workflow:{phase:'blocked',message:'No verified hiring email was found.'}}])}));
+  await page.goto('/#/companies');await expect(page.locator('.company-cell-progress')).toContainText('No verified hiring email was found.');
+  await expect(page.getByRole('link',{name:'Open Gmail',exact:true})).toHaveCount(0);
 });
 
-for(const width of [1440,375])test(`a rejected single role opens useful recovery without silently retrying at ${width}px`,async({page})=>{
-  const row={...pending,workflow:{phase:'failed',job_id:'n1',title:'Spectro engineer',message:'No résumé evidence for the selected role was identified.',issue:{code:'role_mismatch',resume:'Resume.pdf'},history:[{phase:'contacts'},{phase:'writing'}]},jobs:[{job_id:'n1',title:'Spectro engineer',url:'https://example.com/spectro'}]};
-  const writes=[];
-  await page.setViewportSize({width,height:960});
-  await page.route('**/api/companies?*',route=>route.fulfill({json:payload([row])}));
-  await page.route('**/api/run',route=>{writes.push(route.request());return route.fulfill({json:{}});});
-  await page.goto('/#/companies');
-  await page.getByRole('button',{name:'Review role',exact:true}).click();
-  const dialog=page.getByRole('dialog',{name:row.name});
-  await expect(dialog).toContainText('There is no other saved role for Northstar Systems.');
-  await expect(dialog).toContainText('Spectro engineer');await expect(dialog).toContainText('Resume.pdf');
-  await expect(dialog.getByRole('link',{name:'Read job posting'})).toHaveAttribute('href','https://example.com/spectro');
-  await expect(dialog.getByRole('link',{name:'Review résumé'})).toHaveAttribute('href','/api/company-outreach/resume');
-  await expect(dialog.getByRole('link',{name:'Review résumé'})).toHaveAttribute('target','_blank');
-  await expect(dialog.getByRole('link',{name:'Browse companies'})).toBeVisible();
-  await expect(dialog.getByRole('button',{name:'Retry Gmail draft'})).toHaveCount(0);
-  expect(writes).toHaveLength(0);
-  expect((await new AxeBuilder({page}).include('.company-drawer').analyze()).violations).toEqual([]);
-  await page.screenshot({path:`artifacts/companies/recovery-${width}.png`,fullPage:true});
-});
-
-test('partial success keeps verified Gmail drafts accessible while another company needs review',async({page})=>{
-  const since=Date.now()/1000,target='https://mail.google.com/mail/u/?authuser=applicant%40gmail.com#search/verified';
-  await page.route('**/api/companies?*',route=>route.fulfill({json:payload([
-    {...acme,workflow:{phase:'ready',message:'Verified.',updated_at:since+1},drafts:[{state:'gmail',gmail_url:target}]},
-    {...pending,workflow:{phase:'failed',message:'More information is needed.',updated_at:since+1,issue:{code:'missing_context'}}}
-  ])}));
-  await page.goto('/#/companies?watch='+key+','+pending.company_id+'&since='+since);
-  await expect(page.getByRole('heading',{name:'Some drafts need attention'})).toBeVisible();
-  await expect(page.getByRole('link',{name:'Open verified draft'})).toHaveAttribute('href',target);
-  await expect(page.getByRole('link',{name:'Review role & résumé'})).toBeVisible();
-  expect(page.url()).not.toContain('mail.google.com');
-});
-
-test('blocked popups keep an accessible progress link on the original page',async({page})=>{
-  await page.addInitScript(()=>{window.open=()=>null;});
-  await page.route('**/api/companies?*',route=>route.fulfill({json:payload([pending])}));
-  await page.route('**/api/run',route=>route.fulfill({json:{id:'popup-blocked-run'}}));
-  await page.goto('/#/companies');await page.getByRole('button',{name:'Create draft',exact:true}).click();
-  await expect(page.getByRole('link',{name:'Open progress tab'})).toHaveAttribute('href',/run=popup-blocked-run/);
-  await expect(page.getByText('Draft run started. Allow pop-ups',{exact:false})).toBeVisible();
-});
-
-test('ready draft preview includes subject, recipient and resume with a direct Gmail link',async({page})=>{
-  const target='https://mail.google.com/mail/u/0/#search/verified';
-  await page.route('**/api/companies?*',route=>route.fulfill({json:payload([{...acme,drafts:[{state:'gmail',subject:'AI Engineer application',recipient:'careers@example.com',body:'I build evaluation tools. My resume is attached.',resume:'Resume.pdf',gmail_url:target}]}])}));
-  await page.goto('/#/companies');
-  await expect(page.getByRole('link',{name:'Open Gmail',exact:true}).first()).toHaveAttribute('href',target);
-  await page.getByRole('button',{name:'Review pitch',exact:true}).click();
-  const dialog=page.getByRole('dialog',{name:'Acme Labs'});
-  await expect(dialog).toContainText('AI Engineer application');await expect(dialog).toContainText('careers@example.com');await expect(dialog).toContainText('Resume attached: Resume.pdf');
-  await expect(dialog.getByRole('link',{name:'Open Gmail draft',exact:true})).toHaveAttribute('target','_blank');
-});
-
-test('copy contacts, clear selection and recover a failed request',async({page})=>{
+test('copy contacts, filters, clear selection and load recovery remain usable',async({page})=>{
   await page.addInitScript(()=>{window.copiedContacts=[];Object.defineProperty(navigator,'clipboard',{value:{writeText:async value=>window.copiedContacts.push(value)}});});
-  await page.goto('/#/companies');
-  await page.getByRole('button',{name:'Copy email: careers@example.com',exact:true}).click();
-  await page.getByRole('button',{name:'Copy phone: +1 415 555 0100',exact:true}).click();
-  expect(await page.evaluate(()=>window.copiedContacts)).toEqual(['careers@example.com','+1 415 555 0100']);
+  await page.goto('/#/companies');await page.getByRole('button',{name:'Copy email: careers@example.com',exact:true}).click();
+  expect(await page.evaluate(()=>window.copiedContacts)).toEqual(['careers@example.com']);
   await page.getByRole('checkbox',{name:'Select companies on this page',exact:true}).check();
-  await expect(page.locator('tbody input:checked')).toHaveCount(3);
-  await page.getByRole('button',{name:'Clear selection',exact:true}).click();await expect(page.locator('tbody input:checked')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Create Gmail drafts (3)',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Clear selection',exact:true}).click();
+  await expect(page.getByRole('button',{name:/Create Gmail drafts \(/})).toHaveCount(0);
+  await page.getByRole('button',{name:'Filters',exact:true}).click();await page.getByRole('combobox',{name:'Contact availability'}).click();await page.getByRole('option',{name:'With email (1)',exact:true}).click();await page.getByRole('button',{name:'Done',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Northstar Systems',exact:true})).toHaveCount(0);
   let fail=true;await page.route('**/api/companies?*',route=>fail?route.fulfill({status:503,json:{error:'Database unavailable'}}):route.fulfill({json:payload([])}));
-  await page.getByRole('button',{name:'Refresh companies',exact:true}).click();await expect(page.getByRole('alert')).toContainText('Database unavailable');
-  fail=false;await page.getByRole('button',{name:'Try again',exact:true}).click();await expect(page.getByRole('button',{name:'Clear filters',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Refresh companies'}).click();await expect(page.getByRole('alert')).toContainText('Database unavailable');
+  fail=false;await page.getByRole('button',{name:'Try again',exact:true}).click();await expect(page.getByText('No companies match these filters.')).toBeVisible();
 });
 test('agent review requires explicit checked outcome and preserves cancel',async({page})=>{
   let writes=0;page.on('request',r=>{if(new URL(r.url()).pathname==='/api/application-agent/resolve')writes++;});

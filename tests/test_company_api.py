@@ -101,6 +101,14 @@ def test_exact_roles_are_passed_to_draft_cli_without_allowing_unselected_compani
         with pytest.raises(ValueError):commands.company_outreach_command({'companies':[key],'roles':roles})
 
 
+def test_automatic_draft_command_needs_only_companies_and_saves_to_gmail():
+    options={'companies':['a'*24],'automatic':True,'require_gmail':True}
+    command=commands.company_outreach_command(options)
+    assert '--automatic' in command.argv and '--require-gmail' in command.argv
+    assert '--role' not in command.argv
+    with pytest.raises(ValueError):commands.company_outreach_command({**options,'roles':{'a'*24:'j1'}})
+
+
 def test_progress_poll_returns_only_the_selected_company_ids(app, monkeypatch):
     db=app[1].parent/'test.db'
     with Ledger(str(db)) as ledger:

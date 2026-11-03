@@ -567,15 +567,24 @@ class DashboardHandler(server.Handler):
                 from common.company_outreach import attach_rows, public_status
                 run_id = query.get('run', '')
                 run_state = None
+                outreach_runs={r['id']:r for r in self.server.runner.snapshot()['runs'] if r['action']=='company_outreach'}
                 if run_id:
                     # Snapshot before the DB read: a completed run's final writes
                     # must be visible before the UI decides it was interrupted.
-                    run = next((r for r in self.server.runner.snapshot()['runs'] if r['id']==run_id and r['action']=='company_outreach'),None)
+                    run = outreach_runs.get(run_id)
                     run_state = {key:run.get(key) for key in ('id','running','status','stopped')} if run else {'id':run_id,'running':False,'status':'unavailable'}
                 settings = load_settings(overrides={'db_path':str(state.database())})
                 data = summary(state.database(), query)
                 attach_rows(settings, data['rows'])
                 data['outreach'] = public_status(settings)
+                data['outreach']['running']=any(r['running'] for r in outreach_runs.values())
+                for company in data['rows']:
+                    flow=company.get('workflow')
+                    if flow and flow.get('run_id') and flow.get('phase') in ('queued','contacts','writing','attaching','saving'):
+                        owner_run=outreach_runs.get(flow['run_id'])
+                        old=dt.datetime.now().timestamp()-flow.get('updated_at',0)>10
+                        if (owner_run and not owner_run['running']) or (not owner_run and old):
+                            company['workflow']={**flow,'phase':'failed','message':'The run stopped before saving was confirmed. Click Create Gmail draft to continue safely.'}
                 if run_state is not None:data['draft_run']=run_state
                 return self.json(data)
             if url.path == '/api/company-outreach/resume':

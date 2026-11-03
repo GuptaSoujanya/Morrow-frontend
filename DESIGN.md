@@ -250,25 +250,8 @@ Every finished state shares one badge: a round sage coin (`#37694c`, radial high
 Toasts are no longer dark tiles. They are raised cream cards with a 5px tone bar on the left (terracotta for info, sage for success, amber for warnings, red for errors), a tinted surface for the three accent tones, dark body text and a quiet dismiss button. They keep their bottom-right anchor and their enter and leave motion.
 
 
-## Companies spreadsheet — November 3, 2026
+## Companies: one-click Gmail drafts — November 3, 2026
 
-The user selected white rows, compact spacing and minimal decoration. Companies uses a neutral table surface within the existing shell. Show company, email and phone first. Keep research status quiet, show additional contacts as a count, and open sources, company facts and email pitches in a detail panel. A single table keeps contact details and draft progress together. Search stays visible; optional filters open from one button and applied filters remain visible. On phones, retain company/role and contact/action columns and open details as a full-screen dialog.
+Keep the warm Morrow palette and white spreadsheet rows. The default table has company, email/phone, status and one Create Gmail draft action. No required role selection, review dialog, separate waiting tab, or duplicate per-row actions. The batch action appears only after selecting companies. Progress updates in place and survives reload; completed rows show Open Gmail. Keep contacts and source evidence available through the company name without making that panel part of the drafting workflow.
 
-Research: [Carbon data-table guidance](https://www.carbondesignsystem.com/building-blocks/core/components/data-table/guidelines) informed the compact toolbar and consistent rows. [NN/g table guidance](https://www.nngroup.com/articles/data-tables/) informed adjacent related information, sticky headers and a detail panel that preserves table context. Saved drafts, Gmail connection, copying, evidence links, keyboard navigation and honest missing-data labels remain functional.
-
-### Companies selection and Gmail — November 3, 2026
-
-Keep the warm Morrow palette, compact white rows, and prominent email/phone information.
-Each company has an explicit job role; multiple jobs require a choice rather than silently
-selecting the highest score. Row selection persists across search and pages, up to 50 companies.
-One click on Create draft or Create selected drafts starts the exact selection. Show the
-real persisted phases: find email, write pitch, attach résumé, save in Gmail, ready to review.
-The reserved handoff tab waits for verified Gmail contents before opening the saved draft;
-failures remain visible with a reason. The main table and progress panel use the same state.
-A saved pitch is previewable with subject, recipient and résumé. Never send mail. Verify the
-signed-in Google account and saved contents, preserve uncertain saves for reconciliation,
-and prevent duplicate recipient drafts. Preserve source links and evidence in the detail panel.
-
-### Draft recovery and Gmail handoff — November 3, 2026
-
-Distinguish an AI role mismatch, insufficient job context, unreadable résumé and generation failure. Retain saved job descriptions and check the exact public posting for older records; sparse descriptions alone do not reject a related role. The role review panel names the selected job and PDF, opens the actual configured résumé, and offers a deliberate recheck or another company instead of an unexplained Retry loop. Mark the last reached step when a run stops, and preserve earlier completed steps. Progress links carry the run ID and survive a reload through the saved workflow. The handoff checks runner completion, preserves verified Gmail links on partial success, and leaves a progress link on the original page when pop-ups are blocked. Gmail deep links select the configured sender by email, never the automation browser's numeric account slot.
+Automatic drafting researches public hiring contacts and selects from actual saved jobs using résumé evidence. If no saved job is suitable, prepare an explicitly general hiring inquiry describing the candidate's real background, without claiming an opening or inventing qualifications. Record the final purpose with the draft. Provider failures, unreadable résumés and missing contacts remain explicit failures. Reuse existing recipient drafts and reconcile uncertain saves. Success requires verified Gmail contents and the résumé attachment. Gmail links select the sender email rather than a browser account number. Never send messages.

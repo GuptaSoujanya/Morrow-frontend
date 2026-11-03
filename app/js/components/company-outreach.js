@@ -47,29 +47,20 @@ export function timeline(item){
   }));
 }
 let starting=false;
-export async function startDrafts(items, roles, outreach, onStarted){
+export async function startDrafts(items, outreach, onStarted){
   if(starting)return;
-  if(outreach?.workflow_version!==2){toast('Draft preparation is temporarily unavailable. Refresh the page and retry.','error');return;}
+  if(!outreach?.automatic_drafts){toast('Refresh Companies to load the automatic draft workflow.','error');return;}
   if(!outreach?.gmail_configured){toast('Connect Google / Gmail in Connections before creating drafts.','error');return;}
   if(!outreach.resume_ready){toast('Add your PDF résumé in My profile & files before creating drafts.','error');return;}
   if(!items.length||items.length>50){toast('Choose between 1 and 50 companies.','error');return;}
-  const missing=items.find(item=>!roles[item.company_id]);
-  if(missing){toast(`Choose the role for ${missing.name} first.`,'error');return;}
   starting=true;
   const scope=accountRequestSignal(),since=Date.now()/1000,ids=items.map(item=>item.company_id);
-  // Reserve a tab during the user's click. The handoff page independently tracks
-  // the durable workflow and opens Gmail only after verification succeeds.
-  const tab=window.open('about:blank','_blank');
-  if(tab){tab.opener=null;tab.document.title='Preparing your Gmail draft';tab.document.body.textContent='Starting your draft workflow…';}
-  const href=new URL('#/companies?watch='+ids.join(',')+'&since='+since,location.href);
   try{
-    const result=await api('/api/run',{action:'company_outreach',options:{companies:ids,roles:Object.fromEntries(ids.map(id=>[id,roles[id]])),require_gmail:true}});
+    const result=await api('/api/run',{action:'company_outreach',options:{companies:ids,automatic:true,require_gmail:true}});
     scope.throwIfAborted();
-    if(result.id)href.hash+='&run='+encodeURIComponent(result.id);
-    if(tab&&!tab.closed)tab.location.replace(href.href);else toast('Draft run started. Allow pop-ups for automatic Gmail opening, or use Open Gmail when ready.','info',6000);
     onStarted?.(result,ids,since);
     try{await hooks.refreshStatus?.();}catch{}
-  }catch(error){if(tab&&!tab.closed)tab.close();if(!scope.aborted)toast(error.message,'error');}
+  }catch(error){if(!scope.aborted)toast(error.message,'error');}
   finally{starting=false;}
 }
 
