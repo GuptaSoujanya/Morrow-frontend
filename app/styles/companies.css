@@ -245,3 +245,111 @@
  .company-table th,.company-table td { padding-left:6px; padding-right:6px; }
  .company-table-scroll { max-height:none; }
 }
+
+/* One outreach workspace: role, contacts, progress and the next action together. */
+.companies-outreach .company-page-heading { align-items:flex-start; }
+.outreach-subtitle { margin:6px 0 0; color:var(--text-600); font-size:14px; line-height:1.5; }
+.outreach-connection { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+.outreach-connection .company-connection { font-size:12px; min-height:26px; text-decoration:none; }
+.outreach-resume { color:var(--text-600); font-size:12px; }
+.outreach-connection .company-text-button { min-height:28px; font-size:12px; }
+.outreach-directory-label { font-size:14px; font-weight:600; }
+.companies-outreach .company-table-toolbar { min-height:60px; }
+.companies-outreach .company-search { width:310px; }
+.companies-outreach .company-footer { padding-right:80px; }
+.company-table.is-outreach .company-col-identity { width:29%; }
+.company-table.is-outreach .company-col-contact { width:29%; }
+.company-table.is-outreach .company-col-progress { width:25%; }
+.company-table.is-outreach .company-col-action { width:17%; }
+.company-table.is-outreach td { height:92px; padding-top:8px; padding-bottom:8px; }
+.outreach-role { margin-top:4px; max-width:100%; }
+.outreach-role .select-control { width:100%; min-width:0; }
+.outreach-role .select-trigger { border:1px solid var(--border); background:white; color:var(--text-600); min-height:34px; border-radius:5px; padding:5px 8px; font-size:12px; box-shadow:none; }
+.outreach-role .select-caption { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.outreach-role .select-chevron { width:15px; height:15px; padding:0; background:none; box-shadow:none; }
+.outreach-role-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; color:var(--text-600); font-size:12px; line-height:1.5; }
+.outreach-contact .company-copy { min-height:34px; font-size:13px; font-weight:400; }
+.outreach-phone .company-copy { min-height:28px; font-size:12px; color:var(--text-600); }
+.outreach-contact .company-more { min-height:32px; }
+.outreach-contact .company-muted { font-size:12px; }
+.outreach-state { display:inline-flex; gap:6px; align-items:center; font-size:12px; font-weight:600; line-height:1.4; }
+.outreach-state::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--border-strong); flex:none; }
+.outreach-state.is-ready { color:var(--success); }
+.outreach-state.is-ready::before { background:var(--success); }
+.outreach-state.is-failed,.outreach-state.is-blocked { color:var(--red-600); }
+.outreach-state.is-failed::before,.outreach-state.is-blocked::before { background:var(--red-600); }
+.outreach-state:is(.is-queued,.is-contacts,.is-writing,.is-attaching,.is-saving) { color:var(--accent); }
+.outreach-state:is(.is-queued,.is-contacts,.is-writing,.is-attaching,.is-saving)::before { background:var(--accent); }
+.outreach-progress-note { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; margin-top:5px; color:var(--text-600); font-size:12px; line-height:1.5; }
+.company-create-button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; max-width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:6px; color:var(--accent); background:white; text-decoration:none; font:600 12px/1.4 var(--font-body); cursor:pointer; white-space:normal; }
+.company-create-button:hover { background:var(--accent-soft); border-color:var(--accent); }
+.company-create-button.is-primary { color:white; background:var(--accent); border-color:var(--accent); font-size:13px; }
+.company-create-button.is-primary:hover { background:var(--accent-hover); }
+.company-create-button.is-ready { color:var(--success); }
+.company-create-button:disabled { opacity:.5; cursor:default; }
+.company-create-button .icon { width:14px; height:14px; }
+.outreach-review { display:flex; min-height:28px; font-size:11px; font-weight:400; }
+.outreach-mobile-status,.outreach-mobile-action { display:none; }
+.outreach-run-panel { margin:0 0 20px; padding:20px; background:var(--canvas-raised); border:1px solid var(--border); border-radius:9px; }
+.outreach-run-panel[hidden] { display:none; }
+.outreach-run-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.outreach-run-heading h2 { margin:0; font-size:17px; }
+.outreach-run-item { padding:16px 0; border-top:1px solid var(--border); }
+.outreach-run-item>strong { font-size:14px; }
+.outreach-run-item>p { margin:8px 0 0; font-size:13px; }
+.outreach-timeline { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); padding:0; margin:20px 0; list-style:none; gap:12px; }
+.outreach-timeline li { display:flex; flex-direction:column; gap:8px; color:var(--text-600); font-size:12px; line-height:1.5; }
+.outreach-step-mark { display:flex; align-items:center; justify-content:center; width:26px; height:26px; border:1px solid var(--border-strong); border-radius:50%; font-size:11px; background:var(--canvas-raised); }
+.outreach-timeline .is-done { color:var(--success); }
+.outreach-timeline .is-done .outreach-step-mark { border-color:var(--success); background:var(--success); color:#fff; }
+.outreach-timeline .is-current { color:var(--accent); font-weight:600; }
+.outreach-timeline .is-current .outreach-step-mark { border:2px solid var(--accent); background:var(--accent-soft); }
+.outreach-watch { max-width:900px; }
+.outreach-watch h1 { margin:8px 0; font-size:28px; }
+.outreach-watch header>p { color:var(--text-600); font-size:15px; line-height:1.7; }
+.outreach-watch-item { margin:24px 0; padding:24px; border:1px solid var(--border); border-radius:10px; background:white; }
+.outreach-watch-item h2 { margin:0 0 8px; font-size:20px; }
+.outreach-watch-item p { line-height:1.65; font-size:14px; }
+@media(max-width:1100px) {
+ .companies-outreach .company-search { width:auto; }
+ .company-table.is-outreach .company-col-identity { width:30%; }
+ .company-table.is-outreach .company-col-contact { width:28%; }
+ .company-table.is-outreach .company-col-progress { width:25%; }
+ .company-table.is-outreach .company-col-action { width:17%; }
+ .company-table.is-outreach th,.company-table.is-outreach td { padding-left:10px; padding-right:10px; }
+ .company-table.is-outreach .company-cell-select,.company-table.is-outreach .company-col-select { padding:0; }
+}
+@media(max-width:700px) {
+ .outreach-connection { align-items:flex-start; width:100%; }
+ .outreach-connection .company-connection { min-height:28px; font-size:12px; }
+ .outreach-subtitle { font-size:13px; }
+ .companies-outreach .company-table-toolbar { padding:12px; }
+ .outreach-directory-label { display:none; }
+ .companies-outreach .company-selection-bar { padding:12px; }
+ .companies-outreach .company-table .company-col-select { width:40px; }
+ .companies-outreach .company-check { width:40px; height:44px; }
+ .companies-outreach .company-table .company-cell-identity,.companies-outreach .company-table .company-col-identity { left:40px; }
+ .company-table.is-outreach .company-col-progress,.company-table.is-outreach .company-cell-progress,.company-table.is-outreach .company-col-action,.company-table.is-outreach .company-cell-action { display:none; }
+ .company-table.is-outreach .company-col-identity { width:40%; }
+ .company-table.is-outreach .company-col-contact { width:60%; }
+ .company-table.is-outreach th { font-size:11px; }
+ .company-table.is-outreach td { height:auto; padding:12px 8px; vertical-align:top; }
+ .company-table.is-outreach .company-cell-select { vertical-align:top; padding:10px 0; }
+ .companies-outreach .company-name { min-height:32px; font-size:13px; }
+ .outreach-role .select-trigger { min-height:44px; padding:6px; font-size:11px; }
+ .outreach-role .select-caption { white-space:normal; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; line-height:1.5; }
+ .outreach-contact .company-copy { min-height:32px; font-size:12px; }
+ .outreach-phone .company-copy { min-height:28px; font-size:12px; }
+ .outreach-contact .company-more { min-width:24px; padding:0 2px; }
+ .outreach-mobile-status { display:block; font-size:11px; color:var(--text-600); margin:8px 0; }
+ .outreach-mobile-status.is-ready { color:var(--success); }
+ .outreach-mobile-status.is-failed,.outreach-mobile-status.is-blocked { color:var(--red-600); }
+ .outreach-mobile-action { display:block; }
+ .outreach-mobile-action .outreach-review { min-height:36px; }
+ .companies-outreach .company-footer { padding-right:16px; }
+ .outreach-mobile-action .company-create-button { font-size:12px; min-height:44px; padding:8px 10px; width:100%; }
+ .outreach-timeline { grid-template-columns:1fr; gap:12px; }
+ .outreach-timeline li { flex-direction:row; align-items:center; }
+ .outreach-run-panel { padding:16px; }
+ .outreach-watch-item { padding:18px; }
+}

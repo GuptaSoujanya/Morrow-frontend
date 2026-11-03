@@ -654,11 +654,31 @@ test('Hirist runs directly with the correct board and actual-work default', asyn
 
 test('Startups reviews and launches only its own action while explaining email drafts', async ({ page }) => {
   const state = await workspace(page, { multiple: false });
+  const configure = page.getByRole('button', { name: 'Configure Startups', exact: true });
+  await configure.click();
+  const settings = settingsDialog(page, 'Startups');
+  const limit = settings.getByRole('spinbutton', { name: 'Startup job limit', exact: true });
+  await expect(limit).toHaveValue('');
+  await expect(limit).toHaveAttribute('placeholder', '10');
+  await limit.fill('17');
+  await settings.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(configure).toBeFocused();
+  await configure.click();
+  await expect(limit).toHaveValue('');
+  await limit.fill('51');
+  await settings.getByRole('button', { name: 'Apply settings', exact: true }).click();
+  await expect(limit).toHaveAttribute('aria-invalid', 'true');
+  await limit.fill('7');
+  await openAdvanced(settings);
+  await expect(settings.getByRole('button', { name: 'Open full settings for Startups', exact: true })).toHaveCount(0);
+  await settings.getByRole('button', { name: 'Apply settings', exact: true }).click();
+  await expect(settings).not.toBeVisible();
+  expect(state.plans).toEqual([]); expect(state.batches).toEqual([]);
   await singleRun(page, 'Startups').click();
   const dialog = page.getByRole('dialog', { name: 'Run Startups?', exact: true });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText('Emails are never sent.');
-  expect(state.plans).toEqual([{ runs: [{ key: 'startups', action: 'startups', options: { dry_run: false, browser_mode: 'visible' } }] }]);
+  expect(state.plans).toEqual([{ runs: [{ key: 'startups', action: 'startups', options: { limit: '7', dry_run: false, browser_mode: 'visible' } }] }]);
   expect(state.batches).toEqual([]);
   await dialog.getByRole('button', { name: 'Run now', exact: true }).click();
   await expect.poll(() => state.batches.length).toBe(1);

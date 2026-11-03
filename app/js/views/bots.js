@@ -295,14 +295,15 @@ export function renderBots() {
     S.bots?.error?h('div',{class:'inline-notice',role:'alert'},'Bot status is unavailable. ',h('button',{class:'text-link',type:'button',text:'Try again',onclick:async()=>{await refreshBots();hooks.requestRender();}})):null,
     S.bots?.data?.history_error?h('p',{class:'inline-notice',text:S.bots.data.history_error}):null,
     feedback,catalogue,selectionBar,
-    h('div',{class:'crew-footer'},h('p',{class:'fleet-footnote',text:'Sign-in is checked when a bot starts. You’ll review every action before it runs.'})));
+    h('div',{class:'crew-footer'},h('p',{class:'fleet-footnote',text:'Sign-in is checked when a bot starts. You’ll review every action before it runs.'}),
+      h('a',{class:'text-link crew-mobile-flow',href:'#/pipeline'},'Build a flow',icon('arrow-up-right','icon icon-sm'))));
   historyPanel=applicationAgentPanel({compact:true,onSummary:summary=>{
     const count=summary.reviewCount;
     historyCount.hidden=!(count>0);
     historyCount.textContent=count>0?'('+count+')':'';
     historyView.setAttribute('aria-label','Application history'+(count>0?' ('+count+')':''));
     historyView.title=summary.error?'History could not refresh. Open it to try again.':count>0?count+' application outcomes need review.':'Application history';
-    historyView.setAttribute('aria-description',summary.error?'The displayed count is from the last successful refresh.':count>0?count+' outcomes need review.':'Review recorded application outcomes.');
+    historyView.setAttribute('aria-description',summary.error?(count===null?'History is unavailable. Open it to try again.':'The displayed count is from the last successful refresh.'):count>0?count+' outcomes need review.':'Review recorded application outcomes.');
   }});
   const page=h('div',{class:'page bot-page crew-workspace crew-studio'},
     h('header',{class:'page-head'},h('h1',{text:'Bot Crew'}),mode,h('p',{class:'lead',text:'A specialist for every next step.'})),

@@ -160,6 +160,13 @@ def company_outreach_command(o, save=False):
         if not re.fullmatch(r'[a-f0-9]{24}', company):
             raise ValueError('Choose a company from the database.')
         args += ['--company', company]
+    roles = o.get('roles', {})
+    selected = companies or ([company] if company else [])
+    if (not isinstance(roles, dict) or any(key not in selected or not isinstance(value,str)
+            or not value or len(value)>400 or any(ord(char)<32 for char in value) for key,value in roles.items())):
+        raise ValueError('Choose a valid role for each selected company.')
+    for key,value in roles.items():
+        args += ['--role', key+':'+value]
     for key in ('all', 'dry_run', 'no_research', 'require_gmail'):
         if server._on(o, key):
             args.append('--'+key.replace('_', '-'))
