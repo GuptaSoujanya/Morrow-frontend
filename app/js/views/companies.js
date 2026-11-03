@@ -7,7 +7,7 @@ import { quickButton } from '../forms.js';
 import { readQuery, writeQuery, pageNumber, choice } from '../url-state.js';
 import { selectControl } from '../components/controls.js';
 import { toast } from '../components/toast.js';
-import { workflow, timeline, isWorking, startDrafts, renderDraftWatch, gmailLink, mailbox } from '../components/company-outreach.js';
+import { workflow, timeline, isWorking, startDrafts, renderDraftWatch, gmailLink, mailbox, roleNeedsReview, recovery, progressRows } from '../components/company-outreach.js';
 
 export const researchLabels = {pending:'To research',researching:'Researching',found:'Found',partial:'Partial info',not_found:'Not found',failed:'Needs retry'};
 const fields={website:'Website',careers:'Careers page',hiring_manager:'Hiring contact',ceo:'CEO',cto:'CTO',location:'Location',industry:'Industry',about:'About',linkedin:'LinkedIn',size:'Company size'};
@@ -46,8 +46,8 @@ function draftDetails(item,start){
   return h('div',{},item.drafts.map(draft=>h('section',{class:'company-pitch'},
     h('div',{class:'company-pitch-address'},h('span',{text:'To'}),h('strong',{text:draft.recipient})),
     h('span',{class:`company-draft-state is-${draft.state}`,text:draftLabels[draft.state]||draft.state}),
-    h('h3',{text:draft.subject||'Preparing your pitch'}),h('p',{class:'company-pitch-body',text:draft.body||draft.error||'The pitch is being prepared.'}),
-    draft.resume?h('div',{class:'company-attachment'},icon('file','icon icon-sm'),h('span',{text:`Resume attached: ${draft.resume}`})):null,
+    h('h3',{text:draft.subject||(draft.state==='failed'?'No email draft created':'Preparing your pitch')}),h('p',{class:'company-pitch-body',text:draft.body||(draft.state==='failed'?'No email was created. Review the issue below.':'The pitch is being prepared.')}),
+    draft.resume&&(draft.download_url||draft.state==='gmail')?h('div',{class:'company-attachment'},icon('file','icon icon-sm'),h('span',{text:`Resume attached: ${draft.resume}`})):null,
     draft.error?h('p',{class:'company-draft-error',text:draft.error}):null,
     h('div',{class:'company-actions'},draft.download_url?.startsWith('/reports/')?h('a',{class:'btn',href:draft.download_url,download:'',text:'Download email + resume'}):null,
       gmailLink(draft.gmail_url)?h('a',{class:'btn',href:gmailLink(draft.gmail_url),target:'_blank',rel:'noopener noreferrer',text:'Open Gmail draft'}):null))),workflow(item).phase!=='ready'&&!isWorking(item)?h('button',{class:'btn btn-primary',type:'button',text:'Retry Gmail draft',onclick:()=>start(item)}):null);
@@ -73,24 +73,24 @@ function companyTable(items,controls){
         if(!roles.has(item.company_id))roles.set(item.company_id,item.workflow?.job_id&&jobs.some(j=>j.job_id===item.workflow.job_id)?item.workflow.job_id:jobs.find(j=>saved.some(d=>d.job_url===j.url))?.job_id||(jobs.length===1?jobs[0].job_id:''));
         const role=jobs.length>1?selectControl({label:`Role for ${item.name}`,value:roles.get(item.company_id),options:[{value:'',label:'Choose a role'},...jobs.map(job=>({value:job.job_id,label:job.title}))],onChange:value=>{roles.set(item.company_id,value);controls.changed();}}):h('span',{class:'outreach-role-title',text:jobs[0]?.title||'No linked role available'});
         if((working||state.phase==='ready')&&role.controlElement)role.controlElement.disabled=true;
-        const makeAction=()=>saved.length&&state.phase==='ready'?h('a',{class:'company-create-button is-ready',href:saved.length===1?gmailLink(saved[0].gmail_url):mailbox(controls.outreach.sender),target:'_blank',rel:'noopener noreferrer',text:'Open Gmail'},icon('external','icon icon-sm')):
-          h('button',{class:'company-create-button',type:'button',text:working?'Preparing…':state.phase==='failed'?'Retry draft':'Create draft',disabled:working||!jobs.length,onclick:()=>start(item)});
+        const makeAction=()=>working&&state.run_id?h('a',{class:'company-create-button',href:'#/companies?'+new URLSearchParams({watch:item.company_id,since:state.started_at,run:state.run_id}),target:'_blank',rel:'noopener noreferrer',text:'View progress'}):saved.length&&state.phase==='ready'?h('a',{class:'company-create-button is-ready',href:saved.length===1?gmailLink(saved[0].gmail_url):mailbox(controls.outreach.sender),target:'_blank',rel:'noopener noreferrer',text:'Open Gmail'},icon('external','icon icon-sm')):
+          h('button',{class:'company-create-button',type:'button',text:working?'Preparing…':roleNeedsReview(item)?'Review role':state.phase==='failed'?'Retry draft':'Create draft',disabled:working||!jobs.length,onclick:()=>start(item)});
         const review=()=>h('button',{class:'company-text-button outreach-review',type:'button',text:item.drafts?.some(d=>d.body)?'Review pitch':state.phase==='failed'||state.phase==='blocked'?'View issue':'View details',onclick:()=>open(item,'drafts')});
         return h('tr',{dataset:{company:item.company_id}},
           h('td',{class:'company-cell-select'},h('label',{class:'company-check'},h('input',{type:'checkbox','aria-label':`Select ${item.name}`,checked:selected.has(item.company_id),disabled:working,onchange:event=>selectOne(item,event.target.checked)}))),
           h('td',{class:'company-cell-identity'},h('button',{class:'company-name',type:'button','aria-haspopup':'dialog',title:item.name,onclick:()=>open(item,'contacts')},h('span',{text:item.name})),h('div',{class:'outreach-role'},role)),
-          h('td',{class:'company-cell-contact'},contactBlock(item,open),h('span',{class:`outreach-mobile-status is-${state.phase}`,text:phaseLabels[state.phase]}),h('div',{class:'outreach-mobile-action'},makeAction(),review())),
-          h('td',{class:'company-cell-progress'},h('span',{class:`outreach-state is-${state.phase}`,text:phaseLabels[state.phase]}),h('span',{class:'outreach-progress-note',text:state.message})),
+          h('td',{class:'company-cell-contact'},contactBlock(item,open),h('span',{class:`outreach-mobile-status is-${state.phase}`,text:roleNeedsReview(item)?'Review role':phaseLabels[state.phase]}),h('div',{class:'outreach-mobile-action'},makeAction(),review())),
+          h('td',{class:'company-cell-progress'},h('span',{class:`outreach-state is-${state.phase}`,text:roleNeedsReview(item)?'Review role':phaseLabels[state.phase]}),h('span',{class:'outreach-progress-note',text:state.message})),
           h('td',{class:'company-cell-action'},makeAction(),review()));
       }))));
 }
 
 export function renderCompanies(id=''){
   const query=readQuery(),watch=(query.get('watch')||'').split(',').filter(Boolean),since=Number(query.get('since'));
-  if(watch.length&&watch.length<=50&&watch.every(value=>/^[a-f0-9]{24}$/.test(value))&&Number.isFinite(since)&&since>0)return renderDraftWatch(watch,since);
+  if(watch.length&&watch.length<=50&&watch.every(value=>/^[a-f0-9]{24}$/.test(value))&&Number.isFinite(since)&&since>0)return renderDraftWatch(watch,since,query.get('run')||'');
   const filters={q:query.get('q')||'',status:choice(query.get('status'),['all',...Object.keys(researchLabels)],'all'),contact:choice(query.get('contact'),Object.keys(contactFilters),'all'),page:pageNumber(query.get('page')),size:choice(Number(query.get('size')),[20,50,100],20)};
   const scope=accountRequestSignal(),selected=new Map(),roles=new Map();
-  let data=null,timer,ticket=0,lastTable='',drawer=null,starting=false,activeIds=[],activeSince=0,progressTimer;
+  let data=null,timer,ticket=0,lastTable='',drawer=null,starting=false,activeIds=[],activeSince=0,activeRun='',progressTimer,reviewOpened=false;
   const body=h('div',{class:'company-body'},loadingState('Loading companies…')),footer=h('div',{class:'company-footer'}),count=h('span',{class:'company-total',role:'status'}),selectionBar=h('div',{class:'company-selection-bar'});
   const title=h('h1',{text:'Companies'}),connection=h('a',{class:'company-connection',href:'#/connections',text:'Checking Gmail…'}),resumeLabel=h('span',{class:'outreach-resume'});
   const runPanel=h('section',{class:'outreach-run-panel',hidden:true,'aria-label':'Current draft workflow'});
@@ -107,13 +107,15 @@ export function renderCompanies(id=''){
       h('div',{class:'company-selection-controls'},selected.size?h('button',{class:'company-text-button',type:'button',text:'Clear selection',onclick:()=>{selected.clear();updateSelection();}}):null,
         h('button',{class:'company-create-button is-primary',type:'button',text:starting?'Starting…':`Create selected drafts${selected.size?' ('+selected.size+')':''}`,disabled:!selected.size||starting,onclick:()=>begin([...selected.values()])})));
   }
-  async function begin(items){
+  async function begin(items,recheck=false){
     if(starting)return;
+    const review=items.find(item=>roleNeedsReview(item)&&(!roles.get(item.company_id)||roles.get(item.company_id)===workflow(item).job_id));
+    if(review&&!recheck){openDrawer(review,'drafts');return;}
     const missing=items.find(item=>!roles.get(item.company_id));
     if(missing){toast(`Choose the role for ${missing.name} first.`,'error');body.querySelector(`tr[data-company="${missing.company_id}"] [role=combobox]`)?.focus();return;}
     starting=true;updateSelection();
-    try{await startDrafts(items,Object.fromEntries(roles),data?.outreach,(_result,ids,since)=>{
-      activeIds=ids;activeSince=since;selected.clear();closeDrawer(false);lastTable='';
+    try{await startDrafts(items,Object.fromEntries(roles),data?.outreach,(result,ids,since)=>{
+      activeIds=ids;activeSince=since;activeRun=result.id||'';selected.clear();closeDrawer(false);lastTable='';
       items.forEach(item=>{item.workflow={phase:'queued',message:'Opening Gmail and starting your draft.',job_id:roles.get(item.company_id)};});
       renderTable();refreshProgress();
     });}finally{starting=false;updateSelection();}
@@ -125,7 +127,16 @@ export function renderCompanies(id=''){
     const content=h('div',{class:'company-drawer-content'}),tabs=h('div',{class:'company-drawer-tabs',role:'group','aria-label':'Company detail view'});
     function select(value){const restore=tabs.contains(document.activeElement);tab=value;
       tabs.replaceChildren(...[['contacts','Contacts'],['drafts','Pitch & progress'],['company','Company']].map(([key,label])=>h('button',{class:'company-view-button',type:'button','aria-pressed':tab===key,text:label,onclick:()=>select(key)})));
-      content.replaceChildren(tab==='contacts'?contactDetails(item):tab==='company'?companyDetails(item):h('div',{},timeline(item),h('p',{class:['failed','blocked'].includes(workflow(item).phase)?'company-draft-error':'company-muted',text:workflow(item).message}),draftDetails(item,item=>begin([item]))));
+      const help=recovery(item),jobs=(item.jobs||[]).filter(job=>job.job_id&&job.title);
+      const issue=help?h('section',{class:'outreach-recovery'},h('h3',{text:help.title}),h('p',{text:help.message}),
+        workflow(item).issue?.context_source==='title_only'?h('p',{class:'company-muted',text:'AI review used the role title and résumé. The full job posting was unavailable.'}):null,
+        h('dl',{},h('dt',{text:'Selected role'}),h('dd',{text:help.role}),h('dt',{text:'Résumé used'}),h('dd',{text:workflow(item).issue?.resume||data.outreach?.resume_name||'Your saved résumé'})),
+        h('p',{text:help.next}),
+        jobs.length>1?selectControl({label:'Choose a role to recheck',value:roles.get(item.company_id)||workflow(item).job_id||'',options:jobs.map(job=>({value:job.job_id,label:job.title})),onChange:value=>{roles.set(item.company_id,value);lastTable='';renderTable();}}):null,
+        h('div',{class:'company-actions'},url(jobs.find(job=>job.job_id===(roles.get(item.company_id)||workflow(item).job_id))?.url)?h('a',{class:'btn',href:url(jobs.find(job=>job.job_id===(roles.get(item.company_id)||workflow(item).job_id))?.url),target:'_blank',rel:'noopener noreferrer',text:'Read job posting'}):null,
+          h('a',{class:'btn',href:'/api/company-outreach/resume',target:'_blank',rel:'noopener noreferrer',text:'Review résumé'}),h('a',{class:'btn',href:'#/companies',text:'Browse companies',onclick:()=>closeDrawer(false)})),
+        h('button',{class:'btn',type:'button',text:'Recheck selected role',onclick:()=>begin([item],true)})):null;
+      content.replaceChildren(tab==='contacts'?contactDetails(item):tab==='company'?companyDetails(item):h('div',{},timeline(item),issue||h('p',{class:['failed','blocked'].includes(workflow(item).phase)?'company-draft-error':'company-muted',text:workflow(item).message}),help?null:draftDetails(item,item=>begin([item]))));
       if(restore)tabs.querySelector('[aria-pressed=true]').focus();
     }
     const close=h('button',{class:'company-icon-button',type:'button','aria-label':'Close company details',onclick:()=>element.close()},icon('x','icon icon-sm'));
@@ -148,14 +159,14 @@ export function renderCompanies(id=''){
   async function refreshProgress(){
     clearTimeout(progressTimer);if(scope.aborted||!body.isConnected||!activeIds.length)return;
     try{
-      const snapshot=await api('/api/companies?'+new URLSearchParams({ids:activeIds.join(','),size:100}),undefined,{fresh:true});
+      const snapshot=await api('/api/companies?'+new URLSearchParams({ids:activeIds.join(','),size:100,...(activeRun?{run:activeRun}:{})}),undefined,{fresh:true});
       if(scope.aborted)return;
-      snapshot.rows=snapshot.rows.map(item=>(item.workflow?.updated_at||0)>=activeSince-2?item:{...item,workflow:{phase:'queued',message:'Opening Gmail and starting your draft.'}});
-      runPanel.hidden=false;runPanel.replaceChildren(h('div',{class:'outreach-run-heading'},h('h2',{text:'Your draft workflow'}),h('a',{class:'company-text-button',href:mailbox(data.outreach.sender),target:'_blank',rel:'noopener noreferrer',text:'Open Gmail'})),
-        ...snapshot.rows.map(item=>h('div',{class:'outreach-run-item'},h('strong',{text:item.name}),timeline(item),h('p',{class:['failed','blocked'].includes(workflow(item).phase)?'company-draft-error':'company-muted',text:workflow(item).message}))));
+      snapshot.rows=progressRows(snapshot,activeIds,activeSince);
+      runPanel.hidden=false;runPanel.replaceChildren(h('div',{class:'outreach-run-heading'},h('h2',{text:'Your draft workflow'}),h('a',{class:'company-text-button',href:'#/companies?'+new URLSearchParams({watch:activeIds.join(','),since:activeSince,run:activeRun}),target:'_blank',rel:'noopener noreferrer',text:'Open progress tab'})),
+        ...snapshot.rows.map(item=>h('div',{class:'outreach-run-item'},h('strong',{text:item.name}),timeline(item),h('p',{class:['failed','blocked'].includes(workflow(item).phase)?'company-draft-error':'company-muted',text:workflow(item).message}),['failed','blocked'].includes(workflow(item).phase)?h('button',{class:'company-text-button',text:roleNeedsReview(item)?'Review role & résumé':'Review and resume',onclick:()=>openDrawer(item,'drafts')}):null)));
       if(data){data.rows=data.rows.map(item=>snapshot.rows.find(next=>next.company_id===item.company_id)||item);if(!drawer&&!body.contains(document.activeElement))renderTable();}
       if(snapshot.rows.length===activeIds.length&&snapshot.rows.every(item=>['ready','failed','blocked'].includes(workflow(item).phase)))return;
-    }catch(error){if(scope.aborted)return;}
+    }catch(error){if(scope.aborted)return;runPanel.hidden=false;runPanel.querySelector('.outreach-progress-error')?.remove();runPanel.append(h('p',{class:'outreach-progress-error',role:'alert',text:error.message+' Progress will retry automatically.'}));}
     progressTimer=setTimeout(refreshProgress,2000);
   }
   const search=h('input',{type:'search',value:filters.q,'aria-label':'Search companies',placeholder:'Search companies, roles or contacts',oninput:event=>{filters.q=event.target.value;filters.page=1;clearTimeout(timer);timer=setTimeout(load,250);}});
@@ -181,7 +192,7 @@ export function renderCompanies(id=''){
       contactSelect.setOptions(Object.entries(contactFilters).map(([value,label])=>({value,label:label+(data.contact_counts?' ('+data.contact_counts[value]+')':'')})));
       const labels=[filters.q?`Search: ${filters.q}`:null,filters.contact!=='all'?contactFilters[filters.contact]:null,filters.status!=='all'?researchLabels[filters.status]:null].filter(Boolean);
       applied.hidden=!labels.length;applied.replaceChildren(...labels.map(text=>h('span',{text})),h('button',{class:'company-text-button',text:'Clear filters',onclick:clearFilters}));
-      renderTable();updateSelection();if(!id)writeQuery('companies',filters,{replace:true});
+      renderTable();updateSelection();if(id&&query.get('review')==='1'&&!reviewOpened&&data.rows[0]){reviewOpened=true;openDrawer(data.rows[0],'drafts');}if(!id)writeQuery('companies',filters,{replace:true});
     }catch(error){if(!scope.aborted&&request===ticket){lastTable='';body.replaceChildren(errorState(error.message,load));footer.replaceChildren();}}
     finally{if(request===ticket){refresh.disabled=false;body.setAttribute('aria-busy','false');poll();}}
   }

@@ -193,7 +193,8 @@ def test_bot_inventory_never_claims_an_unfinished_record_is_live(monkeypatch):
         {'started_at':'2026-10-21T12:00:00Z','finished_at':'2026-10-21T13:00:00Z','summary_json':'[]'},
     ])
     data=dashboard.bots_status(dashboard.server.Runner())
-    assert len(data['bots']) == 18
+    assert [bot['id'] for bot in data['bots']] == list(dashboard.BOT_IDS)
+    assert {'startups', 'company_research', 'company_outreach'} <= {bot['id'] for bot in data['bots']}
     assert not any(bot['running'] for bot in data['bots'])
     hirist=next(bot for bot in data['bots'] if bot['id']=='hirist')
     assert hirist['last_run']['finished'] is False and hirist['last_run']['found']==23
@@ -234,8 +235,9 @@ def test_bot_status_includes_each_parallel_run_and_ignores_completed_runs(monkey
     ('--only apply:wellfound', {'wellfound'}),
     ('--only profile:linkedin', {'linkedin_profile'}),
     ('--only research:resume', {'research'}),
+    ('--only research:companies', {'company_research'}),
     ('--only brief:tech-news --only brief:papers', {'brief'}),
-    ('--skip apply --skip profile', {'learn', 'research', 'brief'}),
+    ('--skip apply --skip profile', {'learn', 'research', 'brief', 'company_research'}),
 ])
 def test_pipeline_inventory_matches_selected_stages_and_skips(monkeypatch, selection, expected):
     monkeypatch.setattr(dashboard.state, '_query', lambda *args: [])
@@ -262,7 +264,8 @@ def test_pipeline_checkpoint_commands_do_not_claim_agents_are_running(monkeypatc
 def test_missing_database_is_honest_and_bot_endpoint_is_local(app,monkeypatch):
     monkeypatch.setattr(dashboard.state,'database',lambda:app[1].parent/'missing.db')
     status,data=request(app,'GET','/api/bots')
-    assert status==200 and len(data['bots'])==18
+    assert status == 200
+    assert [bot['id'] for bot in data['bots']] == list(dashboard.BOT_IDS)
     assert all(bot['last_run'] is None and not bot['running'] for bot in data['bots'])
     assert request(app,'GET','/api/bots',headers={'Host':'untrusted.example'})[0]==403
 

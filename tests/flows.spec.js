@@ -122,6 +122,19 @@ test.beforeAll(async ({ baseURL }) => {
   await mkdir('artifacts/flows', { recursive: true });
 });
 
+test('YC and startup applications have a clear stage label and an exact run selection', async ({ page, fixture }) => {
+  Object.assign(fixture.data[DAY].stages[2], { name: 'apply:startups', retry: recovery(DAY, ['apply:startups']) });
+  fixture.data[DAY].resume = recovery(DAY, ['profile:naukri', 'apply:startups']);
+  await fixture.open();
+  await expect(page.locator('[data-stage="apply:startups"]')).toContainText('YC & startup applications');
+  const stages = page.getByRole('combobox', { name: 'Stages to run', exact: true });
+  await stages.click();
+  await page.getByRole('option', { name: 'YC & startup applications', exact: true }).click();
+  await expect(stages).toContainText('YC & startup applications');
+  await expect.poll(() => fixture.previews.at(-1)?.options.group).toBe('apply:startups');
+  expect(fixture.runs).toEqual([]);
+});
+
 test('failed steps explain the last cause and corrective action, then retry only the confirmed stage', async ({ page, fixture }) => {
   await fixture.open();
   const error = page.locator('.flow-latest-error');
@@ -263,6 +276,12 @@ test('recovery controls remain accessible and fit desktop, tablet and mobile', a
   for (const width of [1440, 768, 375]) {
     await page.setViewportSize({ width, height: width === 375 ? 812 : 1000 });
     await page.evaluate(async () => { await document.fonts.ready; });
+    // Audit the settled page; entrance opacity temporarily changes text contrast.
+    await expect.poll(() => page.locator('.flows-page').evaluate(element =>
+      element.getAnimations({ subtree: true }).filter(animation =>
+        (animation.pending || animation.playState === 'running') &&
+        Number.isFinite(animation.effect?.getComputedTiming().endTime)).length),
+    { message: 'Flows entrance animations should finish before the contrast audit' }).toBe(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${width}px horizontal overflow`).toBe(true);
     const accessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
     expect(accessibility.violations.map(issue => ({ id: issue.id, targets: issue.nodes.map(node => node.target) }))).toEqual([]);

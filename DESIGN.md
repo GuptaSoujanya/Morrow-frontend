@@ -268,3 +268,7 @@ failures remain visible with a reason. The main table and progress panel use the
 A saved pitch is previewable with subject, recipient and résumé. Never send mail. Verify the
 signed-in Google account and saved contents, preserve uncertain saves for reconciliation,
 and prevent duplicate recipient drafts. Preserve source links and evidence in the detail panel.
+
+### Draft recovery and Gmail handoff — November 3, 2026
+
+Distinguish an AI role mismatch, insufficient job context, unreadable résumé and generation failure. Retain saved job descriptions and check the exact public posting for older records; sparse descriptions alone do not reject a related role. The role review panel names the selected job and PDF, opens the actual configured résumé, and offers a deliberate recheck or another company instead of an unexplained Retry loop. Mark the last reached step when a run stops, and preserve earlier completed steps. Progress links carry the run ID and survive a reload through the saved workflow. The handoff checks runner completion, preserves verified Gmail links on partial success, and leaves a progress link on the original page when pop-ups are blocked. Gmail deep links select the configured sender by email, never the automation browser's numeric account slot.

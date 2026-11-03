@@ -107,7 +107,7 @@ test('a previous failed run does not stop the new workflow progress',async({page
   await page.goto('/#/companies');
   await page.getByRole('button',{name:'Create draft',exact:true}).click();
   const panel=page.getByRole('region',{name:'Current draft workflow'});
-  await expect(panel).toContainText('Opening Gmail and starting your draft.');
+  await expect(panel).toContainText('Waiting for the draft run to start.');
   await expect(panel).not.toContainText('Old failed run.');
   ready=true;
   await expect(panel).toContainText('New draft verified.',{timeout:10000});
@@ -129,10 +129,67 @@ test('role mismatch stays visible with the timeline and never opens Gmail',async
   const since=Date.now()/1000;
   await page.route('**/api/companies?*',route=>route.fulfill({json:payload([{...acme,workflow:{phase:'failed',message:'This role is not supported by the résumé. Choose a matching role.',updated_at:since+1,title:'Front Office Executive',history:[{phase:'contacts'},{phase:'writing'}]}}])}));
   await page.goto('/#/companies?watch='+key+'&since='+since);
-  await expect(page.getByRole('heading',{name:'Some drafts need attention'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Your draft needs attention'})).toBeVisible();
   await expect(page.getByText('This role is not supported by the résumé. Choose a matching role.',{exact:true})).toBeVisible();
   expect((await new AxeBuilder({page}).include('.outreach-watch').analyze()).violations).toEqual([]);
   expect(page.url()).not.toContain('mail.google.com');
+});
+
+test('a stopped run exits the waiting screen and preserves the completed steps',async({page})=>{
+  const since=Date.now()/1000;
+  await page.route('**/api/companies?*',route=>{
+    expect(new URL(route.request().url()).searchParams.get('run')).toBe('stopped-run');
+    return route.fulfill({json:{...payload([{...acme,workflow:{phase:'saving',message:'Saving…',updated_at:since+1,title:'AI Engineer',history:[{phase:'contacts'},{phase:'writing'},{phase:'attaching'},{phase:'saving'}]}}]),draft_run:{id:'stopped-run',running:false,stopped:true,status:'stopped'}}});
+  });
+  await page.goto('/#/companies?watch='+key+'&since='+since+'&run=stopped-run');
+  await expect(page.getByRole('heading',{name:'Your draft needs attention'})).toBeVisible();
+  await expect(page.locator('.outreach-watch').getByText('This run was stopped.',{exact:false})).toBeVisible();
+  await expect(page.locator('.outreach-timeline .is-done')).toHaveCount(3);
+  await expect(page.locator('.outreach-timeline .is-failed')).toContainText('Save in Gmail');
+  await expect(page.getByRole('link',{name:'Review and resume'})).toHaveAttribute('href','#/companies/'+key+'?review=1');
+});
+
+for(const width of [1440,375])test(`a rejected single role opens useful recovery without silently retrying at ${width}px`,async({page})=>{
+  const row={...pending,workflow:{phase:'failed',job_id:'n1',title:'Spectro engineer',message:'No résumé evidence for the selected role was identified.',issue:{code:'role_mismatch',resume:'Resume.pdf'},history:[{phase:'contacts'},{phase:'writing'}]},jobs:[{job_id:'n1',title:'Spectro engineer',url:'https://example.com/spectro'}]};
+  const writes=[];
+  await page.setViewportSize({width,height:960});
+  await page.route('**/api/companies?*',route=>route.fulfill({json:payload([row])}));
+  await page.route('**/api/run',route=>{writes.push(route.request());return route.fulfill({json:{}});});
+  await page.goto('/#/companies');
+  await page.getByRole('button',{name:'Review role',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:row.name});
+  await expect(dialog).toContainText('There is no other saved role for Northstar Systems.');
+  await expect(dialog).toContainText('Spectro engineer');await expect(dialog).toContainText('Resume.pdf');
+  await expect(dialog.getByRole('link',{name:'Read job posting'})).toHaveAttribute('href','https://example.com/spectro');
+  await expect(dialog.getByRole('link',{name:'Review résumé'})).toHaveAttribute('href','/api/company-outreach/resume');
+  await expect(dialog.getByRole('link',{name:'Review résumé'})).toHaveAttribute('target','_blank');
+  await expect(dialog.getByRole('link',{name:'Browse companies'})).toBeVisible();
+  await expect(dialog.getByRole('button',{name:'Retry Gmail draft'})).toHaveCount(0);
+  expect(writes).toHaveLength(0);
+  expect((await new AxeBuilder({page}).include('.company-drawer').analyze()).violations).toEqual([]);
+  await page.screenshot({path:`artifacts/companies/recovery-${width}.png`,fullPage:true});
+});
+
+test('partial success keeps verified Gmail drafts accessible while another company needs review',async({page})=>{
+  const since=Date.now()/1000,target='https://mail.google.com/mail/u/?authuser=applicant%40gmail.com#search/verified';
+  await page.route('**/api/companies?*',route=>route.fulfill({json:payload([
+    {...acme,workflow:{phase:'ready',message:'Verified.',updated_at:since+1},drafts:[{state:'gmail',gmail_url:target}]},
+    {...pending,workflow:{phase:'failed',message:'More information is needed.',updated_at:since+1,issue:{code:'missing_context'}}}
+  ])}));
+  await page.goto('/#/companies?watch='+key+','+pending.company_id+'&since='+since);
+  await expect(page.getByRole('heading',{name:'Some drafts need attention'})).toBeVisible();
+  await expect(page.getByRole('link',{name:'Open verified draft'})).toHaveAttribute('href',target);
+  await expect(page.getByRole('link',{name:'Review role & résumé'})).toBeVisible();
+  expect(page.url()).not.toContain('mail.google.com');
+});
+
+test('blocked popups keep an accessible progress link on the original page',async({page})=>{
+  await page.addInitScript(()=>{window.open=()=>null;});
+  await page.route('**/api/companies?*',route=>route.fulfill({json:payload([pending])}));
+  await page.route('**/api/run',route=>route.fulfill({json:{id:'popup-blocked-run'}}));
+  await page.goto('/#/companies');await page.getByRole('button',{name:'Create draft',exact:true}).click();
+  await expect(page.getByRole('link',{name:'Open progress tab'})).toHaveAttribute('href',/run=popup-blocked-run/);
+  await expect(page.getByText('Draft run started. Allow pop-ups',{exact:false})).toBeVisible();
 });
 
 test('ready draft preview includes subject, recipient and resume with a direct Gmail link',async({page})=>{

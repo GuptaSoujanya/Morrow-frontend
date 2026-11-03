@@ -46,9 +46,26 @@ def test_nonowner_cannot_read_company_database_or_application_attempts(app):
         def identity(self,handler):return {'id':'other','email':'other@example.com','role':'member','modules':['research','automations']}
         def is_owner(self,handler,user):return False
     app[0].account_bridge=Accounts()
-    for endpoint in ('/api/companies','/api/application-agent'):
+    for endpoint in ('/api/companies','/api/application-agent','/api/company-outreach/resume'):
         assert request(app,'GET',endpoint)[0]==403
     assert request(app,'POST','/api/company-outreach/gmail',{'sender':'a@gmail.com','password':'a'*16})[0]==403
+
+
+def test_resume_review_opens_exact_configured_pdf_and_rejects_other_file_types(app,monkeypatch):
+    import http.client
+    from common import config
+    path=app[1].parent/'selected.pdf'
+    path.write_bytes(b'%PDF-1.4 selected resume')
+    monkeypatch.setattr(config,'load_settings',lambda **kwargs:Settings(resume_path=str(path)))
+    connection=http.client.HTTPConnection('127.0.0.1',app[0].server_port)
+    connection.request('GET','/api/company-outreach/resume')
+    response=connection.getresponse()
+    assert response.status==200 and response.getheader('Cache-Control')=='no-store'
+    assert response.getheader('Content-Type')=='application/pdf'
+    assert response.read()==path.read_bytes()
+    connection.close()
+    path.write_text('not a PDF')
+    assert request(app,'GET','/api/company-outreach/resume')[0]==400
 
 
 def test_outreach_commands_are_bounded_and_share_draft_and_research_locks():
@@ -96,6 +113,16 @@ def test_progress_poll_returns_only_the_selected_company_ids(app, monkeypatch):
     assert {row['company_id'] for row in body['rows']}==set(keys[:2])
     for value in ('bad',','.join(['a'*24]*51)):
         assert request(app,'GET','/api/companies?ids='+value)[0]==400
+
+
+def test_company_progress_exposes_only_selected_run_state_without_logs(app,monkeypatch):
+    monkeypatch.setattr(app[0].runner,'snapshot',lambda:{'runs':[
+        {'id':'outreach-run','action':'company_outreach','running':False,'status':'stopped','stopped':True,'shown':'private command'},
+        {'id':'another-run','action':'naukri','running':True,'shown':'another private command'}]})
+    status,body=request(app,'GET','/api/companies?run=outreach-run')
+    assert status==200
+    assert body['draft_run']=={'id':'outreach-run','running':False,'status':'stopped','stopped':True}
+    assert request(app,'GET','/api/companies?run=another-run')[1]['draft_run']['status']=='unavailable'
 
 
 def test_gmail_setup_is_same_origin_and_does_not_return_password(app,monkeypatch):

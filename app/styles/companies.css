@@ -304,6 +304,18 @@
 .outreach-timeline .is-done .outreach-step-mark { border-color:var(--success); background:var(--success); color:#fff; }
 .outreach-timeline .is-current { color:var(--accent); font-weight:600; }
 .outreach-timeline .is-current .outreach-step-mark { border:2px solid var(--accent); background:var(--accent-soft); }
+.outreach-timeline .is-failed { color:var(--red-600); font-weight:600; }
+.outreach-timeline .is-failed .outreach-step-mark { border-color:var(--red-600); }
+.outreach-step-note { font-size:11px; font-weight:400; }
+.outreach-recovery { border-top:1px solid var(--border); padding:18px 0; }
+.outreach-recovery h3 { margin:0 0 12px; font-size:19px; }
+.outreach-recovery p { font-size:14px; line-height:1.65; }
+.outreach-recovery dl { display:grid; grid-template-columns:100px 1fr; gap:8px 12px; padding:14px; margin:16px 0; background:var(--canvas); border-radius:6px; font-size:13px; }
+.outreach-recovery dt { color:var(--text-600); }
+.outreach-recovery dd { margin:0; overflow-wrap:anywhere; }
+.outreach-recovery .company-actions { margin:16px 0; }
+.outreach-recovery>.select-control { margin:16px 0; }
+.outreach-progress-error { color:var(--red-600); font-size:14px; line-height:1.6; }
 .outreach-watch { max-width:900px; }
 .outreach-watch h1 { margin:8px 0; font-size:28px; }
 .outreach-watch header>p { color:var(--text-600); font-size:15px; line-height:1.7; }

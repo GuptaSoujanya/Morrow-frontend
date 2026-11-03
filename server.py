@@ -438,7 +438,7 @@ class DashboardHandler(server.Handler):
                 return True
             query = {key: values[-1] for key, values in parse_qs(url.query).items()}
             required = {"/api/library": "research", "/api/document": "research", '/api/companies':'research',
-                        '/api/company-outreach/gmail':'research',
+                        '/api/company-outreach/gmail':'research', '/api/company-outreach/resume':'research',
                         '/api/application-agent':'automations', '/api/application-agent/resolve':'automations',
                         "/api/research/learning": "learning", "/api/research/read": "learning"}.get(url.path)
             if url.path == '/api/document' and re.fullmatch(r'interview/day-\d{1,2}', query.get('id', '')):
@@ -565,11 +565,36 @@ class DashboardHandler(server.Handler):
                 from common.company_store import summary
                 from common.config import load_settings
                 from common.company_outreach import attach_rows, public_status
+                run_id = query.get('run', '')
+                run_state = None
+                if run_id:
+                    # Snapshot before the DB read: a completed run's final writes
+                    # must be visible before the UI decides it was interrupted.
+                    run = next((r for r in self.server.runner.snapshot()['runs'] if r['id']==run_id and r['action']=='company_outreach'),None)
+                    run_state = {key:run.get(key) for key in ('id','running','status','stopped')} if run else {'id':run_id,'running':False,'status':'unavailable'}
                 settings = load_settings(overrides={'db_path':str(state.database())})
                 data = summary(state.database(), query)
                 attach_rows(settings, data['rows'])
                 data['outreach'] = public_status(settings)
+                if run_state is not None:data['draft_run']=run_state
                 return self.json(data)
+            if url.path == '/api/company-outreach/resume':
+                from common.config import load_settings
+                path = Path(load_settings().resume_path)
+                if not path.is_file() or path.suffix.lower()!='.pdf' or path.stat().st_size>20*1024*1024:
+                    raise ValueError('The configured résumé PDF is unavailable. Update it in My profile & files.')
+                body = path.read_bytes()
+                if not body.startswith(b'%PDF-'):raise ValueError('The configured résumé is not a valid PDF.')
+                self.send_response(HTTPStatus.OK)
+                self.send_header('Content-Type','application/pdf')
+                self.send_header('Content-Disposition','inline; filename="resume.pdf"')
+                self.send_header('Content-Length',str(len(body)))
+                self.send_header('Cache-Control','no-store')
+                self.send_header('X-Content-Type-Options','nosniff')
+                self.send_header('X-Frame-Options','SAMEORIGIN')
+                self.end_headers()
+                if self.command!='HEAD':self.wfile.write(body)
+                return
             if url.path == '/api/application-agent':
                 from common.config import load_settings
                 from sites_bot.application_brain import history
