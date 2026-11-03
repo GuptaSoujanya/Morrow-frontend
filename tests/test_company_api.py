@@ -75,6 +75,29 @@ def test_outreach_selected_company_commands_preserve_exact_ids_and_require_gmail
             commands.company_outreach_command({'companies':selected, **additional})
 
 
+def test_exact_roles_are_passed_to_draft_cli_without_allowing_unselected_companies():
+    key='a'*24
+    command=commands.company_outreach_command({'companies':[key],'roles':{key:'hirist:123'}})
+    index=command.argv.index('--role')
+    assert command.argv[index+1]==key+':hirist:123'
+    for roles in ({'b'*24:'j1'},{key:''},{key:True},{key:'j1\n--all'},['j1']):
+        with pytest.raises(ValueError):commands.company_outreach_command({'companies':[key],'roles':roles})
+
+
+def test_progress_poll_returns_only_the_selected_company_ids(app, monkeypatch):
+    db=app[1].parent/'test.db'
+    with Ledger(str(db)) as ledger:
+        for index in range(3):
+            ledger.record_seen(JobPosting(str(index),'https://example.com/jobs/'+str(index),title='Engineer',company='Company '+str(index)))
+    monkeypatch.setattr(dashboard.state,'database',lambda:db)
+    keys=[row['company_id'] for row in company_store.catalog(db)]
+    status,body=request(app,'GET','/api/companies?ids='+','.join(keys[:2]))
+    assert status==200 and body['total']==2
+    assert {row['company_id'] for row in body['rows']}==set(keys[:2])
+    for value in ('bad',','.join(['a'*24]*51)):
+        assert request(app,'GET','/api/companies?ids='+value)[0]==400
+
+
 def test_gmail_setup_is_same_origin_and_does_not_return_password(app,monkeypatch):
     from common import company_outreach
     called=[]

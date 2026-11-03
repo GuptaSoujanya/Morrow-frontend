@@ -358,6 +358,7 @@ these shared workflows. The original workspace includes:
   continue resume learning or the full course curriculum. Saved library searches the
   `user/research` collection, including dated briefings and recruiter drafts. Progress shows
   shared activity, badges and completion history. Missing material has direct fetch controls.
+- **Companies:** one table keeps the company, exact job role, public email/phone and draft status together. Choose a role when a company has several jobs, then click **Create draft** or select rows and click **Create selected drafts**. That single click starts contact research, a résumé-grounded pitch and subject, PDF attachment, and verified Gmail Drafts saving. A separate progress tab opens Gmail only after verification. The original page shows the same durable timeline. Missing contacts, unsupported roles, interrupted runs and uncertain Gmail saves show a reason and recovery action; no emails are sent. Existing recipient drafts are reused to prevent duplicates. The connected Google session must match the configured sender.
 - **Automation controls:** Naukri and four other job boards, company sites, Naukri/LinkedIn
   profiles plus dedicated Hirist/Instahyre/Cutshort/Wellfound profile agents, LinkedIn posts, recruiter email drafts and resume tailoring.
 - **Action inbox and Reports:** answer questions, complete facts and review or generate
@@ -377,7 +378,7 @@ See [CAPABILITIES.md](CAPABILITIES.md) for the original local-tool inventory and
 semantics. The account boundary above determines which workflows are available to
 each signed-in user.
 
-Owner-workspace runs show an exact command preview and ask for confirmation. Bot Crew's
+Bot Crew and pipeline runs show an exact command preview and ask for confirmation. Bot Crew's
 **Run now** and **Run selected** perform actual work: application agents submit applications,
 profile agents save changes, and research agents save their output. LinkedIn creates a saved
 draft (and its configured Telegram alert); recruiter writers save drafts. Agents needing a

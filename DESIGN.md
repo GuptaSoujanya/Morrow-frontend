@@ -252,15 +252,19 @@ Toasts are no longer dark tiles. They are raised cream cards with a 5px tone bar
 
 ## Companies spreadsheet — November 3, 2026
 
-The user selected white rows, compact spacing and minimal decoration. Companies uses a neutral table surface within the existing shell. Show company, email and phone first. Keep research status quiet, show additional contacts as a count, and open sources, company facts and email pitches in a detail panel. Contacts and Drafts views keep each task focused. Search stays visible; optional filters open from one button and applied filters remain visible. On phones, retain the three contact columns and open details as a full-screen dialog.
+The user selected white rows, compact spacing and minimal decoration. Companies uses a neutral table surface within the existing shell. Show company, email and phone first. Keep research status quiet, show additional contacts as a count, and open sources, company facts and email pitches in a detail panel. A single table keeps contact details and draft progress together. Search stays visible; optional filters open from one button and applied filters remain visible. On phones, retain company/role and contact/action columns and open details as a full-screen dialog.
 
 Research: [Carbon data-table guidance](https://www.carbondesignsystem.com/building-blocks/core/components/data-table/guidelines) informed the compact toolbar and consistent rows. [NN/g table guidance](https://www.nngroup.com/articles/data-tables/) informed adjacent related information, sticky headers and a detail panel that preserves table context. Saved drafts, Gmail connection, copying, evidence links, keyboard navigation and honest missing-data labels remain functional.
 
 ### Companies selection and Gmail — November 3, 2026
 
-The compact white table retains Morrow's warm text, borders and terracotta actions. Native
-row checkboxes support selection across filters and pages; the header checkbox selects the
-visible page, up to 50 companies. The selection bar names the Gmail destination and reviews
-the exact company list before starting. Successful starts open the Drafts view. Local files,
-verified Gmail drafts and uncertain saves have distinct labels. Google browser readiness comes
-from the saved connection; the active account and saved draft are checked during each run.
+Keep the warm Morrow palette, compact white rows, and prominent email/phone information.
+Each company has an explicit job role; multiple jobs require a choice rather than silently
+selecting the highest score. Row selection persists across search and pages, up to 50 companies.
+One click on Create draft or Create selected drafts starts the exact selection. Show the
+real persisted phases: find email, write pitch, attach résumé, save in Gmail, ready to review.
+The reserved handoff tab waits for verified Gmail contents before opening the saved draft;
+failures remain visible with a reason. The main table and progress panel use the same state.
+A saved pitch is previewable with subject, recipient and résumé. Never send mail. Verify the
+signed-in Google account and saved contents, preserve uncertain saves for reconciliation,
+and prevent duplicate recipient drafts. Preserve source links and evidence in the detail panel.
