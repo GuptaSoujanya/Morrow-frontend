@@ -33,7 +33,7 @@ function contactDetails(item){return h('div',{},['email','phone'].map(key=>{
 }),h('section',{class:'company-detail-section'},h('h3',{text:'Linked roles'}),h('ul',{class:'company-jobs'},(item.jobs||[]).map(job=>h('li',{},url(job.url)?h('a',{href:url(job.url),target:'_blank',rel:'noopener noreferrer',text:job.title||'Open job posting'}):h('span',{text:job.title||'Job posting'}))))));}
 function draftDetails(item){
   const drafts=(item.drafts||[]).filter(draft=>draft.body);
-  if(!drafts.length)return h('p',{class:'company-muted',text:'No draft saved yet. Create Gmail draft in the table will handle the full process.'});
+  if(!drafts.length)return h('p',{class:'company-muted',text:'No draft saved yet. Create draft in the table finds the contact and prepares your email.'});
   return h('div',{},drafts.map(draft=>h('section',{class:'company-pitch'},
     h('div',{class:'company-pitch-address'},h('span',{text:'To'}),h('strong',{text:draft.recipient})),
     h('h3',{text:draft.subject}),h('p',{class:'company-pitch-body',text:draft.body}),
@@ -48,7 +48,7 @@ const phaseLabels={idle:'Not drafted',queued:'Starting…',contacts:'Finding ema
 function contactCell(item,key,open){
   const values=valuesFor(item,key),label=key==='email'?'Email':'Phone';
   return h('div',{class:`company-contact-cell outreach-contact${key==='phone'?' outreach-phone':''}`},
-    values.length?copyButton(values[0].value,label,true):h('span',{class:'company-muted',text:key==='email'?'Not found yet':'—','aria-label':key==='phone'?'Phone not found':null}),
+    values.length?copyButton(values[0].value,label,true):h('span',{class:'company-contact-empty',text:'—','aria-label':`${label} not found`,title:key==='email'?'Create draft will look for a public hiring email.':'No public phone number found.'}),
     values.length>1?h('button',{type:'button',class:'company-more',text:`+${values.length-1}`,'aria-label':`${values.length-1} more ${key==='email'?'emails':'phone numbers'} for ${item.name}`,onclick:()=>open(item)}):null);
 }
 function companyTable(items,controls){
@@ -60,19 +60,18 @@ function companyTable(items,controls){
       h('tbody',{},items.map(item=>{
         const state=workflow(item),working=isWorking(item),saved=(item.drafts||[]).filter(d=>d.state==='gmail'&&gmailLink(d.gmail_url));
         const finished=saved.length&&state.phase==='ready';
-        const action=finished?h('a',{class:'company-create-button is-ready',href:saved.length===1?gmailLink(saved[0].gmail_url):mailbox(controls.outreach.sender),target:'_blank',rel:'noopener noreferrer',text:'Open Gmail'},icon('external','icon icon-sm')):
-          h('button',{class:'company-create-button',type:'button',text:working?'Creating…':'Create Gmail draft',disabled:working||controls.starting,onclick:()=>start(item)});
+        const action=finished?h('a',{class:'company-create-button is-ready',href:saved.length===1?gmailLink(saved[0].gmail_url):mailbox(controls.outreach.sender),target:'_blank',rel:'noopener noreferrer',title:'Draft saved and verified in Gmail'},icon('check','icon icon-sm'),h('span',{text:'Open Gmail'})):
+          h('button',{class:`company-create-button${working?' is-working':''}`,type:'button',disabled:working||controls.starting,onclick:()=>start(item)},h('span',{text:working?phaseLabels[state.phase]:'Create draft'}));
         const oldRoleIssue=['role_mismatch','missing_context','review_needed'].includes(state.issue?.code);
         const note=state.phase==='idle'?'':oldRoleIssue?'We’ll write an introduction based on your résumé.':state.message;
         const problem=['failed','blocked'].includes(state.phase);
-        const status=problem?h('details',{class:'company-row-issue'},h('summary',{text:/No (verified|public) hiring email/i.test(note)?'No hiring email found':'Draft not saved'}),h('p',{text:note})):
-          state.phase!=='idle'?h('span',{class:`outreach-state is-${state.phase}`,role:'status',text:phaseLabels[state.phase]}):null;
-        return h('tr',{dataset:{company:item.company_id}},
+        const status=problem?h('details',{class:'company-row-issue'},h('summary',{text:/No (verified|public) hiring email/i.test(note)?'No hiring email found':'Draft not saved'}),h('p',{text:note})):null;
+        return h('tr',{dataset:{company:item.company_id,phase:state.phase}},
           h('td',{class:'company-cell-select'},h('label',{class:'company-check'},h('input',{type:'checkbox','aria-label':`Select ${item.name}`,checked:selected.has(item.company_id),disabled:working,onchange:event=>selectOne(item,event.target.checked)}))),
           h('td',{class:'company-cell-identity'},h('button',{class:'company-name',type:'button','aria-haspopup':'dialog',title:item.name,onclick:()=>open(item)},h('span',{text:item.name}))),
           h('td',{class:'company-cell-email'},contactCell(item,'email',open)),
           h('td',{class:'company-cell-phone'},contactCell(item,'phone',open)),
-          h('td',{class:'company-cell-action'},h('div',{class:'company-row-action'},action,status)));
+          h('td',{class:'company-cell-action'},h('div',{class:'company-row-action','aria-live':'polite'},action,status)));
       }))));
 }
 
@@ -163,6 +162,7 @@ export function renderCompanies(id=''){
       const result=await api('/api/companies?'+new URLSearchParams(id?{id}:filters),undefined,{fresh:true});
       if(request!==ticket||scope.aborted)return;data=result;filters.page=data.page;
       if(data.outreach?.running&&!activeIds.length){runPanel.hidden=false;runPanel.replaceChildren(h('p',{role:'status',text:'Drafts are being prepared. Status updates automatically.'}));}
+      else if(!activeIds.length&&!activeRun){runPanel.hidden=true;runPanel.replaceChildren();}
       count.textContent=`${data.total.toLocaleString()} ${data.total===1?'company':'companies'}`;
       const connected=data.outreach?.gmail_configured;
       connection.textContent=connected?`Gmail · ${data.outreach.sender}`:'Connect Google / Gmail';connection.classList.toggle('is-connected',!!connected);
@@ -181,7 +181,9 @@ export function renderCompanies(id=''){
   window.addEventListener('hashchange',routeChanged);
   load();
   return h('div',{class:'page companies-page companies-sheet companies-outreach companies-automatic'},id?h('a',{class:'company-back',href:'#/companies?'+new URLSearchParams(filters),text:'← All companies'}):null,
-    h('header',{class:'company-page-heading'},h('div',{},h('div',{class:'company-page-title'},title,count),h('p',{class:'outreach-subtitle',text:'Find contacts, write your pitch, and save to Gmail in one click.'})),h('div',{class:'outreach-connection'},connection,resumeLabel)),
-    runPanel,h('section',{class:'company-workspace','aria-label':'Company directory'},h('div',{class:'company-table-toolbar'},h('div',{class:'company-table-tools'},h('div',{class:'company-search'},icon('search','icon icon-sm'),search),filterButton,filterPopover,refresh)),selectionBar,applied,body,footer),
-    h('p',{class:'company-page-note',text:'Creates drafts only. You review and send in Gmail.'}));
+    h('section',{class:'company-workspace','aria-label':'Company directory'},
+      h('header',{class:'company-directory-header'},h('div',{class:'company-page-title'},title,count),h('div',{class:'company-table-tools'},h('div',{class:'company-search'},icon('search','icon icon-sm'),search),filterButton,filterPopover,refresh)),
+      h('p',{class:'company-workspace-hint',text:'Create draft finds the contact, writes your pitch, and attaches your résumé.'}),
+      selectionBar,applied,runPanel,body,footer,
+      h('div',{class:'company-account-strip'},h('div',{class:'company-account-info'},connection,resumeLabel),h('span',{class:'company-account-note',text:'Drafts only. You review and send.'}))));
 }

@@ -39,7 +39,7 @@ for(const width of [1440,1024,768,375])test(`simple company table works at ${wid
   const table=page.getByRole('table');
   await expect(table.getByRole('columnheader')).toHaveText(['','Company','Email','Phone','Gmail draft']);
   await expect(page.getByRole('combobox',{name:/Role for/})).toHaveCount(0);
-  await expect(page.getByRole('button',{name:'Create Gmail draft',exact:true})).toHaveCount(3);
+  await expect(page.getByRole('button',{name:'Create draft',exact:true})).toHaveCount(3);
   await expect(page.getByRole('button',{name:/Review role|View details|Retry draft/})).toHaveCount(0);
   await expect(page.getByRole('button',{name:/Create Gmail drafts \(/})).toHaveCount(0);
   for(const name of ['Copy email: careers@example.com','Copy phone: +1 415 555 0100']){
@@ -64,18 +64,18 @@ test('one click automatically finds and drafts without role selection or a popup
   await page.addInitScript(()=>{window.popupCalls=0;window.open=()=>{window.popupCalls++;return null;};});
   await page.route('**/api/run',route=>{starts.push(route.request().postDataJSON());updated=Date.now()/1000;return route.fulfill({json:{id:'automatic-run'}});});
   await page.route('**/api/companies?*',route=>route.fulfill({json:payload([{...acme,...(starts.length?{workflow:{phase,message:phase==='ready'?'Saved and verified.':'Writing an email from your résumé.',updated_at:updated},drafts:phase==='ready'?[{state:'gmail',gmail_url:target,title:'AI Engineer'}]:[]}:{})}])}));
-  await page.goto('/#/companies');await page.getByRole('button',{name:'Create Gmail draft',exact:true}).click();
+  await page.goto('/#/companies');await page.getByRole('button',{name:'Create draft',exact:true}).click();
   await expect.poll(()=>starts.length).toBe(1);
   expect(starts[0]).toEqual({action:'company_outreach',options:{companies:[key],automatic:true,require_gmail:true}});
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(await page.evaluate(()=>window.popupCalls)).toBe(0);
-  phase='writing';await expect(page.getByRole('button',{name:'Creating…',exact:true})).toBeDisabled();
+  phase='writing';await expect(page.locator('.company-create-button.is-working')).toBeDisabled();
   // Progress still updates with a table checkbox focused.
   await page.locator('thead input').focus();
   phase='ready';updated=Date.now()/1000;
   await expect(page.getByRole('link',{name:'Open Gmail',exact:true})).toHaveAttribute('href',target,{timeout:10000});
   await expect(page.getByRole('link',{name:'Open Gmail',exact:true})).toHaveAttribute('target','_blank');
-  await expect(page.locator('.company-cell-action')).toContainText('Saved in Gmail');
+  await expect(page.locator('.company-cell-action')).toContainText('Open Gmail');
   expect(starts).toHaveLength(1);
 });
 
@@ -95,16 +95,16 @@ test('a previous role mismatch is handled by the same one-click action',async({p
   const starts=[];
   await page.route('**/api/companies?*',route=>route.fulfill({json:payload([{...pending,workflow:{phase:'failed',job_id:'n1',message:'Unrelated role.',issue:{code:'role_mismatch'}}}])}));
   await page.route('**/api/run',route=>{starts.push(route.request().postDataJSON());return route.fulfill({json:{id:'retry-run'}});});
-  await page.goto('/#/companies');await page.getByRole('button',{name:'Create Gmail draft',exact:true}).click();
+  await page.goto('/#/companies');await page.getByRole('button',{name:'Create draft',exact:true}).click();
   await expect.poll(()=>starts.length).toBe(1);expect(starts[0].options.automatic).toBe(true);
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
 test('fast repeated clicks cannot start duplicate draft runs',async({page})=>{
   const starts=[];await page.route('**/api/run',async route=>{starts.push(route.request().postDataJSON());await new Promise(r=>setTimeout(r,300));await route.fulfill({json:{id:'one-run'}});});
-  await page.goto('/#/companies');await page.getByRole('button',{name:'Create Gmail draft',exact:true}).first().dblclick({force:true});
+  await page.goto('/#/companies');await page.getByRole('button',{name:'Create draft',exact:true}).first().dblclick({force:true});
   await expect.poll(()=>starts.length).toBe(1);
-  await expect(page.getByRole('button',{name:'Creating…',exact:true})).toBeDisabled();
+  await expect(page.locator('.company-create-button.is-working')).toBeDisabled();
   expect(starts).toHaveLength(1);
 });
 
