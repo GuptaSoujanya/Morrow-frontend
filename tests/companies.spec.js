@@ -37,7 +37,7 @@ test.beforeEach(async({page})=>{
 for(const width of [1440,1024,768,375])test(`simple company table works at ${width}px`,async({page})=>{
   await page.setViewportSize({width,height:960});await page.goto('/#/companies');
   const table=page.getByRole('table');
-  await expect(table.getByRole('columnheader')).toHaveText(width<=700?['','Company','Email & phone']:['','Company','Email & phone','Status','Gmail draft']);
+  await expect(table.getByRole('columnheader')).toHaveText(['','Company','Email','Phone','Gmail draft']);
   await expect(page.getByRole('combobox',{name:/Role for/})).toHaveCount(0);
   await expect(page.getByRole('button',{name:'Create Gmail draft',exact:true})).toHaveCount(3);
   await expect(page.getByRole('button',{name:/Review role|View details|Retry draft/})).toHaveCount(0);
@@ -75,7 +75,7 @@ test('one click automatically finds and drafts without role selection or a popup
   phase='ready';updated=Date.now()/1000;
   await expect(page.getByRole('link',{name:'Open Gmail',exact:true})).toHaveAttribute('href',target,{timeout:10000});
   await expect(page.getByRole('link',{name:'Open Gmail',exact:true})).toHaveAttribute('target','_blank');
-  await expect(page.locator('.company-cell-progress')).toContainText('Saved in Gmail');
+  await expect(page.locator('.company-cell-action')).toContainText('Saved in Gmail');
   expect(starts).toHaveLength(1);
 });
 
@@ -127,7 +127,10 @@ test('ready draft details show the subject and resume and open the saved Gmail d
 
 test('missing email remains an honest failure with no fake Gmail success',async({page})=>{
   await page.route('**/api/companies?*',route=>route.fulfill({json:payload([{...pending,workflow:{phase:'blocked',message:'No verified hiring email was found.'}}])}));
-  await page.goto('/#/companies');await expect(page.locator('.company-cell-progress')).toContainText('No verified hiring email was found.');
+  await page.goto('/#/companies');
+  await page.getByText('No hiring email found',{exact:true}).click();
+  await expect(page.locator('.company-row-issue p')).toBeVisible();
+  await expect(page.locator('.company-row-issue p')).toHaveText('No verified hiring email was found.');
   await expect(page.getByRole('link',{name:'Open Gmail',exact:true})).toHaveCount(0);
 });
 

@@ -64,13 +64,12 @@ function companyTable(items,controls){
           h('button',{class:'company-create-button',type:'button',text:working?'Creating…':'Create Gmail draft',disabled:working||controls.starting,onclick:()=>start(item)});
         const oldRoleIssue=['role_mismatch','missing_context','review_needed'].includes(state.issue?.code);
         const note=state.phase==='idle'?'':oldRoleIssue?'We’ll write an introduction based on your résumé.':state.message;
-        const purpose=finished?saved[0].title:working?state.title:'';
         const problem=['failed','blocked'].includes(state.phase);
         const status=problem?h('details',{class:'company-row-issue'},h('summary',{text:/No (verified|public) hiring email/i.test(note)?'No hiring email found':'Draft not saved'}),h('p',{text:note})):
           state.phase!=='idle'?h('span',{class:`outreach-state is-${state.phase}`,role:'status',text:phaseLabels[state.phase]}):null;
         return h('tr',{dataset:{company:item.company_id}},
           h('td',{class:'company-cell-select'},h('label',{class:'company-check'},h('input',{type:'checkbox','aria-label':`Select ${item.name}`,checked:selected.has(item.company_id),disabled:working,onchange:event=>selectOne(item,event.target.checked)}))),
-          h('td',{class:'company-cell-identity'},h('button',{class:'company-name',type:'button','aria-haspopup':'dialog',title:item.name,onclick:()=>open(item)},h('span',{text:item.name})),purpose?h('span',{class:'outreach-role-title',text:purpose}):null),
+          h('td',{class:'company-cell-identity'},h('button',{class:'company-name',type:'button','aria-haspopup':'dialog',title:item.name,onclick:()=>open(item)},h('span',{text:item.name}))),
           h('td',{class:'company-cell-email'},contactCell(item,'email',open)),
           h('td',{class:'company-cell-phone'},contactCell(item,'phone',open)),
           h('td',{class:'company-cell-action'},h('div',{class:'company-row-action'},action,status)));
