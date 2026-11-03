@@ -91,9 +91,16 @@ function requestView(label, render) {
     try {
       const children = await render({ current: () => current() && (request === ticket || request === committed), load, beginMutation, signal: controller.signal });
       if (!current() || request !== ticket) return;
-      committed = request;
       feedback.replaceChildren();
-      content.replaceChildren(...(Array.isArray(children) ? children : [children]).filter(Boolean));
+      const nodes = (Array.isArray(children) ? children : [children]).filter(Boolean);
+      const unchanged = nodes.length === content.childNodes.length
+        && nodes.every((node, index) => node === content.childNodes[index]);
+      // An unchanged reader keeps both its DOM and the committed callbacks that
+      // own its controls. Detaching it would reset diagrams and reading position.
+      if (!unchanged) {
+        committed = request;
+        content.replaceChildren(...nodes);
+      }
       updateRunButtons();
     } catch (error) {
       if (!current() || request !== ticket || error.name === 'AbortError') return;
@@ -213,7 +220,10 @@ function coursesView() {
       h('ol', { class: 'plain-list learning-library-list' }, active.modules.map(lessonRow)));
     drawCounts();
     layout.append(nav, trackPicker, content);
-    return [heading('Choose a track and work through its lessons at your own pace.'), total, layout];
+    return [h('section', { class: 'course-reference-guide' }, h('h2', { text: 'Looking for what to learn next?' }),
+      h('p', { text: 'Follow the 90-day course for the daily lesson, coding task and interview practice. These reference chapters help you explore a topic in more detail.' }),
+      h('a', { class: 'btn btn-primary', href: '#/learning/weekly', text: 'Open my 90-day course →' })),
+      heading('Choose a subject to look up its reference chapters.'), total, layout];
   });
 }
 
@@ -299,7 +309,10 @@ export function safeReading(html, title) {
     if (!allowed.has(tag)) return document.createTextNode(node.textContent);
     if (tag === 'h1') tag = 'h2';
     const props = {};
-    if (tag === 'code' && node.classList.contains('language-mermaid')) props.class = 'language-mermaid';
+    if (tag === 'code') {
+      const language = [...node.classList].find(name => /^language-[a-z0-9_+-]{1,30}$/i.test(name));
+      if (language) props.class = language;
+    }
     if (tag === 'a') {
       const href = node.getAttribute('href') || '';
       if (/^https?:\/\//i.test(href) || /^mailto:/i.test(href)) Object.assign(props, { href, target: '_blank', rel: 'noopener noreferrer' });
@@ -327,11 +340,13 @@ export function safeReading(html, title) {
 }
 
 function readView(id) {
-  let notes;
+  let notes, renderedKey, renderedNodes;
   const view = requestView('Opening your reading…', async ({ current, beginMutation, signal }) => {
     const data = await api('/api/document?id=' + encodeURIComponent(id), undefined, { signal });
     if (!current()) return [];
     const canMark = hasModule('learning');
+    const key = JSON.stringify([data, canMark]);
+    if (key === renderedKey && renderedNodes?.every(node => node.isConnected)) return renderedNodes;
     const feedback = h('p', { class: 'learning-library-note', role: 'status', text: !canMark ? 'You can read this document. Saving reading progress requires access to learning.' : data.read ? 'Complete. Your progress is saved.' : 'Read the material, then mark it complete to record your progress.' });
     const toggle = h('button', { class: 'btn' + (data.read ? '' : ' btn-primary'), type: 'button', disabled: !canMark, text: data.read ? 'Reopen reading' : 'Mark complete', onclick: async () => {
       if (!canMark) return;
@@ -349,6 +364,8 @@ function readView(id) {
         feedback.textContent = data.read ? 'Complete. Your progress is saved and your daily activity is updated.' : 'Reading reopened. Your saved progress is updated.';
       } catch (error) {
         if (!current() || error.name === 'AbortError') return;
+        // A later refresh may clear this failed save's inline feedback.
+        renderedKey = null;
         feedback.classList.add('field-error'); feedback.textContent = `Progress could not be saved. ${error.message} Please try again.`;
       } finally {
         if (current()) {
@@ -363,17 +380,18 @@ function readView(id) {
     const savedAction = hasModule('learning') ? h('div', { class: 'learn-reader-save' }, learningSave({ kind: 'resource', title: data.title || 'Saved reading', url: '#/learning/read/' + encodeURIComponent(id) })) : null;
     const completion = h('footer', { class: 'learning-library-reading-footer' + (courseLesson ? ' course-completion' : '') }, feedback, toggle);
     const safe = safeReading(data.html, data.title);
-    const reading = courseLesson ? lessonReader({ reading: safe, onChange: ({ last, all }) => { completion.hidden = !last && !all; } }) : safe;
+    const reading = courseLesson ? lessonReader({ reading: safe, lesson: data.lesson, onChange: ({ last, all }) => { completion.hidden = !last && !all; } }) : safe;
     const material = h('article', { class: 'learning-library-reading' + (courseLesson ? ' course-reading' : '') },
         h('header', { class: 'learning-library-reading-head' }, h('div', {}, h('p', { class: 'eyebrow', text: data.day ? `LEARNING DAY ${data.day} OF 90` : data.category || 'SAVED READING' }), h('h2', { text: data.title || 'Saved reading' })), status),
-        courseLesson ? h('p', { class: 'daily-lesson-source' }, h('strong', { text: 'Very simple English. ' }),
-          'Learn the idea, work through real cases, and practise interview answers. Take it at your own pace.') : savedAction,
+        courseLesson ? null : savedAction,
         reading, completion, courseLesson ? savedAction : null);
     if (canMark && !notes) notes = studyNotes({ sourceId: id, sourceTitle: data.title || 'Saved reading',
       category: 'resource', sourceUrl: '#/learning/read/' + encodeURIComponent(id) });
-    return [notes ? h('div', { class: 'learning-study-layout' }, notes,
+    renderedKey = key;
+    renderedNodes = [notes ? h('div', { class: 'learning-study-layout' }, notes,
       h('div', { class: 'learning-study-content' }, material)) : material,
       h('a', { class: 'learning-library-back', href: '#/learning', text: 'Continue today’s priorities →' })];
+    return renderedNodes;
   });
   const refresh = view.refresh, dispose = view.dispose;
   view.refresh = () => { if (!notes?.hasDraft?.() && !notes?.contains(document.activeElement)) refresh(); };

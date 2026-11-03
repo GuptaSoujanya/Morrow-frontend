@@ -41,10 +41,11 @@ async function ready(page, route = 'learning') {
   const part = path.split('/')[1] || 'today';
   const section = path === 'dsa' ? 'dsa' : path === 'study' ? 'courses'
     : path.startsWith('research/') ? 'read' : path === 'research' ? new URLSearchParams(query).get('view') || 'today' : part;
-  const titles = { today: 'Today’s learning', dsa: 'DSA practice', practice: 'Practice & exams', plan: 'Daily learning', read: 'Reading',
-    resume: 'Resume topics', courses: 'Courses', library: 'Saved library', progress: 'Your progress' };
+  const titles = { today: 'Today’s learning', dsa: 'DSA practice', practice: 'Practice & exams', plan: 'Course lesson', read: 'Reading',
+    resume: 'Resume topics', courses: 'Reference chapters', library: 'Saved library', progress: 'Your progress' };
   const title = path.startsWith('learning/dsa/problem/') ? 'DSA problem'
-    : path === 'learning/dsa/sheet' ? 'DSA practice sheet' : titles[section];
+    : path === 'learning/dsa/sheet' ? 'DSA practice sheet'
+      : /\/interview(?:%2f|\/)day-/i.test(path) ? 'Course lesson' : titles[section];
   await expect(page.getByRole('heading', { name: route === 'overview' ? 'Launchpad' : title, level: 1, exact: true })).toBeVisible();
   if (route === 'learning') {
     await expect(page.locator('.daily-agenda')).toBeVisible();
@@ -66,6 +67,13 @@ async function choose(page, label, option) {
   await page.getByRole('listbox', { name: label, exact: true }).getByRole('option', { name: option, exact: true }).click();
 }
 function task(page, key) { return page.locator(`[data-learning-task="${key}"]`); }
+async function expectTaskTitle(page, key, title) {
+  const selected = page.locator('.daily-task-choice[aria-pressed="true"]');
+  const previous = await selected.getAttribute('data-learning-focus');
+  await task(page, key).getByRole('button').click();
+  await expect(page.locator('.daily-focus-title')).toHaveText(title);
+  if (previous !== `select-${key}`) await page.locator(`[data-learning-focus="${previous}"]`).click();
+}
 async function revealControl(locator) {
   await expect(locator).toBeAttached();
   const closedParents = locator.locator('xpath=ancestor::details[not(@open)]');
@@ -118,74 +126,76 @@ async function assertCheckedSave(page, label) {
   await expect(checkbox).toBeChecked();
 }
 
-test('course reader teaches one step at a time and restores the learner’s place without saving completion', async ({ page }) => {
+test('course chapters expose the complete lesson, retain deep links and never complete themselves', async ({ page }) => {
+  test.setTimeout(75_000);
   const saves = [];
   page.on('request', request => { if (request.method() === 'POST' && request.url().includes('/api/research/read')) saves.push(request.url()); });
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     for (const route of ['learning/plan', 'learning/read/interview%2Fday-1']) {
       await ready(page, route);
-      await expect(page.getByText('Very simple English.', { exact: true })).toBeVisible();
-      await expect(page.locator('.lesson-subject-menu')).not.toHaveAttribute('open', '');
-      await expect(page.locator('.lesson-part-nav button')).toHaveCount(4);
+      await revealControl(page.locator('.lesson-part-nav'));
+      const contents = page.getByRole('navigation', { name: 'Lesson contents', exact: true });
+      await expect(contents).toBeVisible();
+      expect(await contents.locator('[data-lesson-part]').evaluateAll(buttons => buttons.map(button => button.dataset.lessonPart)))
+        .toEqual(['ai', 'systems', 'build', 'project', 'dsa', 'interview', 'review']);
       await expect(page.locator('[data-lesson-part="ai"]')).toHaveAttribute('aria-current', 'step');
+      await revealControl(page.locator('.lesson-day-overview'));
+      await expect(page.getByRole('region', { name: 'Today’s learning goal', exact: true })).toBeVisible();
       await expect(page.locator('.course-completion')).not.toBeVisible();
       await expect(page.locator('#nav')).not.toBeVisible();
       await expect(page.locator('.workspace-header')).not.toBeVisible();
-      await expect(page.getByRole('button', { name: 'Show navigation', exact: true })).toBeVisible();
-      if (route === 'learning/plan') await capture(page, `lesson-reader-${width}`);
       const reading = page.locator('.lesson-panel > .daily-prose');
-      const steps = page.getByRole('navigation', { name: 'Lesson steps', exact: true });
-      await expect(reading).toHaveAttribute('data-current-lesson-stage', 'understand');
-      await expect(reading).toContainText('People choose the examples');
-      await expect(reading.locator('.lesson-example, .lesson-task')).toHaveCount(0);
-      await expect(reading.getByText('Check your answer', { exact: true })).toHaveCount(0);
+      const sections = page.getByRole('navigation', { name: 'Jump to a section', exact: true });
+      await expect(reading.locator('.lesson-focus')).toContainText('What you’ll learn');
+      await expect(reading.locator('.lesson-focus')).toContainText('Why it matters at work');
+      for (const key of ['understand', 'example', 'try', 'interview']) {
+        await expect(reading.locator(`[data-lesson-section="${key}"]`)).toBeVisible();
+      }
+      await expect(reading.locator('.lesson-idea')).toContainText('exact calculation');
+      await expect(reading.locator('.lesson-idea')).toContainText('baseline');
       const words = reading.locator('.lesson-word-help');
       await expect(words).not.toHaveAttribute('open', '');
       await words.locator('summary').click();
-      await expect(words).toContainText('machine learning');
-      await expect(words).toHaveAttribute('open', '');
-      await page.locator('.lesson-pager').getByRole('button', { name: 'See an example', exact: true }).click();
+      await expect(words).toContainText('mean absolute error');
+      const answer = reading.locator('details').filter({ has: page.getByText('Check your answer', { exact: true }) });
+      await expect(answer).toHaveCount(1);
+      await expect(answer).not.toHaveAttribute('open', '');
+      await sections.getByRole('button', { name: 'Worked examples', exact: true }).click();
       await expect(reading).toHaveAttribute('data-current-lesson-stage', 'example');
+      await expect(reading.locator('.lesson-idea')).toBeVisible();
       await expect(reading.locator('.lesson-example')).toBeVisible();
-      await expect(reading.locator('.lesson-task')).toHaveCount(0);
+      await expect(reading.locator('.lesson-task')).toBeVisible();
       await expect(page).toHaveURL(/part=ai&stage=example/);
       await page.reload();
-      await expect(steps.getByRole('button', { name: 'See an example', exact: true })).toHaveAttribute('aria-current', 'step');
-      await expect(reading).toHaveAttribute('data-current-lesson-stage', 'example');
-      await page.locator('.lesson-pager').getByRole('button', { name: 'Try it yourself', exact: true }).click();
+      await expect(sections.getByRole('button', { name: 'Worked examples', exact: true })).toHaveAttribute('aria-current', 'location');
+      await expect(reading.locator('.lesson-idea')).toBeVisible();
+      await sections.getByRole('button', { name: 'Build & test', exact: true }).click();
       await expect(reading).toHaveAttribute('data-current-lesson-stage', 'try');
-      await expect(reading.locator('.lesson-task')).toBeVisible();
-      const answers = reading.locator('details').filter({ has: page.getByText('Check your answer', { exact: true }) });
-      await expect(answers).toHaveCount(1);
-      await expect(answers.first()).not.toHaveAttribute('open', '');
-      await expect(answers.first().locator('p').first()).not.toBeVisible();
-      await answers.first().locator('summary').click();
-      await expect(answers.first().locator('p').first()).toBeVisible();
-      await expect(answers.first()).toContainText('8 exercises');
-      await expect(answers.first().locator('h2')).toHaveCount(0);
-      await page.locator('.lesson-pager').getByRole('button', { name: 'Back', exact: true }).click();
-      await expect(reading).toHaveAttribute('data-current-lesson-stage', 'example');
-      await page.locator('.lesson-pager').getByRole('button', { name: 'Try it yourself', exact: true }).click();
-      await expect(answers.first()).toHaveAttribute('open', '');
-      await page.getByRole('button', { name: 'Practise for interviews', exact: true }).click();
+      await expect(answer.locator('p').first()).not.toBeVisible();
+      await answer.locator('summary').click();
+      await expect(answer.locator('p').first()).toBeVisible();
+      await sections.getByRole('button', { name: 'Interview practice', exact: true }).click();
       await expect(reading).toHaveAttribute('data-current-lesson-stage', 'interview');
-      await expect(reading.getByRole('heading', { name: 'Interview practice', exact: true })).toBeVisible();
-      const interviewAnswers = reading.locator('details').filter({ has: page.getByText('Show answer', { exact: true }) });
+      const interviewAnswers = reading.locator('.lesson-interview details').filter({ has: page.getByText('Show answer', { exact: true }) });
       await expect(interviewAnswers).toHaveCount(2);
       await expect(interviewAnswers.first()).not.toHaveAttribute('open', '');
       await interviewAnswers.first().locator('summary').click();
       await expect(interviewAnswers.first().locator('p').first()).toBeVisible();
-      await page.reload();
-      await expect(page.locator('.lesson-stage-prose')).toHaveAttribute('data-current-lesson-stage', 'interview');
       await page.getByRole('button', { name: 'Next: System design', exact: true }).click();
-      await expect(page.getByRole('region', { name: 'System design lesson', exact: true })).toBeFocused();
-      await expect(reading).toHaveAttribute('data-current-lesson-stage', 'understand');
-      await expect(reading).toContainText('What happens when you open a page?');
-      await expect(reading).not.toContainText('8 exercises');
+      await expect(page.getByRole('region', { name: 'System design lesson', exact: true }).locator('h2').first()).toBeFocused();
+      await expect(reading).toContainText('Trace the study-summary request');
+      await page.getByRole('button', { name: 'Back: AI & ML', exact: true }).click();
+      await expect(answer).toHaveAttribute('open', '');
       await chooseSubject(page, 'build');
-      await steps.getByRole('button', { name: 'See an example', exact: true }).click();
-      await expect(reading).toContainText('add_five');
+      await expect(reading.locator('pre').filter({ hasText: 'summarise_sessions' }).first()).toBeVisible();
+      await expect(reading.locator('.lesson-task')).toContainText('Your task is ready when');
+      for (const [key, label] of [['project', 'Build & test'], ['dsa', 'DSA practice'], ['interview', 'Interview & recall']]) {
+        await chooseSubject(page, key);
+        await expect(page.getByRole('region', { name: label + ' lesson', exact: true })).toBeVisible();
+        await expect(reading).not.toBeEmpty();
+        await expect(page.locator('.course-completion')).not.toBeVisible();
+      }
       await chooseSubject(page, 'review');
       await expect(page.locator('.course-completion')).toBeVisible();
       const extra = reading.locator('details').filter({ has: page.getByText('Extra reading (optional)', { exact: true }) });
@@ -193,11 +203,11 @@ test('course reader teaches one step at a time and restores the learner’s plac
       await extra.locator('summary').click();
       await expect(extra.locator('a').first()).toBeVisible();
       await page.getByRole('button', { name: 'Read all parts', exact: true }).click();
-      await expect(answers).toHaveCount(3);
-      await expect(page.getByRole('button', { name: 'Read one part at a time', exact: true })).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Full lesson', exact: true })).toContainText('DSA practice');
+      await expect(page.getByRole('button', { name: 'Read one subject at a time', exact: true })).toBeVisible();
       await page.getByRole('button', { name: 'Show navigation', exact: true }).click();
       await expect(page.locator('#nav')).toBeVisible();
-      await expect(page.getByRole('navigation', { name: 'Learning sections', exact: true })).toBeVisible();
+      await expect(page.getByRole('navigation', { name: 'Learning sections', exact: true }).getByRole('link', { name: '90-day course', exact: true })).toHaveAttribute('aria-current', 'page');
       await page.getByRole('button', { name: 'Hide navigation', exact: true }).click();
       await expect(page.locator('#nav')).not.toBeVisible();
       await fit(page);
@@ -205,7 +215,6 @@ test('course reader teaches one step at a time and restores the learner’s plac
   }
   expect(saves).toEqual([]);
 });
-
 test('prepared lessons use the same reader and new DSA topics start with Learn', async ({ page, request }) => {
   const hub = await (await request.get('/api/learning/daily')).json();
   hub.plan = { ...hub.plan, read: false, source: 'generated', content_html: '<h2>Day 1</h2><p>First, remember yesterday’s small example.</p>' +
@@ -216,12 +225,13 @@ test('prepared lessons use the same reader and new DSA topics start with Learn',
     '<p><strong>Recall</strong></p><p>Explain one example in your own words.</p>' };
   await page.route('**/api/learning/daily', route => route.fulfill({ json: hub }));
   await ready(page, 'learning/plan');
-  await expect(page.locator('.lesson-part-nav button')).toHaveCount(5);
-  await expect(page.getByRole('region', { name: 'AI & ML lesson', exact: true })).toContainText('remember yesterday’s small example');
+  await expect(page.locator('.lesson-part-nav button')).toHaveCount(6);
+  await page.locator('.lesson-study-guide > summary').click();
+  await expect(page.locator('.lesson-study-guide')).toContainText('remember yesterday’s small example');
   await expect(page.getByRole('region', { name: 'AI & ML lesson', exact: true })).toContainText('Start by writing one number');
   await chooseSubject(page, 'dsa');
-  await page.getByRole('navigation', { name: 'Lesson steps', exact: true }).getByRole('button', { name: 'See an example', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'DSA lesson', exact: true })).toContainText('Add 1 to 2');
+  await page.getByRole('navigation', { name: 'Jump to a section', exact: true }).getByRole('button', { name: 'Worked examples', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'DSA practice lesson', exact: true })).toContainText('Add 1 to 2');
   await expect(page.locator('.course-completion')).not.toBeVisible();
   await chooseSubject(page, 'review');
   await expect(page.locator('.course-completion')).toBeVisible();
@@ -240,7 +250,7 @@ test('the daily plan and DSA save together, persist on reload and award 60 XP on
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await ready(page);
   await expect(page.getByRole('heading', { name: 'What is machine learning?', exact: true })).toBeVisible();
-  await expect(task(page, 'dsa')).toContainText('Hash sets & frequency maps');
+  await expectTaskTitle(page, 'dsa', 'Hash sets & frequency maps');
   await expect(page.locator('.daily-session-count')).toHaveText('0 / 2 complete');
   await capture(page, 'learning-home-desktop');
   await openTask(page, 'plan');
@@ -283,7 +293,7 @@ test('the daily plan and DSA save together, persist on reload and award 60 XP on
   expect(saved.xp).toBe(before.xp + 60); expect(saved.today_count).toBe(before.today_count + 2);
   await ready(page);
   await expect(page.locator('.daily-session-count')).toHaveText('2 / 2 complete');
-  await expect(page.locator('.daily-win')).toContainText('Today’s study session is complete');
+  await expect(page.getByRole('heading', { name: 'Today’s work is done.', exact: true })).toBeVisible();
   await ready(page, 'overview');
   await expect(page.locator('.learning-momentum').getByRole('link', { name: 'Open Learning', exact: true })).toHaveAttribute('href', '#/learning');
   await expect(page.locator('.learning-xp')).toContainText(`${saved.xp} XP earned`);
@@ -480,7 +490,7 @@ test('learning views support keyboard steps, calendar dates, accessibility and r
 test('unavailable DSA leaves the saved learning plan usable and supports retry', async ({ page }) => {
   await page.route('**/api/learning/dsa', route => route.fulfill({ status: 503, json: { error: 'Lesson storage unavailable.' } }));
   await ready(page);
-  await expect(task(page, 'plan')).toContainText('What is machine learning?');
+  await expectTaskTitle(page, 'plan', 'What is machine learning?');
   await expect(page.getByRole('alert')).toContainText('Lesson storage unavailable');
   await openRoute(page, 'learning/dsa');
   await expect(page.getByRole('alert')).toContainText('Lesson storage unavailable');
@@ -493,7 +503,7 @@ test('unavailable learning summaries leave DSA independently usable', async ({ p
   await page.route('**/api/learning/daily', route => route.fulfill({ status: 503, json: { error: 'Learning plan storage unavailable.' } }));
   await ready(page);
   await expect(page.getByRole('alert')).toContainText('Learning plan storage unavailable');
-  await expect(task(page, 'dsa')).toContainText('Hash sets & frequency maps');
+  await expectTaskTitle(page, 'dsa', 'Hash sets & frequency maps');
   await openRoute(page, 'learning/dsa');
   await expect(page.getByRole('tab', { name: '01 Learn', exact: true })).toBeVisible();
   await openRoute(page, 'learning/plan');
@@ -511,7 +521,7 @@ test('missing plan material has a clear next step without hiding DSA', async ({ 
   await ready(page);
   await expect(page.locator('.daily-session-count')).toHaveText(/[01] \/ 2 complete/);
   await expect(page.getByRole('button', { name: 'Prepare next lesson', exact: true })).toBeVisible();
-  await expect(page.locator('.daily-win')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Today’s work is done.', exact: true })).toHaveCount(0);
   await openRoute(page, 'learning/plan');
   await expect(page.getByRole('heading', { name: 'Your course lesson is not ready yet', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'View the course roadmap', exact: true })).toHaveAttribute('href', '#/learning/weekly');
@@ -582,11 +592,11 @@ test('an open daily workspace advances both sources at midnight and stops refres
       plan: { ...hub.plan, day: 2, title: 'Caching and freshness', read: false } } : hub });
   });
   await ready(page);
-  await expect(task(page, 'plan')).toContainText('What is machine learning?');
+  await expectTaskTitle(page, 'plan', 'What is machine learning?');
   nextDay = true;
   await page.clock.fastForward(61_000);
-  await expect(task(page, 'dsa')).toContainText('Next day’s topic');
-  await expect(task(page, 'plan')).toContainText('Caching and freshness');
+  await expectTaskTitle(page, 'dsa', 'Next day’s topic');
+  await expectTaskTitle(page, 'plan', 'Caching and freshness');
   await ready(page, 'overview');
   const afterLeaving = [dsaReads, dailyReads];
   await page.clock.fastForward(120_000);
@@ -612,18 +622,20 @@ for (const unavailable of ['plan', 'dsa']) {
         plan: { ...hub.plan, day: 2, title: 'Caching and freshness', read: false } } : hub });
     });
     await ready(page);
-    await expect(task(page, 'plan')).toContainText('What is machine learning?');
-    await expect(task(page, 'dsa')).toContainText('Hash sets & frequency maps');
+    await expectTaskTitle(page, 'plan', 'What is machine learning?');
+    await expectTaskTitle(page, 'dsa', 'Hash sets & frequency maps');
     nextDay = true;
     await page.clock.fastForward(61_000);
     await expect(page.getByRole('alert')).toContainText('A new day has started');
-    await expect(task(page, unavailable)).not.toContainText(unavailable === 'plan' ? 'What is machine learning?' : 'Hash sets & frequency maps');
-    await expect(task(page, unavailable === 'plan' ? 'dsa' : 'plan')).toContainText(unavailable === 'plan' ? 'Next day’s topic' : 'Caching and freshness');
+    await task(page, unavailable).getByRole('button').click();
+    await expect(task(page, unavailable)).toContainText('Needs attention');
+    await expect(page.locator('.daily-focus-title')).not.toHaveText(unavailable === 'plan' ? 'What is machine learning?' : 'Hash sets & frequency maps');
+    await expectTaskTitle(page, unavailable === 'plan' ? 'dsa' : 'plan', unavailable === 'plan' ? 'Next day’s topic' : 'Caching and freshness');
     fail = false;
     await showNavigation(page);
     await page.getByRole('button', { name: 'Refresh learning', exact: true }).click();
-    await expect(task(page, 'dsa')).toContainText('Next day’s topic');
-    await expect(task(page, 'plan')).toContainText('Caching and freshness');
+    await expectTaskTitle(page, 'dsa', 'Next day’s topic');
+    await expectTaskTitle(page, 'plan', 'Caching and freshness');
     await expect(page.getByRole('alert')).toHaveCount(0);
   });
 }
@@ -681,6 +693,9 @@ test('visible learning navigation and focused lessons stay usable on desktop, ta
       await expect(navigation.getByRole('link', { name: label, exact: true })).toHaveAttribute('href', href);
       await fit(page);
       if (label === 'DSA practice') {
+        // Navigation works from a fresh preview as well as after earlier tests
+        // have completed this topic. Choose the destination explicitly.
+        await page.getByRole('tab', { name: '04 Review', exact: true }).click();
         await expect(page.getByRole('tab', { name: '04 Review', exact: true })).toHaveAttribute('aria-selected', 'true');
         await page.getByRole('tab', { name: '03 Practice', exact: true }).click();
         await expect(page.getByRole('tab', { name: '03 Practice', exact: true })).toHaveAttribute('aria-selected', 'true');
@@ -693,6 +708,7 @@ test('visible learning navigation and focused lessons stay usable on desktop, ta
     await expect(page.getByRole('heading', { name: 'DSA practice', level: 1, exact: true })).toBeVisible();
     await expect(page.locator('#nav')).not.toBeVisible();
     await expect(navigation).not.toBeVisible();
+    await page.getByRole('tab', { name: '04 Review', exact: true }).click();
     await expect(page.getByRole('tab', { name: '04 Review', exact: true })).toHaveAttribute('aria-selected', 'true');
     await page.getByRole('tab', { name: '03 Practice', exact: true }).click();
     await expect(page.getByRole('tab', { name: '03 Practice', exact: true })).toHaveAttribute('aria-selected', 'true');
@@ -765,7 +781,8 @@ test('course progress persists and shares XP while old track links remain usable
   const track = course.tracks[0], module = track.modules.find(item => !item.read);
   expect(module).toBeTruthy();
   await ready(page, 'study?track=' + encodeURIComponent(track.name));
-  await expect(page.getByRole('heading', { name: 'Courses', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Reference chapters', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open my 90-day course →', exact: true })).toHaveAttribute('href', '#/learning/weekly');
   await expect(page.getByRole('navigation', { name: 'Course tracks' }).getByRole('link', { name: new RegExp(track.name) })).toHaveAttribute('aria-current', 'page');
   expect(new URLSearchParams(new URL(page.url()).hash.split('?')[1]).get('track')).toBe(track.name);
   const checkbox = page.getByRole('checkbox', { name: `Mark ${module.title} complete`, exact: true });
@@ -853,7 +870,7 @@ test('the consolidated workspace and saved reader remain accessible on desktop a
   const routes = [
     ['learning', 'learning-today', null],
     ['learning/resume', 'learning-resume', 'Resume topics'],
-    ['learning/courses', 'learning-courses', 'Courses'],
+    ['learning/courses', 'learning-courses', 'Reference chapters'],
     ['learning/library', 'learning-library', 'Saved library'],
     ['learning/read/' + encodeURIComponent(paper.id) + '?from=today', 'learning-reader', 'Research worth reading today'],
     ['learning/progress', 'learning-progress', 'Your learning momentum'],

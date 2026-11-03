@@ -31,11 +31,12 @@ def test_all_ninety_days_have_real_public_reading_and_practice():
         info = interview_lessons.lesson(day, COURSE)
         assert info['id'] == f'interview/day-{day}' and info['source'] == 'bundled'
         assert len(info['text']) > 1200
-        assert all(name in info['text'] for name in ('## Try it yourself', '## DSA practice', '## Explain it back'))
+        assert all(name in info['text'] for name in ('## Build and test', '## DSA practice', '## Interview and recall', '## Review and finish'))
         assert all(info['lesson'][key] for key in ('ai_ml', 'system_design', 'full_stack', 'dsa'))
         assert '\nFalse\n' not in info['text'] and '\nTrue\n' not in info['text']
     first = interview_lessons.lesson(1, COURSE)['text']
-    assert 'add_five' in first and 'returns 15' in first
+    assert 'summarise_sessions' in first and 'mean_minutes' in first
+    assert 'add_five' not in first and 'POST /api/study-summary' in first
     assert 'contiguous block' not in first and 'Reference reading:' not in first
 
 

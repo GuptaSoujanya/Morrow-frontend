@@ -1,6 +1,7 @@
 import { h } from './dom.js';
 import { S } from './state.js';
 import { routeAccess } from './access-policy.js';
+import { icon } from './icons.js';
 
 export const DSA_PRACTICE_PATH = '#/learning/dsa?step=practice';
 export const LEARNING_SECTIONS = [
@@ -10,7 +11,7 @@ export const LEARNING_SECTIONS = [
   { key: 'discover', label: 'Discover', path: '#/learning/discover', icon: 'globe', title: 'Discover', description: 'Keep up with research papers, tech news, and GitHub projects alongside your course.' },
   { key: 'practice', label: 'Practice & exams', path: '#/learning/practice', icon: 'pen', title: 'Practice & exams', description: 'AI papers shaped by your saved learning and progress.' },
   { key: 'resume', label: 'Resume topics', path: '#/learning/resume', icon: 'person', title: 'Resume topics', description: 'Study topics selected from your résumé and career goals.' },
-  { key: 'courses', label: 'Courses', path: '#/learning/courses', icon: 'book', title: 'Courses', description: 'Build your skills with a complete, structured curriculum.' },
+  { key: 'courses', label: 'Reference chapters', path: '#/learning/courses', icon: 'book', title: 'Reference chapters', description: 'Look up a topic in depth alongside your 90-day course.' },
   { key: 'library', label: 'Saved library', path: '#/learning/library', icon: 'folder', title: 'Saved library', description: 'Find your saved papers, notes, news, and learning material.' },
   { key: 'bookmarks', label: 'Bookmarks', path: '#/learning/bookmarks', icon: 'book', title: 'Bookmarks', description: 'Papers, DSA questions and GitHub repositories, organized for later.' },
   { key: 'notes', label: 'My notes', path: '#/learning/notes', icon: 'pen', title: 'My notes', description: 'Your ideas, explanations and questions, saved beside their sources.' },
@@ -21,11 +22,12 @@ const PARENTS = { resume: 'weekly', courses: 'weekly', practice: 'dsa', bookmark
 export function learningSection(arg = '', query) {
   const part = String(arg).split('/')[0];
   let key = part || 'today';
-  if (part === 'plan') key = 'today';
+  if (part === 'plan') key = 'weekly';
   if (part === 'read') {
     const params = query ?? new URLSearchParams(typeof window === 'undefined' ? '' : window.location.hash.split('?')[1] || '');
     const origin = params.get('from');
-    key = LEARNING_SECTIONS.some(section => section.key === origin) ? origin : 'library';
+    const courseLesson = /^read\/interview(?:%2F|\/)day-\d+/i.test(String(arg));
+    key = courseLesson ? 'weekly' : LEARNING_SECTIONS.some(section => section.key === origin) ? origin : 'library';
   }
   return LEARNING_SECTIONS.find(section => section.key === key) || LEARNING_SECTIONS[0];
 }
@@ -47,6 +49,7 @@ export function renderLearningSwitcher(arg = '') {
   if (!sections.length) return null;
   const current = currentLearningSection(arg);
   return h('nav', { class: 'learning-section-nav', 'aria-label': 'Learning sections' },
-    sections.map(section => h('a', { href: section.path, text: section.label,
-      'aria-current': section.key === current.key ? 'page' : null })));
+    sections.map(section => h('a', { href: section.path,
+      'aria-current': section.key === current.key ? 'page' : null },
+      icon(section.icon, 'icon icon-sm'), h('span', { text: section.label }))));
 }

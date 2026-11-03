@@ -1,6 +1,41 @@
 const MAX_PAGES = 48;
 const MAX_HOLD_MS = 30_000;
 const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
+const NAVIGATION_SCROLL = 'morrow-scroll-navigation';
+const activeScrolls = new WeakMap();
+
+/** An explicit reading destination takes precedence over route restoration. */
+export function scrollToElement(element, { smooth = false } = {}) {
+  const win = element.ownerDocument.defaultView;
+  activeScrolls.get(win)?.();
+  win.dispatchEvent(new win.Event(NAVIGATION_SCROLL));
+  const reducedMotion = win.matchMedia('(prefers-reduced-motion: reduce)');
+  const animate = smooth && !reducedMotion.matches;
+  if (animate) {
+    const events = ['wheel', 'touchstart', 'pointerdown', 'keydown', 'hashchange', 'pagehide'];
+    let timer;
+    function cleanup() {
+      events.forEach(name => win.removeEventListener(name, cancel, true));
+      win.removeEventListener('scrollend', cleanup);
+      reducedMotion.removeEventListener('change', preferenceChanged);
+      win.clearTimeout(timer);
+      if (activeScrolls.get(win) === cancel) activeScrolls.delete(win);
+    }
+    function cancel() {
+      cleanup();
+      // Stop the native animation at the current point before the user's wheel,
+      // touch, key or next navigation takes control. Never replay its old target.
+      win.scrollTo({ left: win.scrollX, top: win.scrollY, behavior: 'instant' });
+    }
+    const preferenceChanged = () => { if (reducedMotion.matches) cancel(); };
+    events.forEach(name => win.addEventListener(name, cancel, { capture: true, passive: true }));
+    win.addEventListener('scrollend', cleanup);
+    reducedMotion.addEventListener('change', preferenceChanged);
+    timer = win.setTimeout(cleanup, 2500);
+    activeScrolls.set(win, cancel);
+  }
+  element.scrollIntoView({ block: 'start', behavior: animate ? 'smooth' : 'instant' });
+}
 
 /** Filters and report dates belong to the page the reader is already using. */
 export function routeScrollKey(route) {
@@ -70,6 +105,7 @@ export function createScrollMemory(content) {
       win.removeEventListener('wheel', yieldToUser, true);
       win.removeEventListener('touchstart', yieldToUser, true);
       win.removeEventListener('keydown', yieldToUser, true);
+      win.removeEventListener(NAVIGATION_SCROLL, yieldToUser);
       win.removeEventListener('scroll', onScroll, true);
       if (originalMinHeight) content.style.setProperty('min-height', originalMinHeight, originalMinPriority);
       else content.style.removeProperty('min-height');
@@ -124,6 +160,7 @@ export function createScrollMemory(content) {
     win.addEventListener('wheel', yieldToUser, { passive: true, capture: true });
     win.addEventListener('touchstart', yieldToUser, { passive: true, capture: true });
     win.addEventListener('keydown', yieldToUser, true);
+    win.addEventListener(NAVIGATION_SCROLL, yieldToUser);
     win.addEventListener('scroll', onScroll, { passive: true, capture: true });
     timeout = win.setTimeout(finish, MAX_HOLD_MS);
 

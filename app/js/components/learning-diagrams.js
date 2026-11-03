@@ -245,6 +245,14 @@ function scan(root) {
   }
 }
 
+/** Wait for visible diagrams before locating a reading destination beneath them. */
+export function whenLearningDiagramsReady(root) {
+  return new Promise(resolve => requestAnimationFrame(() => {
+    scan(root);
+    renderQueue.then(resolve, resolve);
+  }));
+}
+
 /** Enhance sanitized lesson DOM once mounted, including a cloned reader stage. */
 export function enhanceLearningDiagrams(root) {
   if (!root?.querySelectorAll) return root;

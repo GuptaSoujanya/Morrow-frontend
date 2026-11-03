@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './tests', testMatch: ['learning.spec.js', 'learning-workspace.spec.js', 'learning-diagrams.spec.js', 'learning-study-space.spec.js', 'compiler.spec.js'], timeout: 35000,
+  testDir: './tests', testMatch: ['learning.spec.js', 'learning-workspace.spec.js', 'learning-diagrams.spec.js', 'learning-study-space.spec.js', 'compiler.spec.js', 'course-visual.spec.js', 'lesson-reader-structure.spec.js', 'lesson-reader-scroll.spec.js', 'learning-layout.spec.js', 'learning-progress-ui.spec.js'], timeout: 35000,
   workers: 1, fullyParallel: false, reporter: 'list', outputDir: 'artifacts/learning-results',
   use: { baseURL: 'http://127.0.0.1:8117', viewport: { width: 1440, height: 1000 },
     launchOptions: { executablePath: process.env.CHROMIUM_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' },

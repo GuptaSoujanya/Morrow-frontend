@@ -117,7 +117,8 @@ test('an unsaved lesson draft survives stage, subject, route, refresh and browse
   await page.locator('[data-lesson-stage="example"]').click();
   await expect(page.locator('.lesson-stage-prose')).toHaveAttribute('data-current-lesson-stage', 'example');
   await expect(body(page)).toHaveValue(draft);
-  await page.locator('.lesson-subject-menu > summary').click();
+  const menu = page.locator('.lesson-path-menu');
+  if (!await menu.evaluate(element => element.open)) await menu.locator(':scope > summary').click();
   await page.locator('[data-lesson-part="systems"]').click();
   await expect(body(page)).toHaveValue(draft);
   await page.getByRole('button', { name: 'Show navigation', exact: true }).click();

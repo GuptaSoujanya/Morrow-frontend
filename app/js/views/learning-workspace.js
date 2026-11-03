@@ -4,12 +4,12 @@ import { empty, errorState, loadingState } from '../components/panel.js';
 import { bookmarkKinds, learningSave } from '../components/learning-save.js';
 import { fetchButton } from './research-desk.js';
 import { updateRunButtons } from '../forms.js';
-import { courseSubjects, individualProgress, learningBadges } from '../components/learning-overview.js';
+import { individualProgress, learningBadges } from '../components/learning-overview.js';
 import { activityView } from '../components/learning-progress.js';
 import { S } from '../state.js';
 import { routeAccess } from '../access-policy.js';
-import { prepareLearningButton } from '../components/learning-feed.js';
-import { coursePracticeTabs, renderInterviewBank } from '../components/interview-bank.js';
+import { renderInterviewBank } from '../components/interview-bank.js';
+import { courseRoadmap } from '../components/course-roadmap.js';
 
 const drafts = new WeakMap();
 const pendingSaves = new WeakMap();
@@ -71,90 +71,13 @@ export function renderLearningWorkspace(view) {
   }
 
   function drawWeekly() {
-    const weeks = data.weeks || [];
-    const course = data.course, total = data.total || course?.total_days || 90, completed = data.completed || 0;
-    const next = weeks.flatMap(week => week.days).find(day => day.day === data.next_day);
-    const active = weeks.find(week => week.days.some(day => day.day === next?.day))
-      || weeks.find(week => week.number === data.current_week) || weeks[0];
-    const canGenerate = S.legacyAccess && data.generation_available !== false;
-    const canResearch = routeAccess({ name: 'learning', arg: 'library' }, S).kind === 'allowed';
-    const prepare = () => fetchButton('Prepare next lesson', 'learn', new Date().toLocaleDateString('en-CA'), load);
-    const courseAction = (url, title) => h('a', { href: url, class: 'btn btn-primary' }, title,
-      h('span', { class: 'learn-course-action-arrow', 'aria-hidden': 'true', text: '→' }));
-    root.classList.add('learn-roadmap');
-    root.append(coursePracticeTabs());
-    // Keep the learner's open weeks when a background refresh updates progress.
-    if (!root.roadmapOpenWeeks) root.roadmapOpenWeeks = new Set(active ? [active.number] : []);
-    if (root.roadmapActiveWeek !== active?.number) {
-      if (active) root.roadmapOpenWeeks.add(active.number);
-      root.roadmapActiveWeek = active?.number;
-    }
-    const openCurrentWeek = () => {
-      const details = root.querySelector(`[data-course-week="${active?.number}"]`);
-      if (!details) return;
-      details.open = true;
-      details.querySelector('summary')?.focus({ preventScroll: true });
-      details.scrollIntoView({ block: 'start' });
-    };
-    function weekView(week) {
-      const isCurrent = week === active, done = week.completed || 0;
-      const days = week.days || [];
-      const syllabusDays = days.map(day => h('div', { class: 'learn-syllabus-day' },
-        h('h3', { text: `Day ${day.day}` }),
-        h('dl', {}, (day.topics || []).map(topic => h('div', {},
-          h('dt', { text: topic.title || topic.key }), h('dd', { text: topic.topic }))))));
-      const syllabus = h('details', { class: 'learn-week-syllabus' }, h('summary', { text: 'See all subjects for this week' }),
-        week.project ? h('p', { class: 'learn-week-project' }, h('strong', { text: 'This week’s project: ' }), week.project) : null,
-        h('div', { class: 'learn-week-subjects' }, syllabusDays));
-      return h('details', { class: `learn-week${isCurrent ? ' is-current' : ''}`,
-        'data-course-week': week.number, open: root.roadmapOpenWeeks.has(week.number),
-        ontoggle: event => { if (event.currentTarget.open) root.roadmapOpenWeeks.add(week.number); else root.roadmapOpenWeeks.delete(week.number); } },
-        h('summary', {}, h('span', { class: 'learn-week-index', 'aria-label': `Week ${week.number}` },
-          h('span', { text: 'Week' }), h('b', { text: String(week.number).padStart(2, '0') })),
-          h('span', { class: 'learn-week-title' }, h('strong', { text: week.title }),
-            h('span', { text: `Days ${days[0]?.day || '—'}–${days.at(-1)?.day || '—'}` })),
-          h('span', { class: 'learn-week-status' }, isCurrent && completed < total ? h('span', { class: 'learn-current-label', text: 'Current week' }) : null,
-            h('span', { text: `${done} / ${days.length} complete` }))),
-        h('ol', { class: 'plain-list learn-week-days' }, days.map(day => h('li', {
-          class: `learn-course-day${day.day === data.next_day ? ' is-next' : ''}`, 'aria-current': day.day === data.next_day ? 'step' : null },
-          h('span', { class: 'learn-day-number', text: `Day ${day.day}` }),
-          h('div', { class: 'learn-day-copy' }, h('span', { class: 'learn-day-title', text: day.title || `Lesson ${day.day}` }),
-            !day.available && day.day === data.next_day ? h('small', { class: 'learn-material-source', text: 'Prepare this lesson when you are ready.' }) : null),
-          h('span', { class: `learn-day-state${day.read ? ' learn-complete' : ''}` },
-            h('span', { class: 'learn-day-status-mark', 'aria-hidden': 'true', text: day.read ? '✓' : day.day === data.next_day ? '→' : '·' }),
-            day.read ? 'Complete' : day.day === data.next_day ? 'Up next' : day.available ? 'Ready' : 'Not ready'),
-          day.available ? h('a', { class: 'learn-day-open', href: day.route, text: day.read ? 'Review' : 'Read',
-            'aria-label': `${day.read ? 'Review' : 'Read'} day ${day.day}: ${day.title || 'Course lesson'}` }) : null))),
-        syllabus,
-        canGenerate && isCurrent && next && !next.available ? prepare() : null);
-    }
-    root.append(...[h('section', { class: 'learn-intro learn-course-intro', 'aria-label': 'Your interview course' },
-      h('div', { class: 'learn-course-next' },
-        h('p', { class: 'eyebrow', text: completed === total ? 'ALL COURSE DAYS COMPLETE' : next ? `NEXT LESSON · DAY ${next.day} OF ${total}` : 'YOUR INTERVIEW COURSE' }),
-        h('h2', { text: completed === total ? 'Keep practising what you learned.' : next?.title || 'Build your skills, one day at a time.' }),
-        h('p', { class: 'learn-course-encouragement', text: 'Understand the idea. Work through real cases. Explain and defend your answer.' }),
-        courseSubjects(course),
-        course?.interview_questions ? h('p', { class: 'learn-course-depth', text: `${course.interview_questions} interview questions · ${course.project_assessments} weekly project and mock reviews` }) : null,
-        h('div', { class: 'learn-actions' }, completed === total ? courseAction(weeks[0]?.days[0]?.route || '#/learning', 'Review completed lessons')
-          : next?.available ? courseAction(next.route || '#/learning/plan', 'Continue daily lesson')
-            : canGenerate ? prepare() : courseAction(canResearch ? '#/learning/library' : '#/learning/notes', canResearch ? 'Open your private library' : 'Open your notes'))),
-      h('div', { class: 'learn-plan-count' }, h('span', { class: 'learn-plan-label', text: 'Your course progress' }),
-        h('div', { class: 'learn-course-ring', style: `--course-progress: ${Math.min(100, Math.max(0, completed / total * 100))}%`, 'aria-hidden': 'true' },
-          h('div', { class: 'learn-course-ring-inner' }, h('strong', { text: completed }), h('span', { text: `of ${total} days` }))),
-        h('span', { class: 'learn-plan-caption', text: 'days completed' }),
-        h('progress', { max: total, value: completed, 'aria-label': 'Curriculum progress' })),
-      h('p', { class: 'learn-course-promise', text: 'SAME COURSE FOR EVERYONE · YOUR OWN PACE' })),
-      h('div', { class: 'learn-roadmap-heading' },
-        h('div', {}, h('h2', { text: 'Your weekly roadmap' }),
-          h('p', { class: 'learn-roadmap-note', text: 'Open a week to see its lessons. Missed days wait for you.' })),
-        active ? h('button', { class: 'learn-current-week-link', type: 'button', text: completed === total ? 'Go to final week' : `Go to current week · ${active.number}`, onclick: openCurrentWeek }) : null),
-      h('div', { class: 'learn-weeks' }, weeks.map(weekView)),
-      h('details', { class: 'learn-course-archive learn-roadmap-tools' }, h('summary', { text: 'Course tools & extra practice' }),
-        h('p', { class: 'muted', text: 'Use these when you want more practice or want to revisit saved material.' }),
-        h('div', { class: 'learn-actions' }, link('#/learning/dsa', 'Practice DSA'), canGenerate ? prepareLearningButton(load) : null,
-          canResearch ? link('#/learning/resume', 'Resume topics') : null, S.legacyAccess ? link('#/learning/courses', 'Course reference library') : null,
-          canResearch ? link('#/learning/library?category=Learning', 'Saved learning material') : null, link('#/learning/notes', 'My notes')),
-        !canGenerate ? h('p', { class: 'muted', text: data.generation_message || 'Your course lessons are ready. Daily research is not connected to this account yet.' }) : null)].filter(Boolean));
+    root.courseRoadmapState ||= {};
+    root.append(courseRoadmap(data, {
+      refresh: load,
+      canGenerate: S.legacyAccess && data.generation_available !== false,
+      canResearch: routeAccess({ name: 'learning', arg: 'library' }, S).kind === 'allowed',
+      state: root.courseRoadmapState,
+    }));
   }
 
   function drawDiscovery() {

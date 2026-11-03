@@ -26,6 +26,7 @@ const test = base.extend({
         '/api/meta': { actions: {}, boards: [], course: '/course/' },
         '/api/status': { name: 'Scroll Tester', questions: [], facts: [], sites: [], run: idle, study: { today: null, read: 0, total: 90 }, report: { ready: false, days: [] } },
         '/api/run': idle,
+        '/api/learning/overview': { date: '2026-11-03', current_day: 1, current_week: 1, course: { title: '90-day interview course' } },
         '/api/overview': { days: 14, start: '2026-10-13', end: '2026-10-26', first: null, attempts: 70, sent: { total: 70 }, found: { total: 70 }, recent: Array.from({ length: 70 }, (_, i) => row(i + 1)), workspace: { research_count: 0 }, source: { database: 'Private account', updated_at: '2026-10-26T08:00:00Z' } },
       };
       if (Object.hasOwn(data, path)) return route.fulfill({ json: data[path] });
@@ -41,6 +42,10 @@ const y = page => page.evaluate(() => scrollY);
 async function settle(page) { await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))); }
 async function scroll(page, target) { await page.evaluate(top => window.scrollTo({ top, behavior: 'instant' }), target); await settle(page); return y(page); }
 async function samePosition(page, previous) { await expect.poll(async () => Math.abs(await y(page) - previous), { message: `Viewport should remain near scrollY=${previous}` }).toBeLessThan(4); }
+const controlTop = control => control.evaluate(element => element.getBoundingClientRect().top);
+// A query can add a wrapped breadcrumb on phones. The reader's visible control
+// must stay still even when the browser compensates for that new header height.
+async function sameControlPosition(control, previous) { await expect.poll(async () => Math.abs(await controlTop(control) - previous), { message: 'The filter should remain at the same visible position' }).toBeLessThan(4); }
 async function coursesReady(page, name = 'Track A') { await expect(page.locator('.learning-library-course-content h2')).toHaveText(name); await expect(page.locator('.learning-library-lesson')).toHaveCount(45); await page.evaluate(() => document.fonts.ready); await settle(page); }
 async function recordsReady(page) { await expect(page.locator('.records-body')).toHaveAttribute('aria-busy', 'false'); await expect(page.locator('.records-body tbody tr')).not.toHaveCount(0); await page.evaluate(() => document.fonts.ready); await settle(page); }
 async function openRecords(page, size = 20) { await page.goto('/#/records?size=' + size); await recordsReady(page); }
@@ -54,9 +59,10 @@ for (const width of [375, 768, 1440]) {
     const control = await picker.isVisible() ? picker : link;
     const top = await control.evaluate(element => element.getBoundingClientRect().top + scrollY - 140);
     const before = await scroll(page, top); expect(before).toBeGreaterThan(80);
+    const visibleTop = await controlTop(control);
     if (control === picker) { await picker.click(); await page.getByRole('listbox', { name: 'Course track', exact: true }).getByRole('option', { name: 'Track B', exact: true }).click(); }
     else await link.click();
-    await coursesReady(page, 'Track B'); await samePosition(page, before);
+    await coursesReady(page, 'Track B'); await sameControlPosition(control, visibleTop);
   });
 
   test(`full overview background rerender preserves position at ${width}px`, async ({ page, fixture }) => {
@@ -76,7 +82,8 @@ for (const width of [375, 768, 1440]) {
     const picker = page.getByRole('combobox', { name: 'Course track', exact: true });
     const link = page.locator('.learning-library-tracks').getByRole('link', { name: /Track B/ });
     const usingPicker = await picker.isVisible(), control = usingPicker ? picker : link;
-    const before = await scroll(page, await control.evaluate(element => element.getBoundingClientRect().top + scrollY - 140));
+    await scroll(page, await control.evaluate(element => element.getBoundingClientRect().top + scrollY - 140));
+    const visibleTop = await controlTop(control);
     await control.evaluate(element => element.focus({ preventScroll: true }));
     fixture.courseGate = deferred();
     if (usingPicker) await picker.press('End');
@@ -84,7 +91,7 @@ for (const width of [375, 768, 1440]) {
     await expect(page.locator('.learning-library-body')).toHaveAttribute('aria-busy', 'true');
     fixture.courseGate.resolve(); await coursesReady(page, 'Track B');
     await expect(usingPicker ? picker : link).toBeFocused();
-    await samePosition(page, before);
+    await sameControlPosition(control, visibleTop);
   });
 
   test(`pagination next and page size preserve viewport at ${width}px`, async ({ page, fixture }) => {

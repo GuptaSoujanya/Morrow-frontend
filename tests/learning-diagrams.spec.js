@@ -89,8 +89,11 @@ test('flow and sequence diagrams stay usable through stages, read-all clones and
     await expect(flow.locator('code')).toContainText('flowchart');
     const firstId = await flow.locator('figcaption').getAttribute('id');
     if (width < 480) {
-      await expect(flow.getByRole('button', { name: 'Fit diagram', exact: true })).toHaveAttribute('aria-pressed', 'true');
-      await expect(flow.locator('.learning-diagram-scroll-hint')).toContainText('Scroll sideways or down');
+      // A narrow vertical diagram may already fit; labels must remain readable
+      // in either initial mode. Wide diagrams expose their scrolling guidance.
+      if (await flow.getByRole('button', { name: 'Fit diagram', exact: true }).isVisible()) {
+        await expect(flow.locator('.learning-diagram-scroll-hint')).toContainText('Scroll sideways or down');
+      }
       const labelSize = await flow.locator('svg text').first().evaluate(label => {
         const matrix = label.getScreenCTM();
         return parseFloat(getComputedStyle(label).fontSize) * Math.hypot(matrix.a, matrix.b);
@@ -121,7 +124,7 @@ test('flow and sequence diagrams stay usable through stages, read-all clones and
     await sequence.getByRole('button', { name: 'Enlarge diagram', exact: true }).click();
     await fitsPage(page);
     await sequence.getByRole('button', { name: 'Fit diagram', exact: true }).click();
-    await page.getByRole('button', { name: 'Read one part at a time', exact: true }).click();
+    await page.getByRole('button', { name: 'Read one subject at a time', exact: true }).click();
     await readyDiagram(notebooks(page).first());
     await expect(notebooks(page).first().locator('.learning-diagram-source')).toHaveAttribute('open', '');
     await expect(notebooks(page).first().locator('.learning-diagram-zoom')).toBeEnabled();

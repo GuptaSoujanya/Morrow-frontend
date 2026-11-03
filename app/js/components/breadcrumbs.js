@@ -2,9 +2,9 @@ import { SECTIONS, routeHref } from '../router.js';
 
 const labels = Object.fromEntries(SECTIONS.map(([key, label]) => [key, label]));
 const botRoutes = new Set(['naukri', 'boards', 'sites', 'profile', 'linkedin', 'linkedin-profile', 'outreach', 'resume']);
-const learning = { weekly: '90-day course', discover: 'Discover', bookmarks: 'Bookmarks', notes: 'My notes', practice: 'Practice & exams', resume: 'Resume topics', courses: 'Courses', library: 'Saved library', progress: 'Progress', plan: 'Daily learning', dsa: 'DSA practice' };
+const learning = { weekly: '90-day course', discover: 'Discover', bookmarks: 'Bookmarks', notes: 'My notes', practice: 'Practice & exams', resume: 'Resume topics', courses: 'Reference chapters', library: 'Saved library', progress: 'Progress', plan: 'Course lesson', dsa: 'DSA practice' };
 const files = { profile: 'Your profile', answers: 'Screening answers', automation_answers: 'Agent answer sheet', company_sites: 'Company follow-ups', env: 'Settings' };
-const boards = { naukri: 'Naukri', hirist: 'Hirist', instahyre: 'Instahyre', cutshort: 'Cutshort', wellfound: 'Wellfound', external: 'Company site' };
+const boards = { naukri: 'Naukri', hirist: 'Hirist', instahyre: 'Instahyre', cutshort: 'Cutshort', wellfound: 'Wellfound', startups: 'Startups', external: 'Company site' };
 const outcomes = { submitted: 'Confirmed submissions', matched: 'Above match threshold', not_attempted: 'Not attempted' };
 const flowGroups = { learn: 'Learning', brief: 'Daily briefing', research: 'Research', apply: 'Applications', profile: 'Profile updates' };
 const libraryFilters = ['q', 'category', 'page', 'size', 'date'];
@@ -43,7 +43,7 @@ export function buildBreadcrumbs(route = { name: 'overview', arg: '' }, options 
       const [part, ...rest] = arg.split('/');
       if (part === 'read' && rest.length) {
         const id = rest.join('/');
-        const fallback = id.startsWith('research/resume-learning/') ? 'resume' : 'today';
+        const fallback = id.startsWith('interview/day-') ? 'weekly' : id.startsWith('research/resume-learning/') ? 'resume' : 'today';
         const from = ['resume', 'library', 'progress', 'today', 'practice', 'weekly', 'discover'].includes(query.get('from')) ? query.get('from') : fallback;
         const filters = pick(query, libraryFilters);
         const questionFilters = from === 'weekly' && query.get('view') === 'questions'
@@ -54,7 +54,7 @@ export function buildBreadcrumbs(route = { name: 'overview', arg: '' }, options 
         readerFilters.set('from', from);
         if (/^interview\/day-\d{1,2}$/.test(id)) {
           const part = query.get('part'), stage = query.get('stage');
-          if (['ai', 'systems', 'build', 'dsa', 'review', 'all'].includes(part)) readerFilters.set('part', part);
+          if (['ai', 'systems', 'build', 'project', 'dsa', 'interview', 'review', 'all'].includes(part)) readerFilters.set('part', part);
           if ((!part || ['ai', 'systems', 'build', 'dsa'].includes(part))
             && ['understand', 'example', 'try', 'interview'].includes(stage)) readerFilters.set('stage', stage);
         }

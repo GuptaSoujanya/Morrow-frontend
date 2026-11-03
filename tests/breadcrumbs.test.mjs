@@ -54,7 +54,7 @@ test('practice paper, course track and DSA problem retain every navigable ancest
   assert.deepEqual(labels(dsa), ['Home', 'Learning', 'DSA practice', 'Practice sheet', 'Two sum']);
   assert.equal(dsa[3].href, '#/learning/dsa/sheet?q=arrays&status=todo');
   const courses = trail('#/learning/courses?track=Backend+%26+APIs');
-  assert.deepEqual(labels(courses), ['Home', 'Learning', 'Courses', 'Backend & APIs']);
+  assert.deepEqual(labels(courses), ['Home', 'Learning', 'Reference chapters', 'Backend & APIs']);
   assert.equal(courses[2].href, '#/learning/courses');
 });
 
@@ -90,7 +90,7 @@ test('reports and Data drilldowns use supported parents', () => {
 });
 
 test('legacy aliases resolve to canonical parents and unsafe labels stay plain data', () => {
-  assert.deepEqual(labels(trail('#/study?track=Systems')), ['Home', 'Learning', 'Courses', 'Systems']);
+  assert.deepEqual(labels(trail('#/study?track=Systems')), ['Home', 'Learning', 'Reference chapters', 'Systems']);
   const title = '<img src=x onerror=alert(1)>';
   const crumbs = trail('#/learning/read/notes.md?from=library', { documentTitle: title });
   assert.equal(crumbs.at(-1).label, title);
@@ -124,7 +124,18 @@ test('current course breadcrumb accepts only known subject and stage values', ()
   const invalid = trail('#/learning/read/interview%2Fday-12?from=weekly&view=questions&part=private&stage=unknown&redirect=https://bad.example');
   assert.deepEqual(Object.fromEntries(query(invalid.at(-1))), { view: 'questions', from: 'weekly' });
   const all = trail('#/learning/read/interview%2Fday-12?part=all&stage=interview');
-  assert.deepEqual(Object.fromEntries(query(all.at(-1))), { from: 'today', part: 'all' });
+  assert.deepEqual(Object.fromEntries(query(all.at(-1))), { from: 'weekly', part: 'all' });
   const ordinary = trail('#/learning/read/notes.md?part=systems&stage=interview');
   assert.deepEqual(Object.fromEntries(query(ordinary.at(-1))), { from: 'today' });
+});
+
+test('course chapter links return to the syllabus and retain build, DSA and finish destinations', () => {
+  for (const part of ['project', 'dsa', 'interview', 'review']) {
+    const crumbs = trail(`#/learning/read/interview%2Fday-1?part=${part}`);
+    assert.equal(crumbs.at(-2).label, '90-day course');
+    assert.equal(crumbs.at(-2).href, '#/learning/weekly');
+    assert.deepEqual(Object.fromEntries(query(crumbs.at(-1))), { from: 'weekly', part });
+  }
+  const project = trail('#/learning/read/interview%2Fday-1?part=project&stage=example');
+  assert.equal(query(project.at(-1)).has('stage'), false);
 });
