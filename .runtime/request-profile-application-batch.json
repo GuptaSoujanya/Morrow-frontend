@@ -1,0 +1,11 @@
+{
+  "runs": [
+    {"key":"naukri_profile","action":"profile","options":{"review":true,"dry_run":false,"browser_mode":"visible"}},
+    {"key":"linkedin_profile","action":"linkedin_profile","options":{"dry_run":false,"browser_mode":"visible"}},
+    {"key":"hirist","action":"boards","options":{"board":"hirist","mode":"apply","update_profile":true,"limit":100,"dry_run":false,"browser_mode":"visible"}},
+    {"key":"instahyre","action":"boards","options":{"board":"instahyre","mode":"apply","update_profile":true,"limit":100,"dry_run":false,"browser_mode":"visible"}},
+    {"key":"cutshort","action":"boards","options":{"board":"cutshort","mode":"apply","update_profile":true,"limit":100,"dry_run":false,"browser_mode":"visible"}},
+    {"key":"wellfound","action":"boards","options":{"board":"wellfound","mode":"apply","update_profile":true,"limit":100,"dry_run":false,"browser_mode":"visible"}},
+    {"key":"startups","action":"startups","options":{"limit":10,"dry_run":false,"browser_mode":"visible"}}
+  ]
+}
