@@ -10,15 +10,18 @@ let mobileEventsInstalled = false;
 function navLink(key, position = 'sidebar') {
   const [, defaultTitle] = SECTIONS.find(([id]) => id === key);
   const title=routeLabel(key,S)||defaultTitle;
-  const count = key === 'todo' ? (S.status?.questions?.length || 0) + (S.status?.facts?.length || 0) : 0;
+  const leads = S.status?.leads;
+  const count = key === 'todo' ? (S.status?.questions?.length || 0) + (S.status?.facts?.length || 0)
+    : key === 'diagnostics' && leads ? (leads.waiting || 0) + (leads.needs_you || 0) : 0;
+  const note = key === 'diagnostics' ? `${count} recruiter ${count === 1 ? 'lead waits' : 'leads wait'} for an answer` : `${count} items need attention`;
   const active = S.route.name === key || (key==='bots' && botPages.has(S.route.name));
   return h('a', { class:`nav-item${active ? ' active' : ''}`, href:routeHref(key), title,
     dataset: { navKey: key, navPosition: position }, 'aria-label': title,
-    'aria-description': count ? `${count} items need attention` : null,
+    'aria-description': count ? note : null,
     'aria-current': active ? S.route.name === key && !S.route.arg ? 'page' : 'true' : null,
     onclick:() => { if(position === 'dialog') document.getElementById('mobile-nav').close(); } }, navigationArt(key, 'nav-art'),
     h('span',{class:'nav-copy'},h('span',{class:'nav-title',text:title})),
-    count ? h('span',{class:'badge','aria-hidden':'true',title:`${count} items need attention`,text:count > 99 ? '99+' : count}):null);
+    count ? h('span',{class:'badge','aria-hidden':'true',title:note,text:count > 99 ? '99+' : count}):null);
 }
 function openMore() {
   const dialog=document.getElementById('mobile-nav');

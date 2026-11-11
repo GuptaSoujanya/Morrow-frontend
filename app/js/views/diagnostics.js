@@ -4,26 +4,39 @@ import { S, hooks } from "../state.js";
 import { panel, loadingState, errorState, dataTable } from "../components/panel.js";
 import { kpiCard } from "../components/kpi.js";
 import { segmented } from "../components/segmented.js";
-import { longDate } from "../format.js";
+import { longDate, shortDate } from "../format.js";
 import { quickButton } from "../forms.js";
 import { dateControl } from "../components/controls.js";
+import { readQuery, withQuery, writeQuery } from "../url-state.js";
 
-/** "Why no replies": the funnel audit `python -m diagnose` writes, organised as summary, plan, causes, mailbox, boards, checks. */
+/** "Why no replies": the funnel audit `python -m diagnose` writes, organised as summary, plan, leads, causes, mailbox, boards, checks. */
 
 const cache = new Map();
+const leadsCache = new Map();
 let loadingDay = null;
+let loadingLeadsDay = null;
 let section = "plan";
+let leadFilter = "all";
 const RECHECK_MS = 60_000;
 const SEVERITIES = ["critical", "high", "medium", "low", "info"];
-const SECTIONS = [["plan", "What to do"], ["fixes", "Fixes applied"], ["causes", "Causes"], ["mail", "Mailbox"], ["boards", "Job boards"], ["checks", "How it was checked"]];
+const SECTIONS = [["plan", "What to do"], ["leads", "Leads"], ["fixes", "Fixes applied"], ["causes", "Causes"], ["mail", "Mailbox"], ["boards", "Job boards"], ["checks", "How it was checked"]];
+const LEAD_STATES = ["new", "answered", "needs_you", "deferred", "failed", "skipped"];
+const LEAD_FILTERS = [["all", "All"], ["waiting", "Waiting"], ["needs_you", "Need you"], ["answered", "Answered"]];
+// Mirrors leads.store.OPEN_STATES: new, deferred and failed leads still wait for the bots.
+const FILTER_STATES = { waiting: ["new", "deferred", "failed"], needs_you: ["needs_you"], answered: ["answered"] };
+const FILTER_EMPTY = { all: "No lead is listed.", waiting: "Nothing waits for the bots.", needs_you: "Nothing needs you.", answered: "No lead has been answered yet." };
 
 function dayLabel(day) {
   return day === S.status.date ? `Today, ${longDate(day)}` : longDate(day);
 }
 
-function explain(error) {
+function dayWord(day) {
+  return day === S.status.date ? "today" : `on ${shortDate(day)}`;
+}
+
+function explain(error, path = "/api/diagnostics") {
   if (error.status === 404) {
-    return "The dashboard server is running older code and has no /api/diagnostics yet. Restart the dashboard (scripts/morrow) and reload this page.";
+    return `The dashboard server is running older code and has no ${path} yet. Restart the dashboard (scripts/morrow) and reload this page.`;
   }
   return error.message;
 }
@@ -42,26 +55,64 @@ async function loadDiagnostics(day, fresh = false) {
   if (S.route.name === "diagnostics" && (!S.route.arg || S.route.arg === day)) hooks.requestRender(false);
 }
 
+async function loadLeads(day, fresh = false) {
+  if (loadingLeadsDay === day) return;
+  loadingLeadsDay = day;
+  try {
+    const data = await api(`/api/leads?day=${encodeURIComponent(day)}`, undefined, { fresh });
+    leadsCache.set(day, { data, error: "", at: Date.now() });
+  } catch (error) {
+    leadsCache.set(day, { data: leadsCache.get(day)?.data || null, error: explain(error, "/api/leads"), at: Date.now() });
+  } finally {
+    loadingLeadsDay = null;
+  }
+  if (S.route.name === "diagnostics" && (!S.route.arg || S.route.arg === day)) hooks.requestRender(false);
+}
+
+function shownLeads(day, data) {
+  const live = leadsCache.get(day);
+  if (live?.data) return { leads: live.data, live: true, error: live.error, pending: false };
+  // The server zero-fills `leads` (day "") for audits written before the journal existed; only a dated copy was read.
+  const snapshot = data.leads?.day ? data.leads : null;
+  return { leads: snapshot, live: false, error: live ? live.error : "", pending: !live };
+}
+
+function chooseSection(value, argDay) {
+  section = value;
+  writeQuery(argDay ? `diagnostics/${encodeURIComponent(argDay)}` : "diagnostics", { section: value === "plan" ? "" : value }, { replace: true });
+  hooks.requestRender(false);
+}
+
 const num = value => h("td", { class: "num", text: String(value ?? 0) });
 const cell = (text, cls) => h("td", { class: cls || null, text: text == null ? "" : String(text) });
+const leadsWaiting = leads => (leads.waiting || 0) + (leads.needs_you || 0);
+const stamp = text => String(text || "").slice(0, 16).replace("T", " ");
 
 function severityBadge(severity) {
   return h("span", { class: `diag-severity is-${severity}`, text: severity });
 }
 
+function leadState(state) {
+  const known = LEAD_STATES.includes(state) ? state : "other";
+  return h("span", { class: `lead-state is-${known}`, text: String(state || "new").replace(/_/g, " ") });
+}
+
 // --- summary -----------------------------------------------------------------
 
-function overviewCards(data) {
+function overviewCards(data, leads, day, argDay) {
   const funnel = data.funnel || {};
   const mail = data.mail || {};
-  const waiting = Object.values(data.boards || {}).reduce((n, b) => n + ((b.messages || []).length), 0);
   const critical = (data.causes || []).filter(c => c.severity === "critical").length;
   const submitted = funnel.submitted_total || 0;
+  const today = leads?.today || {};
+  const causes = `${critical} critical cause${critical === 1 ? "" : "s"}`;
   return h("div", { class: "kpi-grid diag-kpis" },
     kpiCard({ label: "Applications submitted", value: String(submitted), sub: `${funnel.days_running ?? "?"} days, all ledgers` }),
     kpiCard({ label: "Interviews expected at normal fit", value: `${Math.floor(submitted * 0.02)}–${Math.floor(submitted * 0.03)}`, sub: "2–3% cold-apply rate" }),
     kpiCard({ label: "Positive mails found", value: String(mail.positive_total ?? 0), sub: mail.scanned ? `of ${mail.scanned} scanned` : "mailbox not read" }),
-    kpiCard({ label: "Board messages waiting", value: String(waiting), sub: `${critical} critical cause${critical === 1 ? "" : "s"}` }));
+    kpiCard({ label: "Recruiter leads", value: String(leads ? leadsWaiting(leads) : 0),
+      sub: leads ? `${today.new ?? 0} new ${dayWord(day)} · ${today.answered ?? 0} answered · ${causes}` : `leads not read · ${causes}`,
+      href: withQuery(argDay ? `diagnostics/${encodeURIComponent(argDay)}` : "diagnostics", { section: "leads" }), link: "See the leads" }));
 }
 
 function summaryPanel(data, causes) {
@@ -108,6 +159,61 @@ function planSection(plan) {
         planGroup("Also today", "", today.rest, false))),
     panel("This week", { sub: "Settings, saved answers, profile and resume." }, planGroup("", "", plan?.week)),
     panel("Code changes for the bots", { sub: "What to change in the repository so the next two weeks do not repeat the last two." }, planGroup("", "", plan?.code)));
+}
+
+// --- leads -----------------------------------------------------------------------
+
+function leadRole(lead) {
+  const linked = /^https?:\/\//i.test(lead.url || "");
+  const text = [lead.company, lead.title].filter(Boolean).join(" · ") || lead.subject || (linked ? "Open the thread" : "—");
+  return h("td", { class: "lead-wrap lead-role" }, linked ? h("a", { href: lead.url, target: "_blank", rel: "noopener", text }) : text);
+}
+
+function leadsSection(shown, data, day) {
+  const { leads, live, error, pending } = shown;
+  if (pending) return loadingState("Reading the leads journal…");
+  if (!leads) return errorState(`${error} This audit holds no copy of the leads either.`, () => loadLeads(day, true));
+  const source = live ? "Live from the journal." : `As of the audit at ${stamp(data.generated_at)}.`;
+  const notices = [
+    leads.error ? h("p", { class: "inline-notice", role: "alert", text: leads.error }) : null,
+    !live && error ? h("p", { class: "inline-notice", role: "status", text: `The journal could not be read live: ${error}` }) : null,
+  ];
+  if (!(leads.total > 0)) {
+    return panel("Recruiter leads", { sub: source }, notices,
+      leads.error ? null : h("p", { class: "panel-empty", text: "No lead recorded yet. The inbox:<board> and leads:mail stages fill this every morning." }));
+  }
+  const today = leads.today || {};
+  const states = leads.by_state || {};
+  const items = leads.items || [];
+  const platforms = Object.entries(leads.by_platform || {}).sort((a, b) => (b[1].total || 0) - (a[1].total || 0) || a[0].localeCompare(b[0]));
+  const rows = (leadFilter === "all" ? items : items.filter(lead => FILTER_STATES[leadFilter].includes(lead.state)))
+    .slice().sort((a, b) => String(b.first_seen || "").localeCompare(String(a.first_seen || "")) || String(b.updated_at || "").localeCompare(String(a.updated_at || "")));
+  const filter = segmented("Show leads", LEAD_FILTERS, leadFilter, value => { leadFilter = value; hooks.requestRender(false); });
+  return h("div", { class: "diag-body" },
+    panel("Recruiter leads", { sub: `${source} Board inbox messages, questionnaires, assessments and Gmail replies the bots answer every morning.` },
+      notices,
+      h("div", { class: "kpi-grid diag-kpis" },
+        kpiCard({ label: `Leads ${dayWord(day)}`, value: String(today.new ?? 0), sub: `answered ${today.answered ?? 0} · need you ${today.needs_you ?? 0}` }),
+        kpiCard({ label: "Waiting for the bots", value: String(leads.waiting ?? 0), sub: `new ${states.new ?? 0} · deferred ${states.deferred ?? 0} · failed ${states.failed ?? 0}` }),
+        kpiCard({ label: "Need you", value: String(leads.needs_you ?? 0), sub: "the bots handed these to you" }),
+        kpiCard({ label: "Answered in all", value: String(leads.answered ?? 0), sub: `of ${leads.total ?? 0}` }))),
+    panel("By platform", { sub: "Every lead in the journal, by where it came from." },
+      dataTable(
+        [["Platform"], ["Total", "num"], ["Waiting", "num"], ["Answered", "num"], ["Need you", "num"]],
+        platforms.map(([platform, p]) => h("tr", {}, h("th", { scope: "row", text: platform }), num(p.total), num(p.waiting), num(p.answered), num(p.needs_you))))),
+    panel(`Leads (${rows.length})`, { sub: `Newest first.${items.length < leads.total ? ` The newest ${items.length} of ${leads.total} are listed.` : ""} The company links to the thread on the board or in Gmail.`, tools: filter },
+      rows.length
+        ? dataTable(
+          [["Received"], ["Platform"], ["Kind"], ["Company · role"], ["From"], ["State"], ["What happened"]],
+          rows.map(lead => h("tr", {},
+            cell(/^\d{4}-\d\d-\d\dT/.test(lead.received_at || "") ? stamp(lead.received_at) : lead.received_at || stamp(lead.first_seen)),
+            cell(lead.source === "mail" ? `${lead.platform} · mail` : lead.platform),
+            cell(String(lead.kind || "").replace(/_/g, " "), "lead-wrap"),
+            leadRole(lead),
+            cell((lead.who || "").slice(0, 40), "lead-wrap lead-from"),
+            h("td", {}, leadState(lead.state)),
+            cell(lead.why || "—", "lead-wrap lead-why"))))
+        : h("p", { class: "muted", text: FILTER_EMPTY[leadFilter] })));
 }
 
 // --- causes ------------------------------------------------------------------------
@@ -295,17 +401,22 @@ export function renderDiagnostics(argDay) {
   const status = S.status.diagnostics || { ready: false, days: [] };
   const known = status.days && status.days.length ? status.days : status.ready ? [today] : [];
   const day = argDay || known[0] || today;
+  const wanted = readQuery().get("section");
+  if (SECTIONS.some(([key]) => key === wanted)) section = wanted;
   const entry = cache.get(day);
   if (!entry) loadDiagnostics(day);
   else if (Date.now() - entry.at > RECHECK_MS) loadDiagnostics(day, true);
+  const leadsEntry = leadsCache.get(day);
+  if (!leadsEntry) loadLeads(day);
+  else if (Date.now() - leadsEntry.at > RECHECK_MS) loadLeads(day, true);
   const days = entry?.data?.days && entry.data.days.length ? entry.data.days : known;
 
   const select = dateControl({ label: "Audit date", value: day, marked: days, commitOnly: true,
-    onChange: value => { window.location.hash = value ? `#/diagnostics/${value}` : "#/diagnostics"; } });
+    onChange: value => { window.location.hash = withQuery(value ? `diagnostics/${value}` : "diagnostics", { section: section === "plan" ? "" : section }); } });
   const tools = h("div", { class: "row" },
     quickButton("pipeline", "Run the audit now", { group: "diagnose", redo: true, date: day === today ? "" : day }),
-    h("button", { class: "btn btn-sm", type: "button", text: "Fixes applied", onclick: () => { section = "fixes"; hooks.requestRender(false); } }),
-    h("button", { class: "btn btn-sm", type: "button", text: "Refresh", onclick: () => loadDiagnostics(day, true) }));
+    h("button", { class: "btn btn-sm", type: "button", text: "Fixes applied", onclick: () => chooseSection("fixes", argDay) }),
+    h("button", { class: "btn btn-sm", type: "button", text: "Refresh", onclick: () => { loadDiagnostics(day, true); loadLeads(day, true); } }));
 
   let body;
   if (!entry) {
@@ -320,16 +431,18 @@ export function renderDiagnostics(argDay) {
     const data = entry.data;
     const rank = c => { const i = SEVERITIES.indexOf(c.severity); return i < 0 ? 9 : i; };
     const causes = [...(data.causes || [])].sort((a, b) => rank(a) - rank(b) || (b.confidence || 0) - (a.confidence || 0));
-    const switcher = segmented("Audit section", SECTIONS, section, value => { section = value; hooks.requestRender(false); });
+    const shown = shownLeads(day, data);
+    const switcher = segmented("Audit section", SECTIONS, section, value => chooseSection(value, argDay));
     let content;
-    if (section === "causes") content = causesSection(causes);
+    if (section === "leads") content = leadsSection(shown, data, day);
+    else if (section === "causes") content = causesSection(causes);
     else if (section === "mail") content = mailSection(data);
     else if (section === "boards") content = boardsSection(data.boards);
     else if (section === "checks") content = checksSection(data.trail);
     else if (section === "fixes") content = fixesSection(data, day, today);
     else content = planSection(data.plan);
     body = h("div", { class: "diag-body" },
-      overviewCards(data),
+      overviewCards(data, shown.leads, day, argDay),
       summaryPanel(data, causes),
       h("div", { class: "diag-switcher" }, switcher),
       content,

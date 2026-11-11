@@ -12,6 +12,8 @@ import { meter, donutChart, sparkline, columnsChart, scoresChart, scoreKind } fr
 import { quickButton } from "../forms.js";
 import { num, counted, share, shortDate, longDate, localDay, duration, rangeText, changeFrom } from "../format.js";
 import { routeHref } from "../router.js";
+import { withQuery } from "../url-state.js";
+import { HANDS_ON, tallyKinds } from "./waiting.js";
 import { hooks } from "../state.js";
 import { learningProgress } from '../components/learning-progress.js';
 import { DSA_PRACTICE_PATH, availableLearningSections } from '../learning-sections.js';
@@ -38,6 +40,15 @@ const NOT_SENT = {
 };
 const FUNNELS = [["all", "All"], ["naukri", "Naukri"], ["boards", "Job boards"]];
 
+/** Jobs waiting on you as /api/overview reports them for the period: the total and what each one needs. */
+function waitingCounts(d) {
+  const w = d?.waiting;
+  if (!w || w.error) return null;
+  return { total: w.total, question: tallyKinds(w, new Set(["question"])), review: tallyKinds(w, new Set(["review"])), hands: tallyKinds(w, HANDS_ON), ready: tallyKinds(w, new Set(["ready"])) };
+}
+/** Applications filtered to "Waiting on you" for the same period, optionally narrowed to one need. */
+const waitingHref = (days, need = "") => withQuery("records", { outcome: "waiting", days: String(days ?? ""), need });
+
 async function loadOverview(fresh=false) {
   const days = S.overviewDays;
   if (S.overviewLoading === days) return;
@@ -62,11 +73,13 @@ function setRange(days) {
 function kpis(d) {
   const st = S.status;
   const period = d.days ? `in the last ${d.days} days` : "since the first run";
-  const waiting = st.questions.length + st.facts.length + st.sites.length;
+  const w = waitingCounts(d);
+  const waiting = w ? w.total : st.questions.length + st.facts.length + st.sites.length;
   const quota = d.quota;
+  const leads = d.leads;
   return h(
     "div",
-    { class: "kpis" },
+    { class: "kpis insight-kpis" },
     kpiCard({
       label: 'Applications sent',
       value: num(d.sent.total),
@@ -93,11 +106,25 @@ function kpis(d) {
       change: changeFrom(d.found.total, d.found.before, d.days),
       extra: meter(d.found.total ? d.found.over / d.found.total : 0),
     }),
-    kpiCard({
+    kpiCard(w ? {
+      label: 'Jobs waiting on you',
+      value: num(waiting),
+      sub: `${num(w.question)} screener questions · ${num(w.review)} to verify · ${num(w.hands)} forms & decisions · ${num(w.ready)} answered`,
+      href: waitingHref(d.days),
+      link: "See every job and what it needs",
+    } : {
       label: 'Needs your attention',
       value: num(waiting),
       sub: [counted(st.questions.length, "question"), counted(st.facts.length, "blank fact"), counted(st.sites.length, "company site")].join(" · "),
       href: st.questions.length + st.facts.length ? routeHref("todo") : routeHref("sites"),
+    }),
+    kpiCard({
+      label: "Recruiter leads",
+      value: num(leads ? (leads.waiting || 0) + (leads.needs_you || 0) : 0),
+      unit: "waiting",
+      sub: leads ? `${num(leads.today?.new)} new today · ${num(leads.today?.answered)} answered · ${num(leads.needs_you)} need you` : "not read",
+      href: "#/diagnostics?section=leads",
+      link: "See the leads",
     }),
   );
 }
@@ -311,11 +338,12 @@ function dashboardHeader(title, sub, d, analytics = false) {
   return h('header',{class:'page-head'},h('div',{},h('p',{class:'eyebrow',text:analytics ? 'Insights' : S.status.date_long}),h('h1',{text:title}),h('p',{class:'lead',text:sub})),
     h('button',{class:'btn export-button',type:'button',disabled:!d,onclick:()=>exportDaily(d),text:'Export data'}));
 }
-function attentionPanel() {
-  const st=S.status;
-  const rows=[['todo','Screening questions',st.questions.length,'Add reusable answers'],['todo','Missing profile details',st.facts.length,'Complete your saved facts'],['sites','Company follow-ups',st.sites.length,'Review your company worklist']];
-  return panel('Needs your attention',{cls:'span-4 attention-panel',sub:'Current worklist · independent of date range'},
-    h('div',{class:'attention-list'},rows.map(([route,title,count,sub])=>h('a',{class:'attention-item',href:routeHref(route)},h('span',{class:'attention-copy'},h('strong',{text:title}),h('small',{text:sub})),h('span',{class:'attention-count',text:num(count)})))),
+function attentionPanel(d) {
+  const st=S.status, w=waitingCounts(d);
+  const rows=w ? [[waitingHref(d.days,'question'),'Screener questions',w.question,'Answer here; Naukri retries the job'],[waitingHref(d.days,'review'),'To verify',w.review,'Submit clicked, no confirmation seen'],[waitingHref(d.days),'Forms & decisions',w.hands,'CAPTCHAs, logins, salary, videos'],[routeHref('todo'),'Missing profile details',st.facts.length,'Complete your saved facts']]
+    : [[routeHref('todo'),'Screening questions',st.questions.length,'Add reusable answers'],[routeHref('todo'),'Missing profile details',st.facts.length,'Complete your saved facts'],[routeHref('sites'),'Company follow-ups',st.sites.length,'Review your company worklist']];
+  return panel(w ? `Jobs waiting on you (${num(w.total)})` : 'Needs your attention',{cls:'span-4 attention-panel',sub:w ? (d.days ? `Stopped in the last ${d.days} days · open Applications for every detail` : 'Since the first run · open Applications for every detail') : 'Current worklist · independent of date range'},
+    h('div',{class:'attention-list'},rows.map(([href,title,count,sub])=>h('a',{class:'attention-item',href},h('span',{class:'attention-copy'},h('strong',{text:title}),h('small',{text:sub})),h('span',{class:'attention-count',text:num(count)})))),
     h('div',{class:'attention-bottom'},h('span',{text:st.report.ready ? 'Today’s report is ready' : 'Today’s report has not been built'}),h('a',{href:'#/reports',text:st.report.ready?'Read report':'Open reports'})));
 }
 function periodBar(d) {
@@ -337,9 +365,10 @@ function platformSummary(d){
       h('td',{},h('a',{class:'text-link',href:board.key==='naukri'?'#/naukri':board.key==='external'||board.key==='startups'?'#/sites':'#/boards/'+board.key,'aria-label':'Configure '+board.key,text:'Configure'}))))));
 }
 function orbitHeader(d){
-  const waiting=(S.status.questions?.length||0)+(S.status.facts?.length||0)+(S.status.sites?.length||0);
+  const w=waitingCounts(d);
+  const waiting=w ? w.total : (S.status.questions?.length||0)+(S.status.facts?.length||0)+(S.status.sites?.length||0);
   return h('header',{class:'page-head orbit-head'},h('div',{},h('p',{class:'eyebrow',text:S.status.date_long}),h('h1',{text:'Launchpad'}),
-    h('p',{class:'lead',text:waiting?`${counted(waiting,'item')} ${waiting===1?'needs':'need'} your attention.`:'Your worklist is clear.'})),
+    h('p',{class:'lead',text:waiting?`${counted(waiting,w?'job':'item')} ${waiting===1?'needs':'need'} you.`:'Your worklist is clear.'})),
     h('div',{class:'overview-head-actions'},
       availableLearningSections().some(section=>section.key==='dsa') ? h('a',{class:'btn btn-primary',href:DSA_PRACTICE_PATH,text:'Practice DSA'}) : null,
       h('button',{class:'btn export-button',type:'button','aria-label':'Export data',title:'Export daily activity',disabled:!d,onclick:()=>exportDaily(d),text:'Export'})));
@@ -372,7 +401,7 @@ export function renderOverview() {
     d && d.days!==S.overviewDays ? h('p',{class:'inline-notice',role:'status',text:'Updating the selected period. The records below still show the previous period.'}) : null,
     h('div',{class:'orbit-dashboard'},h('div',{class:'orbit-main'},d?.first ? [careerCard(d),orbitMetrics(d),sentPanel(d)] : panel(d ? 'Nothing to chart yet' : 'Your activity',{},empty(ov?.error || (d ? 'Your first application results will appear here. Choose a specialist in Your Bot Crew to get started.' : 'Reading your application history…'))),
       d ? panel('Your latest moves',{cls:'recent-panel',sub:'Recent recorded attempts · all outcomes',tools:h('a',{class:'text-link',href:'#/records',text:'All applications →'})},d.recent?.length ? recordTable(d.recent,true) : empty('No application attempts in this period.')) : null,d ? platformSummary(d) : null),
-      h('aside',{class:'orbit-aside','aria-label':'Crew and next steps'},crewShortcuts(),attentionPanel(),d ? pipelineSummary(d) : null,d ? panel('Saved research',{cls:'learning-summary'},h('div',{class:'growth-illustration'},avatar(11,'growth-avatar'),h('div',{},h('strong',{text:d.workspace?num(d.workspace.research_count):'—'}),h('span',{text:'saved documents'}))),h('p',{class:'muted',text:d.workspace?`${num(d.workspace.learning_done)} learning days complete.`:'Research summary is unavailable. Open the library to retry.'}),h('div',{class:'panel-foot'},h('a',{class:'btn',href:'#/learning/library',text:'Browse documents'}))) : null)),
+      h('aside',{class:'orbit-aside','aria-label':'Crew and next steps'},crewShortcuts(),attentionPanel(d),d ? pipelineSummary(d) : null,d ? panel('Saved research',{cls:'learning-summary'},h('div',{class:'growth-illustration'},avatar(11,'growth-avatar'),h('div',{},h('strong',{text:d.workspace?num(d.workspace.research_count):'—'}),h('span',{text:'saved documents'}))),h('p',{class:'muted',text:d.workspace?`${num(d.workspace.learning_done)} learning days complete.`:'Research summary is unavailable. Open the library to retry.'}),h('div',{class:'panel-foot'},h('a',{class:'btn',href:'#/learning/library',text:'Browse documents'}))) : null)),
     learningProgress(),
     h('div',{class:'overview-footer'},h('span',{text:'Submission counts are recorded events, not unique roles.'})));
 }

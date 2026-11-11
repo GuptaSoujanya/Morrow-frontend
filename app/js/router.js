@@ -47,6 +47,7 @@ export function parseHash(hash) {
   if (name === 'today') name = 'overview';
   if (name === 'dsa') { name = 'learning'; rest = ['dsa']; }
   if (name === 'study') { name = 'learning'; rest = ['courses']; }
+  if (name === 'waiting') { name = 'records'; rest = ['applications', 'waiting']; }
   if (name === 'research') {
     const query = new URLSearchParams(String(hash).split('?')[1] || '');
     const view = query.get('view');

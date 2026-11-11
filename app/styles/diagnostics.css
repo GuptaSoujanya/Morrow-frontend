@@ -21,6 +21,16 @@
 .diag-severity.is-critical { background: rgba(229,72,77,.22); color: #ff8a8e; }
 .diag-severity.is-high { background: rgba(245,165,36,.22); color: #ffc46b; }
 .diag-severity.is-medium { background: rgba(91,155,213,.22); color: #9cc7ee; }
+.lead-state { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; white-space: nowrap; background: var(--slate-tint); color: var(--slate-ink); }
+.lead-state.is-answered { background: var(--teal-tint); color: var(--teal-ink); }
+.lead-state.is-needs_you { background: var(--amber-100); color: var(--amber-600); }
+.lead-state.is-new, .lead-state.is-deferred { background: var(--blue-100); color: var(--blue-600); }
+.lead-state.is-failed { background: var(--red-100); color: var(--red-600); }
+.lead-state.is-skipped { background: var(--slate-tint); color: var(--slate-ink); }
+.diagnostics-page .table td.lead-wrap { white-space: normal; }
+.diagnostics-page .table td.lead-role { min-width: 9em; }
+.diagnostics-page .table td.lead-from { min-width: 8em; overflow-wrap: anywhere; }
+.diagnostics-page .table td.lead-why { min-width: 13em; }
 .diag-plain { margin: 10px 0 0; line-height: 1.5; }
 .diag-model-note { margin: 6px 0 0; font-style: italic; opacity: .85; }
 .diag-cause-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 12px; }

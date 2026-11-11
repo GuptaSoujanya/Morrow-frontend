@@ -2,14 +2,18 @@ import { h } from '../dom.js';
 import { icon } from '../icons.js';
 import { api } from '../api.js';
 import { S } from '../state.js';
-import { panel, dataTable, empty, errorState } from '../components/panel.js';
+import { panel, dataTable, empty, errorState, loadingState } from '../components/panel.js';
 import { num } from '../format.js';
 import {pagination} from '../components/pagination.js';
 import {readQuery,writeQuery,pageNumber,choice} from '../url-state.js';
 import { selectControl } from '../components/controls.js';
 import { researchPill } from './companies.js';
+import { waitingCards, waitingExtras, waitingKindOptions, waitingCount, explainWaitingError } from './waiting.js';
 
 const boardNames={naukri:'Naukri',hirist:'Hirist',instahyre:'Instahyre',cutshort:'Cutshort',wellfound:'Wellfound',startups:'Startups',external:'Company site'};
+/** Outcome filters that are not ledger statuses. "waiting" switches the list to /api/waiting: every job the bots stopped on and what it needs. */
+const WAITING='waiting';
+const baseOutcomes=kind=>[['all','All outcomes'],...(kind==='jobs'?[['matched','Above match threshold']]:[[WAITING,'Waiting on you'],['submitted','Confirmed submissions']])];
 export function outcomePill(row) {return h('span',{class:`result-pill result-${row.kind}`,text:row.label});}
 export function recordTable(rows, compact=false) {
   return dataTable(compact ? [['Role / company'],['Platform'],['Outcome'],['When']] : [['Role / company'],['Platform'],['Outcome'],['Match score','num'],['When']],
@@ -30,39 +34,60 @@ export function renderRecords(arg='') {
   const q=readQuery();
   const f={kind:choice(q.get('kind')||legacyKind,['applications','jobs'],'applications'),outcome:q.get('outcome')||legacyOutcome,
     days:choice(q.get('days')||legacyDays,['0','7','14','30'],String(S.overviewDays)),board:choice(q.get('board'),['all',...Object.keys(boardNames)],'all'),
-    q:q.get('q')||'',sort:choice(q.get('sort'),['recent','score'],'recent'),page:pageNumber(q.get('page')),size:choice(Number(q.get('size')),[20,50,100],20)};
+    q:q.get('q')||'',sort:choice(q.get('sort'),['recent','score'],'recent'),page:pageNumber(q.get('page')),size:choice(Number(q.get('size')),[20,50,100],20),need:q.get('need')||''};
+  if(f.kind==='jobs'&&f.outcome===WAITING)f.outcome='all';
   if(S.pendingRecordQuery!==undefined){f.q=S.pendingRecordQuery;f.page=1;delete S.pendingRecordQuery;}
   writeQuery('records',f,{replace:true});
   let request=0,timer;
   const body=h('div',{class:'records-body','aria-live':'polite'});
   const count=h('p',{class:'records-count'});
-  const status=select('Outcome',[['all','All outcomes'],['submitted','Confirmed submissions'],['matched','Above match threshold'],['not_attempted','Not attempted']],f.outcome,value=>{f.outcome=value;f.page=1;load();});
+  const extras=h('div',{class:'waiting-extras'});
+  const status=select('Outcome',[...baseOutcomes(f.kind),['not_attempted','Not attempted']],f.outcome,value=>{f.outcome=value;f.page=1;load();});
+  const need=select('What it needs',[['all','Everything']],f.need||'all',value=>{f.need=value==='all'?'':value;f.page=1;load();});
+  const syncNeed=()=>{need.style.display=f.outcome===WAITING?'':'none';};
+  syncNeed();
   const refresh=h('button',{class:'btn',type:'button',onclick:()=>load(true)},icon('refresh','icon icon-sm'),'Refresh');
   const draw= data=>{
     const current=f.outcome;
-    const options=[['all','All outcomes'],[f.kind==='jobs'?'matched':'submitted',f.kind==='jobs'?'Above match threshold':'Confirmed submissions'],...data.statuses.map(s=>[s,s.replaceAll('_',' ')])];
+    const options=[...baseOutcomes(f.kind),...data.statuses.map(s=>[s,s.replaceAll('_',' ')])];
     if(!options.some(([key])=>key===current)) options.push([current,current.replaceAll('_',' ')]);
     status.setOptions(options.map(([value,label])=>({value,label})));status.value=current;
     count.textContent=`${num(data.total)} ${f.kind==='jobs'?'jobs':'application attempts'} · ${f.days==='0'?'all recorded dates':`last ${f.days} days`} · refreshed ${new Date(data.updated_at).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}`;
     body.replaceChildren(data.rows.length ? recordTable(data.rows) : empty('No records match these filters.',h('button',{class:'btn',type:'button',text:'Clear search & outcome',onclick:()=>{f.q='';search.value='';f.outcome='all';f.page=1;load();}})),
       pagination({...data,label:'Applications',sizes:[20,50,100],onPage:page=>{f.page=page;return load();},onSize:size=>{f.size=size;f.page=1;return load();}}));
+    extras.replaceChildren();
     f.page=data.page;writeQuery('records',f,{replace:true});
-
+  };
+  const clearWaiting=()=>{f.q='';search.value='';f.need='';f.board='all';f.page=1;load();};
+  const drawWaiting=data=>{
+    status.setOptions([...baseOutcomes(f.kind),['not_attempted','Not attempted']].map(([value,label])=>({value,label})));status.value=WAITING;
+    need.setOptions(waitingKindOptions(data,f.need||'all').map(([value,label])=>({value,label})));need.value=f.need||'all';
+    count.textContent=waitingCount(data);
+    body.replaceChildren(waitingCards(data,()=>load(true),clearWaiting),
+      pagination({...data,total:data.matched,label:'Waiting jobs',sizes:[20,50,100],onPage:page=>{f.page=page;return load();},onSize:size=>{f.size=size;f.page=1;return load();}}));
+    extras.replaceChildren(waitingExtras(data,()=>load(true)));
+    f.page=data.page;writeQuery('records',f,{replace:true});
   };
   async function load(fresh=false){
     writeQuery('records',f);
     const ticket=++request;refresh.disabled=true;body.setAttribute('aria-busy','true');count.textContent='Loading records…';
-    try {const data=await api('/api/records?'+new URLSearchParams(f),undefined,{fresh});if(ticket===request)draw(data);}
-    catch(error){if(ticket===request){count.textContent='Records could not be loaded';body.replaceChildren(errorState(error.message,load));}}
+    syncNeed();
+    const waiting=f.outcome===WAITING;
+    if(waiting&&!body.querySelector('.waiting-cards'))body.replaceChildren(loadingState('Collecting everything the bots left for you…'));
+    try {
+      if(waiting){const params={days:f.days,board:f.board==='all'?'':f.board,q:f.q,page:f.page,size:f.size,kind:f.need||'all'};
+        const data=await api('/api/waiting?'+new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([,v])=>v!==''))),undefined,{fresh});if(ticket===request)drawWaiting(data);}
+      else {const data=await api('/api/records?'+new URLSearchParams(f),undefined,{fresh});if(ticket===request)draw(data);}}
+    catch(error){if(ticket===request){count.textContent='Records could not be loaded';body.replaceChildren(errorState(waiting?explainWaitingError(error):error.message,()=>load(true)));}}
     finally{if(ticket===request){refresh.disabled=false;body.setAttribute('aria-busy','false');}}
   }
   const search=h('input',{type:'search',class:'input',placeholder:'Search role, company or outcome…','aria-label':'Search records',value:f.q,dataset:{focusKey:'records-search'},oninput:e=>{f.q=e.target.value;f.page=1;clearTimeout(timer);timer=setTimeout(()=>{if(search.isConnected)load();},250);}});
   const toolbar=h('div',{class:'records-filters'},search,
-    select('Record type',[['applications','Application attempts'],['jobs','Discovered jobs']],f.kind,value=>{f.kind=value;f.outcome='all';f.page=1;load();}),
-    select('Board',[['all','All platforms'],...Object.entries(boardNames)],f.board,value=>{f.board=value;f.page=1;load();}),status,
+    select('Record type',[['applications','Application attempts'],['jobs','Discovered jobs']],f.kind,value=>{f.kind=value;f.outcome='all';f.need='';f.page=1;load();}),
+    select('Board',[['all','All platforms'],...Object.entries(boardNames)],f.board,value=>{f.board=value;f.page=1;load();}),status,need,
     select('Record period',[['7','Last 7 days'],['14','Last 14 days'],['30','Last 30 days'],['0','All time']],f.days,value=>{f.days=value;f.page=1;load();}),
     select('Sort records',[['recent','Most recent'],['score','Highest score']],f.sort,value=>{f.sort=value;f.page=1;load();}));
   load();
   return h('div',{class:'page records-page'},h('header',{class:'page-head'},h('div',{},h('p',{class:'eyebrow',text:'EVERY MOVE, IN ONE PLACE'}),h('h1',{text:'Applications'}),h('p',{class:'lead',text:'Find a role. Check the outcome. Know what happens next.'})),refresh),
-    panel('Explore your ledger',{sub:'Applications are recorded attempts; discovered jobs are unique job IDs. Scores show the latest recorded match. Missing role titles are shown by job ID.'},toolbar,count,body));
+    panel('Explore your ledger',{sub:'Applications are recorded attempts; discovered jobs are unique job IDs. Scores show the latest recorded match. Missing role titles are shown by job ID. Outcome “Waiting on you” lists every job the bots stopped on and what it still needs.'},toolbar,count,body),extras);
 }

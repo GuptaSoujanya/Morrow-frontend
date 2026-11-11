@@ -6,10 +6,10 @@ from urllib.parse import urlsplit
 from web import server, state
 
 BOARDS = ('naukri', 'hirist', 'instahyre', 'cutshort', 'wellfound')
-STAGES = ('learn', 'research:resume', 'research:companies', 'diagnose', 'autofix', 'profile:linkedin', 'apply:startups',
-          *(f'{group}:{board}' for group in ('profile', 'apply') for board in BOARDS),
+STAGES = ('learn', 'research:resume', 'research:companies', 'diagnose', 'autofix', 'leads:mail', 'profile:linkedin',
+          'apply:startups', *(f'{group}:{board}' for group in ('inbox', 'profile', 'apply') for board in BOARDS),
           *(f'brief:{key}' for key in ('goal','system-design','papers','tech-news','companies','repositories')))
-GROUPS = ('', 'learn', 'study', 'profile', 'apply', 'brief', 'research', *STAGES)
+GROUPS = ('', 'learn', 'study', 'inbox', 'leads', 'profile', 'apply', 'brief', 'research', *STAGES)
 
 
 def number(options, key, low, high, integer=True):
@@ -116,7 +116,7 @@ def pipeline_command(o, save=False):
                        'brief:goal': 'Learning goal', 'brief:system-design': 'System design research',
                        'learn': 'Learning material', 'study': 'Daily course & discoveries', 'research:resume': 'Resume learning',
                        'research:companies': 'Company intelligence', 'diagnose': 'Why no replies audit',
-                       'autofix': 'Fixes from the audit'}
+                       'autofix': 'Fixes from the audit', 'leads': 'Answer recruiter leads', 'inbox': 'Board inboxes'}
     label = research_labels.get(group, 'Daily pipeline')
     return state.py(label + ' · ' + (day if day and group in research_labels else command),*args)
 

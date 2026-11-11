@@ -68,6 +68,10 @@ h1,h2,h3 { letter-spacing:-.025em; }
 .segmented button { min-height:30px; padding:6px 12px; font-size:12px; border-radius:8px; font-weight:500; }
 .segmented button[aria-pressed=true] { color:var(--text-900); background:var(--hover); box-shadow:0 1px 4px #213d6b12,inset 0 1px 0 var(--edge-light); }
 .kpis { grid-template-columns:repeat(4,minmax(0,1fr)); gap:var(--space-4); margin-bottom:var(--space-7); }
+/* Insights has five metrics: one row when wide, then three over two, then pairs with the last spanning. */
+.kpis.insight-kpis { grid-template-columns:repeat(5,minmax(0,1fr)); }
+@media (max-width:1279px) { .kpis.insight-kpis { grid-template-columns:repeat(6,minmax(0,1fr)); }.insight-kpis > .kpi { grid-column:span 2; }.insight-kpis > .kpi:nth-child(n+4) { grid-column:span 3; } }
+@media (max-width:767px) { .kpis.insight-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }.insight-kpis > .kpi,.insight-kpis > .kpi:nth-child(n+4) { grid-column:auto; }.insight-kpis > .kpi:last-child:nth-child(odd) { grid-column:1 / -1; } }
 .kpi,.panel,.bot-card { background:var(--glass); border:1px solid var(--edge); border-radius:var(--radius-md); box-shadow:var(--shadow-card); min-width:0; }
 .kpi { padding:var(--space-5); gap:var(--space-1); position:relative; overflow:hidden; }
 .kpi-label { font-size:14px; font-weight:500; }

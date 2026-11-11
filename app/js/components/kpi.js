@@ -1,6 +1,6 @@
 import { h } from "../dom.js";
 
-export function kpiCard({ label, value, unit, sub, change, extra, href }) {
+export function kpiCard({ label, value, unit, sub, change, extra, href, link = "See what’s waiting" }) {
   return h(
     "div",
     { class: "kpi" },
@@ -14,6 +14,6 @@ export function kpiCard({ label, value, unit, sub, change, extra, href }) {
     ),
     sub ? h("p", { class: "kpi-sub", text: sub }) : null,
     extra || null,
-    href ? h("a", { class: "kpi-link", href, text: "See what’s waiting" }) : null,
+    href ? h("a", { class: "kpi-link", href, text: link }) : null,
   );
 }
