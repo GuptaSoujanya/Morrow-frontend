@@ -30,4 +30,13 @@
 .diag-board.is-locked, .diag-board.is-needs_sign_in, .diag-board.is-error { opacity: .75; }
 .diag-step-failed td { background: rgba(229,72,77,.08); }
 .diag-empty { display: grid; gap: 6px; }
+.diag-switcher { display: flex; justify-content: flex-start; }
+.diag-switcher .segmented { flex-wrap: wrap; }
+.diag-group-head { display: flex; align-items: center; gap: 8px; margin: 6px 0 4px; font-size: 0.95rem; text-transform: capitalize; }
+.diag-severity-group { display: grid; gap: 8px; }
+.diag-kind { font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line, rgba(255,255,255,.18)); opacity: .8; white-space: nowrap; }
+.diag-model-line { margin: 10px 0 0; }
+.diag-pre { white-space: pre-wrap; font-size: 12px; max-height: 320px; overflow: auto; margin: 8px 0 0; }
+.diag-muted-row td { opacity: .6; }
+.diag-plain-list .diag-severity { vertical-align: middle; margin-right: 2px; }
 .diagnostics-page code { font-size: 0.82rem; word-break: break-word; }
