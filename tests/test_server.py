@@ -132,7 +132,7 @@ def test_missing_browser_page_is_a_static_html_404_without_account_lookup(app, m
 
 
 @pytest.mark.parametrize('path', [
-    '/api/status', '/api/unknown', '/course', '/course/missing', '/reports/missing',
+    '/api/status', '/api/unknown', '/api/diagnostics', '/course', '/course/missing', '/reports/missing',
     '/profile.yaml', '/.env', '/does-not-exist%2f..%2fprofile', '/does-not-exist/../profile',
 ])
 def test_missing_document_does_not_bypass_private_or_ambiguous_paths(app, path):

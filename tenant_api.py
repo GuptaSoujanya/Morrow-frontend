@@ -268,6 +268,7 @@ class TenantAPI:
             "date": current.date().isoformat(),
             "date_long": current.strftime("%A, %d %B %Y"),
             "report": {"ready": False, "days": []},
+            "diagnostics": {"ready": False, "days": []},
             "questions": [],
             "facts": [],
             "sites": [],

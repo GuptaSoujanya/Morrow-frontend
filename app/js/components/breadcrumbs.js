@@ -96,7 +96,7 @@ export function buildBreadcrumbs(route = { name: 'overview', arg: '' }, options 
       if (boards[board]) { parent.set('board', board); add(boards[board], href(name, '', parent)); }
       if (outcome !== 'all') add(outcomes[outcome] || humanize(outcome), href(name, '', filters));
       else crumbs.at(-1).href = href(name, '', filters);
-    } else if (name === 'reports' && arg) {
+    } else if ((name === 'reports' || name === 'diagnostics') && arg) {
       add(dayLabel(arg), routeHref(name, arg));
     } else if (name === 'data') {
       const filters = pick(query, ['category', 'q', 'page', 'size']);

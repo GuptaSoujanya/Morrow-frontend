@@ -11,7 +11,7 @@ const paid = { ...free, user: { id: 'paid', role: 'user', modules: allModules } 
 const admin = { ...free, user: { id: 'admin', role: 'admin', modules: [] } };
 const links = context => navigationGroups(context).flatMap(([, routes]) => routes);
 const freeLinks = ['overview', 'records', 'data', 'files', 'connections', 'onboarding', 'plans', 'account'];
-const runtime = ['bots', 'pipeline', 'todo', 'naukri', 'boards', 'sites', 'profile', 'linkedin', 'linkedin-profile', 'outreach', 'resume', 'study', 'reports'];
+const runtime = ['bots', 'pipeline', 'todo', 'naukri', 'boards', 'sites', 'profile', 'linkedin', 'linkedin-profile', 'outreach', 'resume', 'study', 'reports', 'diagnostics'];
 
 test('cold identity loading and account switches expose no navigation or private prefetches', () => {
   for (const context of [{}, { accountMode: null, legacyAccess: false }, { accountMode: null, user: admin.user, legacyAccess: true }]) {

@@ -3,7 +3,7 @@ import { avatar, workspaceAvatar } from './identity.js';
 // The same saved artwork identifies a destination in navigation and search.
 const artwork = {
   overview: 15, bots: 49, pipeline: 28, todo: 27, records: 43,
-  learning: 50, companies: 23, data: 26, analytics: 45, reports: 29,
+  learning: 50, companies: 23, data: 26, analytics: 45, reports: 29, diagnostics: 45,
   files: 44, connections: 22, setup: 31, onboarding: 46,
   plans: 41, admin: 46, more: 40, search: 47,
   naukri: 0, boards: 1, sites: 5, profile: 6, linkedin: 7,

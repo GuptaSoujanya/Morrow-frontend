@@ -8,9 +8,9 @@ const PASSWORD = 'Preview-only-passphrase-2026!';
 const USER = 'preview.user@example.com';
 const ADMIN = 'preview.admin@example.com';
 const FREE_ROUTES = ['overview', 'records', 'data', 'files', 'plans', 'account'];
-const RESTRICTED_ROUTES = ['bots', 'pipeline', 'todo', 'research', 'analytics', 'reports', 'study', 'setup', 'admin',
+const RESTRICTED_ROUTES = ['bots', 'pipeline', 'todo', 'research', 'analytics', 'reports', 'diagnostics', 'study', 'setup', 'admin',
   'naukri', 'boards', 'sites', 'profile', 'linkedin', 'linkedin-profile', 'outreach', 'resume'];
-const ADMIN_ROUTES = ['overview', 'bots', 'pipeline', 'todo', 'records', 'research', 'data', 'analytics', 'reports', 'study', 'files', 'plans', 'account', 'admin'];
+const ADMIN_ROUTES = ['overview', 'bots', 'pipeline', 'todo', 'records', 'research', 'data', 'analytics', 'reports', 'diagnostics', 'study', 'files', 'plans', 'account', 'admin'];
 let userState, adminState;
 
 async function signIn(playwright, baseURL, email) {

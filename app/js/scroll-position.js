@@ -40,7 +40,7 @@ export function scrollToElement(element, { smooth = false } = {}) {
 /** Filters and report dates belong to the page the reader is already using. */
 export function routeScrollKey(route) {
   const name = String(route?.name || 'overview').split('?')[0];
-  const arg = name === 'reports' ? '' : String(route?.arg || '').split('?')[0];
+  const arg = name === 'reports' || name === 'diagnostics' ? '' : String(route?.arg || '').split('?')[0];
   return `${name}/${arg}`;
 }
 

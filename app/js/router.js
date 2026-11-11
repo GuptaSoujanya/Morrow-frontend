@@ -13,6 +13,7 @@ export const SECTIONS = [
   ["linkedin", "LinkedIn post", "pen"],
   ["resume", "Tailor resume", "file"],
   ["reports", "Reports", "chart"],
+  ["diagnostics", "Why no replies", "chart"],
   ["learning", "Learning", "book"],
   ["companies", "Companies", "globe"],
   ["todo", "Action inbox", "check"],

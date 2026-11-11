@@ -26,6 +26,7 @@ const ROUTES = {
   learning: { module: 'learning', runtime: true },
   analytics: { module: 'analytics' },
   reports: { module: 'analytics', runtime: true },
+  diagnostics: { module: 'analytics', runtime: true },
   setup: {},
   onboarding: {},
   connections: {},
@@ -35,7 +36,7 @@ const ROUTES = {
 };
 const GROUPS = [
   ['WORKSPACE', ['overview', 'bots', 'pipeline', 'todo', 'records']],
-  ['KNOWLEDGE & DATA', ['learning', 'companies', 'data', 'analytics', 'reports']],
+  ['KNOWLEDGE & DATA', ['learning', 'companies', 'data', 'analytics', 'reports', 'diagnostics']],
   ['PERSONAL', ['files', 'connections', 'onboarding', 'setup']],
   ['ACCOUNT', ['plans', 'account', 'admin']],
 ];
