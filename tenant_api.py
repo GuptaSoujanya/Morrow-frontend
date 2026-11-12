@@ -38,7 +38,7 @@ class TenantError(ValueError):
 
 
 def now():
-    return dt.datetime.now(dt.UTC)
+    return dt.datetime.now().astimezone()
 
 
 def integer(value, default, low, high):
@@ -54,7 +54,7 @@ def integer(value, default, low, high):
 def moment(value):
     try:
         parsed = dt.datetime.fromisoformat(str(value))
-        return parsed.replace(tzinfo=dt.UTC) if parsed.tzinfo is None else parsed
+        return (parsed.replace(tzinfo=dt.UTC) if parsed.tzinfo is None else parsed).astimezone()
     except (TypeError, ValueError):
         return None
 
@@ -74,7 +74,12 @@ def kind(status):
 def board(job_id, platform=""):
     if platform and platform != "legacy":
         return platform
-    return str(job_id).split(":", 1)[0] if ":" in str(job_id) else "naukri"
+    prefix = str(job_id).split(":", 1)[0] if ":" in str(job_id) else "naukri"
+    return {"nvite": "naukri", "yc": "startups", "hn": "startups"}.get(prefix, prefix)
+
+
+def channel(item):
+    return item["board"] if item["board"] in ("naukri", "startups") else "boards"
 
 
 def number(value):
@@ -428,7 +433,7 @@ class TenantAPI:
             start + dt.timedelta(days=n): {
                 "day": (start + dt.timedelta(days=n)).isoformat(),
                 **dict.fromkeys(
-                    ("naukri", "boards", "company", "waiting", "skipped", "failed"), 0
+                    ("naukri", "boards", "startups", "company", "waiting", "skipped", "failed"), 0
                 ),
             }
             for n in range((today - start).days + 1)
@@ -446,14 +451,13 @@ class TenantAPI:
         outcomes = Counter(r["status"] for r in included)
         sent = Counter()
         for row in included:
-            channel = {
-                "applied": "naukri",
-                "applied_platform": "boards",
-                "applied_external": "company",
-            }.get(row["status"], row["kind"])
-            daily[moment(row["at"]).date()][channel] += 1
+            series = channel(row) if row["kind"] == "sent" else row["kind"]
+            daily[moment(row["at"]).date()][series] += 1
             if row["kind"] == "sent":
-                sent[channel] += 1
+                sent[series] += 1
+            if row["status"] == "applied_external":
+                sent["company"] += 1
+                daily[moment(row["at"]).date()]["company"] += 1
         scored = [r["score"] for r in selected_jobs if r["score"] is not None]
         bins = Counter(min(19, max(0, int(score // 5))) for score in scored)
         board_rows = []
@@ -482,8 +486,8 @@ class TenantAPI:
             "min_score": MIN_SCORE,
             "daily": list(daily.values()),
             "sent": {
-                "total": sum(sent.values()),
-                **{k: sent[k] for k in ("naukri", "boards", "company")},
+                "total": sent["naukri"] + sent["boards"] + sent["startups"],
+                **{k: sent[k] for k in ("naukri", "boards", "startups", "company")},
                 "before": None,
             },
             "found": {
@@ -527,7 +531,7 @@ class TenantAPI:
             "source": {
                 "database": "Private account",
                 "updated_at": now().isoformat(),
-                "timezone": "UTC",
+                "timezone": now().tzname(),
             },
             "workspace": {
                 "date": today.isoformat(),

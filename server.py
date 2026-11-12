@@ -39,6 +39,24 @@ from connections import ConnectionService, ConnectionError
 import runner_setup
 import user_repo
 
+ADMIN_API = ROOT.parent / 'admin' / 'api' / 'admin_api.py'
+_admin_module = None
+
+
+def admin_hook(handler):
+    """Private /admin area, present only on machines that have the admin folder next to this checkout."""
+    global _admin_module
+    if not ADMIN_API.is_file():
+        return False
+    if _admin_module is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('morrow_admin_api', ADMIN_API)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _admin_module = module
+    return _admin_module.handle(handler)
+
+
 BOARDS = ("hirist", "instahyre", "cutshort", "wellfound")
 BOT_IDS = ("naukri", *BOARDS, "startups", "external", "profile", "linkedin", "linkedin_profile", "cold_email", "resume", "learn", "brief", "research", 'company_research', 'company_outreach', *(board + '_profile' for board in BOARDS))
 
@@ -508,11 +526,13 @@ class DashboardHandler(server.Handler):
             self.wfile.write(body)
 
     def do_GET(self):
+        url = urlsplit(self.path)
+        if (url.path == '/admin' or url.path.startswith('/admin/')) and admin_hook(self):
+            return
         if self.account_request():
             return
         if not self.host_ok():
             return self.error(HTTPStatus.FORBIDDEN, "Only this computer can use this dashboard.")
-        url = urlsplit(self.path)
         try:
             query = {key: values[-1] for key, values in parse_qs(url.query).items()}
             if url.path == '/api/learning/feed':
@@ -671,9 +691,11 @@ class DashboardHandler(server.Handler):
             return self.error(HTTPStatus.INTERNAL_SERVER_ERROR, "Progress could not be saved. Please retry.")
 
     def do_POST(self):
+        path = urlsplit(self.path).path
+        if path.startswith('/admin/') and admin_hook(self):
+            return
         if self.account_request():
             return
-        path = urlsplit(self.path).path
         if path == '/api/company-outreach/gmail':
             if not self.host_ok() or not self.change_ok() or self.headers.get('Sec-Fetch-Site') == 'cross-site':
                 return self.error(HTTPStatus.FORBIDDEN, 'Only this dashboard can connect Gmail drafts.')

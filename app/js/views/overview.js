@@ -22,11 +22,10 @@ export const RANGES = [[7, "7 days"], [14, "14 days"], [30, "30 days"], [0, "All
 const CHANNELS = [
   { key: "naukri", label: "Naukri", cls: "s-naukri" },
   { key: "boards", label: "Job boards", cls: "s-boards" },
-  { key: "company", label: "Company sites", cls: "s-company" },
   { key: "startups", label: "Startups", cls: "s-startups" },
 ];
-const sentOn = (r) => r.naukri + r.boards + r.company + (r.startups || 0);
-const sentText = (s) => `${num(s.naukri)} on Naukri · ${num(s.boards)} on job boards · ${num(s.company)} on company sites · ${num(s.startups || 0)} at startups`;
+const sentOn = (r) => r.naukri + r.boards + (r.startups || 0);
+const sentText = (s) => `${num(s.naukri)} on Naukri · ${num(s.boards)} on job boards · ${num(s.startups || 0)} at startups` + (s.company ? ` · ${num(s.company)} of these finished on company sites` : "");
 const KINDS = [
   ["sent", "Sent"],
   ["waiting", "Needs you"],
