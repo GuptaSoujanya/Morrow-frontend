@@ -130,6 +130,103 @@ def test_status_is_read_only_and_does_not_start_browser(manager):
     assert list(service.root.iterdir()) == []
 
 
+def test_external_main_reservation_blocks_connections_and_runner_without_creating_session(manager):
+    service, opened = manager
+    base = service._owner_base("google", "main")
+    release = service.reserve_external_browser(base)
+    try:
+        assert service.sessions == {} and opened == []
+        assert not base.exists()
+        main = row(service.list(USER, True))
+        assert main["busy_reason"] == "studio" and not main["can_open"] and not main["can_check"]
+        for action in ("open", "check", "close", "switch", "disconnect"):
+            with pytest.raises(service_module.ConnectionError, match="Studio") as error:
+                service.action(USER, True, "google", action)
+            assert error.value.status == 409
+        command = Command("Synthetic", ("synthetic",))
+        assert "Studio" in service.blocks_command(command, "naukri")
+        assert service.blocks_command(command, "linkedin") == ""
+        with pytest.raises(service_module.ConnectionError, match="Another Studio"):
+            service.reserve_external_browser(base)
+    finally:
+        release()
+    release()  # Completion/failure cleanup can both call it safely.
+    assert service.external_reservations == {}
+    assert row(service.list(USER, True))["can_open"]
+    assert service.blocks_command(Command("Synthetic", ("synthetic",)), "naukri") == ""
+
+
+@pytest.mark.parametrize("resources", [["browser:main"], ["workspace"]])
+def test_external_reservation_rejects_active_morrow_workflows(manager, resources):
+    service, _ = manager
+    service.runner.runs = {"active": SimpleNamespace(result=None, resources=resources)}
+    with pytest.raises(service_module.ConnectionError, match="workflow") as error:
+        service.reserve_external_browser(service._owner_base("google", "main"))
+    assert error.value.status == 409 and service.external_reservations == {}
+
+
+def test_external_reservation_rejects_wrong_profile_resource_and_pending_connection(manager):
+    service, _ = manager
+    base = service._owner_base("google", "main")
+    for path, resource in ((base.parent / "instagram", "browser:main"), (base, "browser:linkedin")):
+        with pytest.raises(service_module.ConnectionError, match="Main browser"):
+            service.reserve_external_browser(path, resource)
+    service.action(USER, True, "google", "open")
+    wait(service)
+    session = service.sessions[base]
+    with service.lock:
+        session.pending = True
+    try:
+        with pytest.raises(service_module.ConnectionError, match="finishing"):
+            service.reserve_external_browser(base)
+    finally:
+        with service.lock:
+            session.pending = False
+
+
+def test_external_reservation_keeps_existing_browser_alive_and_resets_idle_timeout(manager):
+    service, opened = manager
+    service.action(USER, True, "google", "open")
+    wait(service)
+    base = service._owner_base("google", "main")
+    session = service.sessions[base]
+    release = service.reserve_external_browser(base)
+    try:
+        with service.lock:
+            session.touched = time.monotonic() - 1000
+        time.sleep(1.15)  # The actual worker evaluates idle expiration every second.
+        assert not opened[0][1].closed and session.open
+        item = row(service.list(USER, True))
+        assert item["browser_open"] and not item["can_close"] and item["busy_reason"] == "studio"
+    finally:
+        release()
+    assert time.monotonic() - session.touched < 1
+    assert row(service.list(USER, True))["can_close"]
+
+
+def test_external_reservation_uses_runner_then_service_lock(manager):
+    service, _ = manager
+    order = []
+
+    class Lock:
+        def __init__(self, name):
+            self.name = name
+        def __enter__(self):
+            order.append("enter " + self.name)
+        def __exit__(self, *args):
+            order.append("exit " + self.name)
+
+    original_runner, original_service = service.runner.lock, service.lock
+    service.runner.runs = {}
+    service.runner.lock, service.lock = Lock("runner"), Lock("service")
+    try:
+        release = service.reserve_external_browser(service._owner_base("google", "main"))
+        release()
+    finally:
+        service.runner.lock, service.lock = original_runner, original_service
+    assert order == ["enter runner", "enter service", "exit service", "exit runner"] * 2
+
+
 def test_open_check_close_reuses_exact_profile_on_one_worker_thread(manager):
     service, opened = manager
     service.action(USER, True, "google", "open", {"expected_account": "test@example.com"})

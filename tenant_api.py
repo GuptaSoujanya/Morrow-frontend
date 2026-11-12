@@ -28,7 +28,10 @@ FILE_NAMES = {
     "company_sites": "company_sites.md",
 }
 MAX_RECORDS = 20000
-MIN_SCORE = 70
+#: The bots' score gate, kept in step with common.models.Settings.min_score by hand: this module
+#: imports nothing from the bot packages on purpose. While it read 70 and the bots applied at 65,
+#: every score in between was shown here as a job the bots should not have sent.
+MIN_SCORE = 65
 
 
 class TenantError(ValueError):

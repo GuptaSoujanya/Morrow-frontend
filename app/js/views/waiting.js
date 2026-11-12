@@ -11,7 +11,7 @@ import { num } from '../format.js';
  *  The Launchpad shows the counts; this module renders the cards, the kind filter options and the open-question panel. */
 
 /** Kinds a person has to do by hand on the employer's site (as opposed to a screener answer or a verification). */
-export const HANDS_ON = new Set(['form', 'access', 'video', 'eligibility', 'decision']);
+export const HANDS_ON = new Set(['form', 'access', 'video', 'eligibility', 'decision', 'assessment', 'reply']);
 
 /** Count of the items whose kind is in `keys`, from the tallies /api/waiting returns. */
 export function tallyKinds(data, keys) { return (data?.kinds || []).filter(k => keys.has(k.key)).reduce((n, k) => n + k.count, 0); }

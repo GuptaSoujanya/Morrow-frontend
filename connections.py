@@ -89,7 +89,8 @@ class Session:
                 item = self.queue.get(timeout=1)
             except queue.Empty:
                 with self.service.lock:
-                    expired = self.open and not self.pending and time.monotonic() - self.touched > 900
+                    expired = (self.open and not self.pending and not self.service._external_busy(self.base)
+                               and time.monotonic() - self.touched > 900)
                     if expired:
                         self.pending = True
                 if expired:
@@ -273,6 +274,7 @@ class ConnectionService:
         self.runner = runner
         self.lock = threading.RLock()
         self.sessions = {}
+        self.external_reservations = {}
         self.records = {}
         self.driver_factory = driver_factory or browser.create_driver
         self.verifier = verifier or browser.verify
@@ -373,6 +375,45 @@ class ConnectionService:
         runs = self.runner.snapshot(after=0).get("runs", [])
         return any(row.get("running") and (resource in row.get("resources", []) or "workspace" in row.get("resources", [])) for row in runs)
 
+    def _external_busy(self, base):
+        """Call under service.lock; aliases of the configured profile share one lease."""
+        return Path(base).resolve() in self.external_reservations
+
+    def reserve_external_browser(self, base, resource="browser:main"):
+        """Reserve Main Chrome for a Studio task; return an idempotent release().
+
+        A reservation does not create a connection Session or transfer its
+        WebDriver between threads. It prevents concurrent connection actions,
+        runner starts and the existing session's idle expiry while an external
+        browser agent attaches through that same profile's verified CDP endpoint.
+        """
+        base = Path(base).resolve()
+        if resource != "browser:main" or base != self._owner_base("google", "main").resolve():
+            raise ConnectionError(409, "Studio must use the Main browser configured in Morrow Connections.")
+        runner_lock = self.runner.lock if self.runner else contextlib.nullcontext()
+        token = object()
+        with runner_lock, self.lock:
+            if self.closed:
+                raise ConnectionError(503, "The connection service is shutting down.")
+            if self._run_busy(resource, True):
+                raise ConnectionError(409, "A Morrow workflow is using the Main browser. Wait for it to finish before using Studio.")
+            if self._external_busy(base):
+                raise ConnectionError(409, "Another Studio task is using the Main browser. Wait for it to finish.")
+            matching = [session for path, session in self.sessions.items() if path.resolve() == base]
+            if any(session.pending for session in matching):
+                raise ConnectionError(409, "Morrow Connections is finishing a browser action. Wait a moment, then try Studio again.")
+            self.external_reservations[base] = {"token": token, "resource": resource}
+
+        def release():
+            with runner_lock, self.lock:
+                current = self.external_reservations.get(base)
+                if current and current["token"] is token:
+                    del self.external_reservations[base]
+                    for path, session in self.sessions.items():
+                        if path.resolve() == base:
+                            session.touched = time.monotonic()
+        return release
+
     def list(self, user, owner=False, scope="main"):
         self._tenant(user, owner)
         self._scope(scope)
@@ -389,9 +430,10 @@ class ConnectionService:
                     opened = bool(session and session.open)
                     pending = bool(session and session.pending)
                     run_busy = self._run_busy(self._resource(key, scope), owner)
+                    external_busy = self._external_busy(base)
                     profile_busy = not opened and browser.profile_locked(base)
-                    busy = run_busy or profile_busy
-                    busy_reason = "workflow" if run_busy else "browser_profile" if profile_busy else ""
+                    busy = run_busy or external_busy or profile_busy
+                    busy_reason = "workflow" if run_busy else "studio" if external_busy else "browser_profile" if profile_busy else ""
                     state = saved.get("state", "not_connected")
                     if state in TRANSITIONAL and not pending:
                         state = "needs_sign_in"
@@ -411,9 +453,11 @@ class ConnectionService:
                         "session_scope": "LinkedIn browser" if key == "linkedin" else "Main browser · Google, Naukri and boards" if scope == "main" else "Parallel lane · " + scope.split(":", 1)[1],
                         "can_open": not busy and not pending and bool(self.availability()),
                         "can_check": not busy and not pending and bool(self.availability()),
-                        "can_close": opened and not pending,
+                        "can_close": opened and not pending and not external_busy,
                         "fix": ("A workflow is using this browser. Wait for it to finish, or stop it from Activity."
                                 if run_busy else
+                                "Studio is using this shared browser. Wait for its task to finish."
+                                if external_busy else
                                 "This automation browser profile is in use or could not be confirmed idle. Close its other Chrome window, then select Check connection status."
                                 if profile_busy else
                                 "Finish sign-in, check it, then close the browser before running a workflow.")}
@@ -453,6 +497,8 @@ class ConnectionService:
             with self.lock:
                 if self.closed:
                     raise ConnectionError(503, "The connection service is shutting down.")
+                if self._external_busy(base):
+                    raise ConnectionError(409, "Studio is using this shared browser. Wait for its task to finish before changing the connection.")
                 session = self.sessions.get(base)
                 if session and session.pending:
                     raise ConnectionError(409, "This browser is finishing the previous action. Wait a moment.")
@@ -487,6 +533,8 @@ class ConnectionService:
         from web.runner import resources_for
         resources = resources_for(command, action)
         with self.lock:
+            if any(item["resource"] in resources or "workspace" in resources for item in self.external_reservations.values()):
+                return "Studio is using the Main browser. Wait for its task to finish before starting this workflow."
             if any(item.owner and (item.open or item.pending) and (item.resource in resources or "workspace" in resources)
                    for item in self.sessions.values()):
                 return "Close the automation sign-in browser in Connections before starting this workflow. Your saved login will be reused."

@@ -4,7 +4,7 @@ import { S, hooks } from "../state.js";
 import { panel, loadingState, errorState, dataTable } from "../components/panel.js";
 import { kpiCard } from "../components/kpi.js";
 import { segmented } from "../components/segmented.js";
-import { longDate, shortDate } from "../format.js";
+import { longDate, shortDate, num } from "../format.js";
 import { quickButton } from "../forms.js";
 import { dateControl } from "../components/controls.js";
 import { readQuery, withQuery, writeQuery } from "../url-state.js";
@@ -83,7 +83,7 @@ function chooseSection(value, argDay) {
   hooks.requestRender(false);
 }
 
-const num = value => h("td", { class: "num", text: String(value ?? 0) });
+const numCell = value => h("td", { class: "num", text: String(value ?? 0) });
 const cell = (text, cls) => h("td", { class: cls || null, text: text == null ? "" : String(text) });
 const leadsWaiting = leads => (leads.waiting || 0) + (leads.needs_you || 0);
 const stamp = text => String(text || "").slice(0, 16).replace("T", " ");
@@ -101,14 +101,19 @@ function leadState(state) {
 
 function overviewCards(data, leads, day, argDay) {
   const funnel = data.funnel || {};
+  // The Launchpad, the Applications page and this card must all say the same number, so the headline
+  // counts the live ledger; the pre-wipe backups the audit also reads are named on the line below it.
+  const live = data.funnel_live || funnel;
   const mail = data.mail || {};
   const critical = (data.causes || []).filter(c => c.severity === "critical").length;
-  const submitted = funnel.submitted_total || 0;
+  const submitted = live.submitted_total || 0;
+  const archived = (funnel.submitted_total || 0) - submitted;
   const today = leads?.today || {};
   const causes = `${critical} critical cause${critical === 1 ? "" : "s"}`;
   return h("div", { class: "kpi-grid diag-kpis" },
-    kpiCard({ label: "Applications submitted", value: String(submitted), sub: `${funnel.days_running ?? "?"} days, all ledgers` }),
-    kpiCard({ label: "Interviews expected at normal fit", value: `${Math.floor(submitted * 0.02)}–${Math.floor(submitted * 0.03)}`, sub: "2–3% cold-apply rate" }),
+    kpiCard({ label: "Applications submitted", value: num(submitted),
+      sub: `${live.days_running ?? "?"} days in this ledger${archived > 0 ? ` · ${num(archived)} more in pre-wipe backups` : ""}` }),
+    kpiCard({ label: "Interviews expected at normal fit", value: `${Math.floor(submitted * 0.02)}–${Math.floor(submitted * 0.03)}`, sub: `2–3% cold-apply rate on ${num(submitted)}` }),
     kpiCard({ label: "Positive mails found", value: String(mail.positive_total ?? 0), sub: mail.scanned ? `of ${mail.scanned} scanned` : "mailbox not read" }),
     kpiCard({ label: "Recruiter leads", value: String(leads ? leadsWaiting(leads) : 0),
       sub: leads ? `${today.new ?? 0} new ${dayWord(day)} · ${today.answered ?? 0} answered · ${causes}` : `leads not read · ${causes}`,
@@ -200,7 +205,7 @@ function leadsSection(shown, data, day) {
     panel("By platform", { sub: "Every lead in the journal, by where it came from." },
       dataTable(
         [["Platform"], ["Total", "num"], ["Waiting", "num"], ["Answered", "num"], ["Need you", "num"]],
-        platforms.map(([platform, p]) => h("tr", {}, h("th", { scope: "row", text: platform }), num(p.total), num(p.waiting), num(p.answered), num(p.needs_you))))),
+        platforms.map(([platform, p]) => h("tr", {}, h("th", { scope: "row", text: platform }), numCell(p.total), numCell(p.waiting), numCell(p.answered), numCell(p.needs_you))))),
     panel(`Leads (${rows.length})`, { sub: `Newest first.${items.length < leads.total ? ` The newest ${items.length} of ${leads.total} are listed.` : ""} The company links to the thread on the board or in Gmail.`, tools: filter },
       rows.length
         ? dataTable(
@@ -286,13 +291,13 @@ function mailSection(data) {
       dataTable(
         [["Latest"], ["Platform"], ["Kind"], ["From"], ["Subject"], ["Mails", "num"]],
         groupPositives(data.positives).map(p => h("tr", {},
-          cell(String(p.date || "").slice(0, 16)), cell(p.platform), cell(p.kind), cell((p.from || "").slice(0, 40)), cell((p.subject || "").slice(0, 90)), num(p.count))))),
+          cell(String(p.date || "").slice(0, 16)), cell(p.platform), cell(p.kind), cell((p.from || "").slice(0, 40)), cell((p.subject || "").slice(0, 90)), numCell(p.count))))),
     mail.queries && mail.queries.length
       ? panel(`Targeted searches (${mail.queries.length})`, { sub: "Filters run inside Gmail on top of the folder sweep. New = mails the sweep had not listed." },
         dataTable(
           [["Search"], ["Purpose"], ["Made by"], ["Rows", "num"], ["New", "num"], ["Positive", "num"], ["Status"]],
           mail.queries.map(q => h("tr", {},
-            h("td", {}, h("code", { text: q.query })), cell(q.purpose), cell(q.source), num(q.rows), num(q.new_rows), num(q.positives), cell(q.status)))))
+            h("td", {}, h("code", { text: q.query })), cell(q.purpose), cell(q.source), numCell(q.rows), numCell(q.new_rows), numCell(q.positives), cell(q.status)))))
       : null);
 }
 
@@ -306,7 +311,7 @@ function boardsSection(boards) {
     const listed = facts.applications_listed ?? facts.applied_listed ?? facts.applications ?? facts.total_applies ?? Object.values(board.status_counts || {}).reduce((a, b) => a + b, 0);
     const statuses = Object.entries(board.status_counts || {}).map(([k, v]) => `${k} ${v}`).join(" · ");
     return h("tr", { class: board.state === "read" ? "" : "diag-muted-row" },
-      cell(site), cell(board.state), num(listed || 0), cell(statuses || "—"), num((board.messages || []).length),
+      cell(site), cell(board.state), numCell(listed || 0), cell(statuses || "—"), numCell((board.messages || []).length),
       cell(board.state === "read" ? "" : (board.message || "").slice(0, 90)));
   });
   const details = entries.filter(([, b]) => b.state === "read" && (Object.keys(b.facts || {}).length || (b.messages || []).length)).map(([site, board]) =>
@@ -379,7 +384,7 @@ function fixesSection(data, day, today) {
         : h("p", { class: "muted", text: answers.error || "No location answer said Others/Remote/Any." })),
     panel("Code, through a coding CLI", { sub: codeLine },
       (code.attempts || []).length
-        ? dataTable([["CLI"], ["Result"], ["Seconds"]], code.attempts.map(a => h("tr", { class: a.error ? "diag-step-failed" : "" }, cell(a.cli), cell(a.error || "answered"), num(Math.round(a.seconds || 0)))))
+        ? dataTable([["CLI"], ["Result"], ["Seconds"]], code.attempts.map(a => h("tr", { class: a.error ? "diag-step-failed" : "" }, cell(a.cli), cell(a.error || "answered"), numCell(Math.round(a.seconds || 0)))))
         : null,
       (code.tasks || []).length ? h("ol", { class: "diag-list" }, code.tasks.map(t => h("li", {}, t.task, t.cause ? h("span", { class: "muted small", text: ` (${t.cause})` }) : null))) : null,
       (code.files || []).length ? h("p", { class: "small" }, h("strong", { text: code.kept ? "Changed, not committed: " : "Reverted: " }), code.files.join(", ")) : null,
