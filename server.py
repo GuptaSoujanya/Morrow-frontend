@@ -39,22 +39,22 @@ from connections import ConnectionService, ConnectionError
 import runner_setup
 import user_repo
 
-ADMIN_API = ROOT.parent / 'admin' / 'api' / 'admin_api.py'
-_admin_module = None
+STUDIO_API = ROOT.parent / 'studio' / 'api' / 'studio_api.py'
+_studio_module = None
 
 
-def admin_hook(handler):
-    """Private /admin area, present only on machines that have the admin folder next to this checkout."""
-    global _admin_module
-    if not ADMIN_API.is_file():
+def studio_hook(handler):
+    """Private /studio area, present only on machines that have the studio folder next to this checkout."""
+    global _studio_module
+    if not STUDIO_API.is_file():
         return False
-    if _admin_module is None:
+    if _studio_module is None:
         import importlib.util
-        spec = importlib.util.spec_from_file_location('morrow_admin_api', ADMIN_API)
+        spec = importlib.util.spec_from_file_location('morrow_studio_api', STUDIO_API)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        _admin_module = module
-    return _admin_module.handle(handler)
+        _studio_module = module
+    return _studio_module.handle(handler)
 
 
 BOARDS = ("hirist", "instahyre", "cutshort", "wellfound")
@@ -527,7 +527,7 @@ class DashboardHandler(server.Handler):
 
     def do_GET(self):
         url = urlsplit(self.path)
-        if (url.path == '/admin' or url.path.startswith('/admin/')) and admin_hook(self):
+        if (url.path == '/studio' or url.path.startswith('/studio/')) and studio_hook(self):
             return
         if self.account_request():
             return
@@ -692,7 +692,7 @@ class DashboardHandler(server.Handler):
 
     def do_POST(self):
         path = urlsplit(self.path).path
-        if path.startswith('/admin/') and admin_hook(self):
+        if path.startswith('/studio/') and studio_hook(self):
             return
         if self.account_request():
             return
